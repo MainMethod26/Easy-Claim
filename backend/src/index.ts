@@ -1,12 +1,22 @@
 import { Hono } from 'hono'
+import { swaggerUI } from '@hono/swagger-ui'
 import gatewayRoutes from './routes/gatewayRoutes'
 import policyRoutes from './routes/policyRoutes'
 import claimsRoutes from './routes/claimsRoutes'
 import ocrRoutes from './routes/ocrRoutes'
 import identityRoutes from './routes/identityRoutes'
 import auditRoutes from './routes/auditRoutes'
+import openapiData from './openapi.json'
 
 const app = new Hono()
+
+// Swagger UI Endpoint
+app.get('/swagger', swaggerUI({ url: '/openapi.json' }))
+
+// Serve OpenAPI JSON
+app.get('/openapi.json', (c) => {
+  return c.json(openapiData)
+})
 
 app.route('/api/v1/client', gatewayRoutes)
 app.route('/api/v1/covers', policyRoutes)
@@ -17,9 +27,5 @@ app.route('/api/v1/activities', auditRoutes)
 
 export default {
   fetch: app.fetch,
-  // Note: For queue process processing we might want to abstract this, but it's fine for now
-  async queue(batch: any, env: any): Promise<void> {
-    // Queue processing logic would go here if needed.
-    // e.g., await OCRService.processBatch(batch, env);
-  }
+  async queue(batch: any, env: any): Promise<void> {}
 }

@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "resolveJsonModule": true,
     "target": "es2021",
     "module": "esnext",
     "moduleResolution": "bundler",

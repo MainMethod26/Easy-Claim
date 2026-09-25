@@ -11,7 +11,9 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "hono": "^4.13.9"
+    "@hono/swagger-ui": "^0.6.1",
+    "hono": "^4.13.9",
+    "postman-to-openapi": "^1.7.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260925.2",
