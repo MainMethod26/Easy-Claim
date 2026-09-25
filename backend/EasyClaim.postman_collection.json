@@ -1,50 +1,580 @@
 {
-	"info": {
-		"_postman_id": "b3e34b5c-43f5-46b5-827c-473d092d603a",
-		"name": "EasyClaim Microservices API (SA Edition)",
-		"description": "Postman collection testing the full 6-stage EasyClaim wizard and Home UI components.",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-	},
-	"item": [
-		{
-			"name": "1. Gateway & BFF Service",
-			"item": [
-				{ "name": "Get Home Data", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/v1/client/home", "host": ["{{baseUrl}}"], "path": ["api", "v1", "client", "home"] } } },
-				{ "name": "Get Most Visited", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/v1/client/services/most-visited", "host": ["{{baseUrl}}"], "path": ["api", "v1", "client", "services", "most-visited"] } } },
-				{ "name": "Get Notifications", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/v1/client/notifications", "host": ["{{baseUrl}}"], "path": ["api", "v1", "client", "notifications"] } } },
-				{ "name": "Get Recent Activity", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/v1/client/activity/recent", "host": ["{{baseUrl}}"], "path": ["api", "v1", "client", "activity", "recent"] } } }
-			]
-		},
-		{
-			"name": "2. Policy Service",
-			"item": [
-				{ "name": "Get My Covers", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/v1/covers/my-covers", "host": ["{{baseUrl}}"], "path": ["api", "v1", "covers", "my-covers"] } } },
-				{ "name": "Market Catalog", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/v1/covers/market-catalog", "host": ["{{baseUrl}}"], "path": ["api", "v1", "covers", "market-catalog"] } } },
-				{ "name": "Join Request", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"planId\": \"cat_02\",\n  \"provider\": \"Sanlam\",\n  \"userId\": \"user123\"\n}" }, "url": { "raw": "{{baseUrl}}/api/v1/covers/join-request", "host": ["{{baseUrl}}"], "path": ["api", "v1", "covers", "join-request"] } } }
-			]
-		},
-		{
-			"name": "3. Claims Wizard (6-Stage Flow)",
-			"item": [
-				{ "name": "Step 1: Initiate (Category)", "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/v1/claims/initiate", "host": ["{{baseUrl}}"], "path": ["api", "v1", "claims", "initiate"] } } },
-				{ "name": "Step 2: Verification Check", "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/v1/claims/verify-eligibility", "host": ["{{baseUrl}}"], "path": ["api", "v1", "claims", "verify-eligibility"] } } },
-				{ "name": "Step 3: Screening Context", "request": { "method": "PATCH", "url": { "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/screening", "host": ["{{baseUrl}}"], "path": ["api", "v1", "claims", "claim_disc_101", "screening"] } } },
-				{ "name": "Step 4: Evidence Upload (OCR)", "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/evidence-ocr", "host": ["{{baseUrl}}"], "path": ["api", "v1", "claims", "claim_disc_101", "evidence-ocr"] } } },
-				{ "name": "Step 5: Submit for Review", "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/submit", "host": ["{{baseUrl}}"], "path": ["api", "v1", "claims", "claim_disc_101", "submit"] } } },
-				{ "name": "Step 6: Status Timeline", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/timeline", "host": ["{{baseUrl}}"], "path": ["api", "v1", "claims", "claim_disc_101", "timeline"] } } }
-			]
-		},
-		{
-			"name": "4. Identity & Audit Services",
-			"item": [
-				{ "name": "Get Profile", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/v1/profile", "host": ["{{baseUrl}}"], "path": ["api", "v1", "profile"] } } },
-				{ "name": "Get Consents", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/v1/profile/consent", "host": ["{{baseUrl}}"], "path": ["api", "v1", "profile", "consent"] } } },
-				{ "name": "Cancel Mandate", "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/v1/profile/mandates/cancel", "host": ["{{baseUrl}}"], "path": ["api", "v1", "profile", "mandates", "cancel"] } } },
-				{ "name": "Audit History", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/v1/activities/history", "host": ["{{baseUrl}}"], "path": ["api", "v1", "activities", "history"] } } }
-			]
-		}
-	],
-	"variable": [
-		{ "key": "baseUrl", "value": "https://easy-claim-backend.pasekamabitsela22.workers.dev", "type": "string" }
-	]
+  "info": {
+    "_postman_id": "b3e34b5c-43f5-46b5-827c-473d092d603a",
+    "name": "EasyClaim Microservices API (SA Edition)",
+    "description": "Postman collection testing the full 6-stage EasyClaim wizard and Home UI components.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Gateway & BFF Service",
+      "item": [
+        {
+          "name": "Get Home Data",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/client/home",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "client",
+                "home"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Get Most Visited",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/client/services/most-visited",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "client",
+                "services",
+                "most-visited"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Get Notifications",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/client/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "client",
+                "notifications"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Get Recent Activity",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/client/activity/recent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "client",
+                "activity",
+                "recent"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Policy Service",
+      "item": [
+        {
+          "name": "Get My Covers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/covers/my-covers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "covers",
+                "my-covers"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Market Catalog",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/covers/market-catalog",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "covers",
+                "market-catalog"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Join Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": \"cat_02\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/covers/join-request",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "covers",
+                "join-request"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Claims Wizard (6-Stage Flow)",
+      "item": [
+        {
+          "name": "Step 1: Initiate (Category)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/initiate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "initiate"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"policyId\": \"pol_disc_001\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Step 2: Verification Check",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/verify-eligibility",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "verify-eligibility"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"policyId\": \"pol_disc_001\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Step 3: Screening Context",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/screening",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_disc_101",
+                "screening"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"causeOfLoss\": \"Hospital admission after a fall\",\n  \"incidentDate\": \"2026-01-10\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Step 4: Evidence Upload (OCR)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/evidence-ocr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_disc_101",
+                "evidence-ocr"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Step 5: Submit for Review",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_disc_101",
+                "submit"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Step 6: Status Timeline",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/timeline",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_disc_101",
+                "timeline"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Identity & Audit Services",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profile"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Get Consents",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profile/consent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profile",
+                "consent"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Cancel Mandate",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profile/mandates/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profile",
+                "mandates",
+                "cancel"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Audit History",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/activities/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities",
+                "history"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "{{actorRole}}"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://easy-claim-backend.pasekamabitsela22.workers.dev",
+      "type": "string"
+    },
+    {
+      "key": "actorId",
+      "value": "user123"
+    },
+    {
+      "key": "actorRole",
+      "value": "CUSTOMER"
+    },
+    {
+      "key": "claimId",
+      "value": "claim_disc_101"
+    }
+  ]
 }

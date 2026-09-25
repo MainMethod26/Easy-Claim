@@ -16,3 +16,17 @@ binding = "CLAIM_EVENTS"
 queue = "claim-events"
 max_batch_size = 10
 max_batch_timeout = 5
+
+# Approximate per-client throttling for /api/* (see src/index.ts).
+# period must be 10 or 60 seconds.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 100
+  period = 60
+
+[vars]
+# No cross-origin browser access unless explicitly listed (comma-separated).
+ALLOWED_ORIGINS = ""

@@ -1,0 +1,9 @@
+# Copy to .dev.vars for LOCAL development only. .dev.vars is gitignored.
+#
+# WARNING: ALLOW_DEV_ACTOR_HEADERS makes the API trust the spoofable
+# X-Dev-Actor-Id / X-Dev-Actor-Role headers. It is NOT authentication.
+# Never set it in wrangler.toml, `wrangler secret`, or any deployed environment.
+ALLOW_DEV_ACTOR_HEADERS=true
+
+# Comma-separated browser origins allowed by CORS (e.g. a local frontend).
+ALLOWED_ORIGINS=http://localhost:5173
