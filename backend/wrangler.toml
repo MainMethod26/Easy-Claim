@@ -1,0 +1,18 @@
+name = "easy-claim-backend"
+main = "src/index.ts"
+compatibility_date = "2024-03-20"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "easy-claim-db"
+database_id = "382413d9-a35f-47e7-8687-4f883f89ead0" # Local dev mock ID, replace on deploy
+
+[[queues.producers]]
+queue = "claim-events"
+binding = "CLAIM_EVENTS"
+
+[[queues.consumers]]
+queue = "claim-events"
+max_batch_size = 10
+max_batch_timeout = 5
