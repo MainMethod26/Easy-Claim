@@ -151,6 +151,34 @@
                             ]
                         }
                     }
+                },
+                {
+                    "name": "Submit Insurance Requirements",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"governmentId\": \"passport_12345.pdf\",\n  \"proofOfAddress\": \"utility_bill_oct.pdf\",\n  \"taxIdentification\": \"tax_987654321\",\n  \"assetDetails\": \"VIN_XYZ123456789\",\n  \"proofOfOwnership\": \"vehicle_registration.pdf\",\n  \"riskDisclosure\": {\n    \"medicalHistory\": \"None\",\n    \"propertySecurity\": \"Alarm system\"\n  },\n  \"truthfulDisclosureDeclaration\": true,\n  \"claimsHistory\": \"no_claims_last_3_years.pdf\",\n  \"paymentDetails\": {\n    \"method\": \"EFT\",\n    \"bank\": \"Standard Bank\"\n  },\n  \"financialInterestNotifications\": \"None\",\n  \"digitalSignature\": true\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/covers/requirements",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "covers",
+                                "requirements"
+                            ]
+                        }
+                    }
                 }
             ]
         },
