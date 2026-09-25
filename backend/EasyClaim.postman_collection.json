@@ -242,6 +242,24 @@
             "name": "3. Claims Standard 6-Stage Flow",
             "item": [
                 {
+                    "name": "System: Check Claims Service Status",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/claims/status",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "claims",
+                                "status"
+                            ]
+                        }
+                    }
+                },
+                {
                     "name": "Intake: Initiate",
                     "event": [
                         {
@@ -401,6 +419,25 @@
                                 "claims",
                                 "{{claimId}}",
                                 "review"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Stage 5: Get Decision",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/decision",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "claims",
+                                "{{claimId}}",
+                                "decision"
                             ]
                         }
                     }
@@ -686,6 +723,39 @@
                                 "v1",
                                 "activities",
                                 "audit-trail"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "5. OCR Service",
+            "item": [
+                {
+                    "name": "Process Document OCR",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"documentUrl\": \"https://example.com/invoice.pdf\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/ocr/process",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "ocr",
+                                "process"
                             ]
                         }
                     }
