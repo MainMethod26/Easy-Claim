@@ -173,7 +173,21 @@
                                 "initiate"
                             ]
                         }
-                    }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var jsonData = pm.response.json();",
+                                    "if (jsonData.claimId) {",
+                                    "    pm.collectionVariables.set(\"claimId\", jsonData.claimId);",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ]
                 },
                 {
                     "name": "Step 2: Verification Check",
@@ -198,7 +212,7 @@
                     "request": {
                         "method": "PATCH",
                         "url": {
-                            "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/screening",
+                            "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/screening",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -206,7 +220,7 @@
                                 "api",
                                 "v1",
                                 "claims",
-                                "claim_disc_101",
+                                "{{claimId}}",
                                 "screening"
                             ]
                         }
@@ -217,7 +231,7 @@
                     "request": {
                         "method": "POST",
                         "url": {
-                            "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/evidence-ocr",
+                            "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/evidence-ocr",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -225,7 +239,7 @@
                                 "api",
                                 "v1",
                                 "claims",
-                                "claim_disc_101",
+                                "{{claimId}}",
                                 "evidence-ocr"
                             ]
                         }
@@ -236,7 +250,7 @@
                     "request": {
                         "method": "POST",
                         "url": {
-                            "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/submit",
+                            "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/submit",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -244,7 +258,7 @@
                                 "api",
                                 "v1",
                                 "claims",
-                                "claim_disc_101",
+                                "{{claimId}}",
                                 "submit"
                             ]
                         }
@@ -255,7 +269,7 @@
                     "request": {
                         "method": "GET",
                         "url": {
-                            "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/timeline",
+                            "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/timeline",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -263,7 +277,7 @@
                                 "api",
                                 "v1",
                                 "claims",
-                                "claim_disc_101",
+                                "{{claimId}}",
                                 "timeline"
                             ]
                         }
@@ -418,6 +432,11 @@
         {
             "key": "baseUrl",
             "value": "https://easy-claim-backend.pasekamabitsela22.workers.dev",
+            "type": "string"
+        },
+        {
+            "key": "claimId",
+            "value": "",
             "type": "string"
         }
     ]
