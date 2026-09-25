@@ -155,10 +155,24 @@
             ]
         },
         {
-            "name": "3. Claims Wizard (6-Stage Flow)",
+            "name": "3. Claims Standard 6-Stage Flow",
             "item": [
                 {
-                    "name": "Step 1: Initiate (Category)",
+                    "name": "Intake: Initiate",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var jsonData = pm.response.json();",
+                                    "if (jsonData.claimId) {",
+                                    "    pm.collectionVariables.set(\"claimId\", jsonData.claimId);",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
                     "request": {
                         "method": "POST",
                         "url": {
@@ -173,61 +187,10 @@
                                 "initiate"
                             ]
                         }
-                    },
-                    "event": [
-                        {
-                            "listen": "test",
-                            "script": {
-                                "exec": [
-                                    "var jsonData = pm.response.json();",
-                                    "if (jsonData.claimId) {",
-                                    "    pm.collectionVariables.set(\"claimId\", jsonData.claimId);",
-                                    "}"
-                                ],
-                                "type": "text/javascript"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "name": "Step 2: Verification Check",
-                    "request": {
-                        "method": "POST",
-                        "url": {
-                            "raw": "{{baseUrl}}/api/v1/claims/verify-eligibility",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "claims",
-                                "verify-eligibility"
-                            ]
-                        }
                     }
                 },
                 {
-                    "name": "Step 3: Screening Context",
-                    "request": {
-                        "method": "PATCH",
-                        "url": {
-                            "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/screening",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "api",
-                                "v1",
-                                "claims",
-                                "{{claimId}}",
-                                "screening"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Step 4: Evidence Upload (OCR)",
+                    "name": "Intake: Evidence Upload (OCR)",
                     "request": {
                         "method": "POST",
                         "url": {
@@ -246,7 +209,7 @@
                     }
                 },
                 {
-                    "name": "Step 5: Submit for Review",
+                    "name": "Stage 1: Submitted",
                     "request": {
                         "method": "POST",
                         "url": {
@@ -265,7 +228,179 @@
                     }
                 },
                 {
-                    "name": "Step 6: Status Timeline",
+                    "name": "Stage 2: Verified",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/verify",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "claims",
+                                "{{claimId}}",
+                                "verify"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Stage 3: Screening",
+                    "request": {
+                        "method": "PATCH",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/screening",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "claims",
+                                "{{claimId}}",
+                                "screening"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Side State: Info Needed",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/info-needed",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "claims",
+                                "{{claimId}}",
+                                "info-needed"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Stage 4: Review",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/review",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "claims",
+                                "{{claimId}}",
+                                "review"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Stage 5: Decision",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\"decision\": \"approved\"}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/decision",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "claims",
+                                "{{claimId}}",
+                                "decision"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Side State: Rejected",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\"reason\": \"Wear and tear\"}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/reject",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "claims",
+                                "{{claimId}}",
+                                "reject"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Side State: Appeal",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/appeal",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "claims",
+                                "{{claimId}}",
+                                "appeal"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Stage 6: Paid",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/pay",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "claims",
+                                "{{claimId}}",
+                                "pay"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Status Timeline",
                     "request": {
                         "method": "GET",
                         "url": {
