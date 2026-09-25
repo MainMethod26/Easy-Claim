@@ -1,30 +1,40 @@
-import { Hono } from 'hono'
-import { PolicyModel } from '../models/policyModel'
-const router = new Hono<{ Bindings: { DB: D1Database } }>()
+import re
 
-router.get('/my-covers', async (c) => {
-  // Hardcoding 'user123' for now to match the seeded DB data
-  const policies = await PolicyModel.getMyCovers(c.env.DB, 'user123')
-  return c.json({ policies })
-})
+with open('backend/src/endpoints/policy.ts', 'r') as f:
+    content = f.read()
 
-router.get('/market-catalog', (c) => c.json({ 
-  catalog: [
-    { id: 'cat_01', provider: 'Discovery Health', name: 'Smart Plan', premium: 'R 2,450 / month' },
-    { id: 'cat_02', provider: 'Sanlam', name: 'Comprehensive Life Cover', premium: 'R 850 / month' },
-    { id: 'cat_03', provider: 'OUTsurance', name: 'Home & Contents Cover', premium: 'R 1,100 / month' },
-    { id: 'cat_04', provider: 'Momentum', name: 'Ingwe Network Health', premium: 'R 540 / month' },
-    { id: 'cat_05', provider: 'Old Mutual', name: 'Protect Family Funeral Plan', premium: 'R 150 / month' }
-  ]
-}))
+new_content = content.replace(
+"""// POST Insurance Requirements (Standard Info per Insurance Type)
+router.post('/requirements', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  
+  // The standard way to save info per insurance type
+  const requirements = {
+    governmentId: body.governmentId || null,
+    proofOfAddress: body.proofOfAddress || null,
+    taxIdentification: body.taxIdentification || null,
+    assetDetails: body.assetDetails || null,
+    proofOfOwnership: body.proofOfOwnership || null,
+    riskDisclosure: body.riskDisclosure || null,
+    truthfulDisclosureDeclaration: body.truthfulDisclosureDeclaration || false,
+    claimsHistory: body.claimsHistory || null,
+    paymentDetails: body.paymentDetails || null,
+    financialInterestNotifications: body.financialInterestNotifications || null,
+    digitalSignature: body.digitalSignature || false,
+  }
 
-router.post('/join-request', async (c) => {
-  const body = await c.req.json()
-  return c.json({ status: 'Requested', message: 'Join request forwarded to provider.', body })
-})
-
-
-// POST Insurance Requirements (Category Specific)
+  return c.json({ 
+    status: 'success', 
+    message: 'Insurance requirements saved successfully.', 
+    data: requirements,
+    artifacts: {
+      policySchedule: 'generated',
+      certificateOfInsurance: 'generated',
+      policyContract: 'generated'
+    }
+  })
+})""",
+"""// POST Insurance Requirements (Category Specific)
 router.post('/requirements', async (c) => {
   const body = await c.req.json().catch(() => ({}))
   const insuranceType = body.insurance_type;
@@ -75,7 +85,8 @@ router.post('/requirements', async (c) => {
       policyContract: 'generated'
     }
   })
-})
+})"""
+)
 
-export default router
-
+with open('backend/src/endpoints/policy.ts', 'w') as f:
+    f.write(new_content)

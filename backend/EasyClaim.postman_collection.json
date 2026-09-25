@@ -153,7 +153,7 @@
                     }
                 },
                 {
-                    "name": "Submit Insurance Requirements",
+                    "name": "Submit Mobile Device Insurance",
                     "request": {
                         "method": "POST",
                         "header": [
@@ -164,7 +164,63 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"governmentId\": \"passport_12345.pdf\",\n  \"proofOfAddress\": \"utility_bill_oct.pdf\",\n  \"taxIdentification\": \"tax_987654321\",\n  \"assetDetails\": \"VIN_XYZ123456789\",\n  \"proofOfOwnership\": \"vehicle_registration.pdf\",\n  \"riskDisclosure\": {\n    \"medicalHistory\": \"None\",\n    \"propertySecurity\": \"Alarm system\"\n  },\n  \"truthfulDisclosureDeclaration\": true,\n  \"claimsHistory\": \"no_claims_last_3_years.pdf\",\n  \"paymentDetails\": {\n    \"method\": \"EFT\",\n    \"bank\": \"Standard Bank\"\n  },\n  \"financialInterestNotifications\": \"None\",\n  \"digitalSignature\": true\n}"
+                            "raw": "{\n  \"insurance_type\": \"Mobile Device Insurance\",\n  \"jurisdiction\": \"South Africa\",\n  \"regulatory_framework\": [\n    \"FICA\",\n    \"POPIA\"\n  ],\n  \"customer_identity_kyc\": {\n    \"full_name\": \"Sipho Nkosi\",\n    \"sa_id_number_or_passport\": \"8505125021087\",\n    \"proof_of_residence\": \"utility_bill_oct.pdf\"\n  },\n  \"asset_specific_details\": {\n    \"device_brand_and_model\": \"iPhone 14 Pro\",\n    \"serial_number\": \"SN123456789\",\n    \"imei_number\": \"353000000000000\",\n    \"purchase_proof\": \"retail_invoice.pdf\"\n  },\n  \"risk_and_underwriting\": {\n    \"cover_type\": \"All-Risk (Loss, Theft, Accidental Damage)\",\n    \"specified_accessories\": [\n      \"AirPods Pro\"\n    ],\n    \"previous_claims_history\": \"False, no claims in past 3 years\"\n  },\n  \"financial_and_settlement\": {\n    \"bank_account_details\": \"Sipho Nkosi, Standard Bank, 051001, 123456789\",\n    \"debit_order_authorization\": \"EFT Mandate Confirmed\"\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/covers/requirements",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "covers",
+                                "requirements"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Submit Home Insurance",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"insurance_type\": \"Home Insurance (Building Structure & Contents)\",\n  \"jurisdiction\": \"South Africa\",\n  \"regulatory_framework\": [\n    \"FICA\",\n    \"POPIA\",\n    \"Short-Term Insurance Act\"\n  ],\n  \"customer_identity_kyc\": {\n    \"full_name\": \"Sipho Nkosi\",\n    \"sa_id_number_or_passport\": \"8505125021087\",\n    \"tax_identification_number\": \"9876543210\"\n  },\n  \"property_and_asset_details\": {\n    \"physical_address\": \"123 Nelson Mandela Drive, Sandton, 2196\",\n    \"property_type\": \"Freehold\",\n    \"structure_replacement_value_zar\": 2500000.0,\n    \"contents_total_value_zar\": 500000.0,\n    \"security_features\": [\n      \"Burglar bars\",\n      \"24-hour armed response alarm system\"\n    ]\n  },\n  \"risk_and_compliance\": {\n    \"bond_holder_details\": \"Standard Bank (Lienholder)\",\n    \"compliance_certificates\": [\n      \"Electrical Certificate of Compliance (COC)\"\n    ],\n    \"loss_history_3_years\": \"False, no loss records\"\n  },\n  \"financial_and_settlement\": {\n    \"premium_payment_method\": \"Debit order integration\",\n    \"excess_structure_agreement\": \"Voluntary excess R1000\"\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/covers/requirements",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "covers",
+                                "requirements"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Submit Motor Vehicle Insurance",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"insurance_type\": \"Motor Vehicle Insurance\",\n  \"jurisdiction\": \"South Africa\",\n  \"regulatory_framework\": [\n    \"FICA\",\n    \"POPIA\",\n    \"National Road Traffic Act\"\n  ],\n  \"customer_identity_kyc\": {\n    \"full_name\": \"Sipho Nkosi\",\n    \"sa_id_number_or_passport\": \"8505125021087\",\n    \"drivers_license_details\": {\n      \"license_code\": \"Code B\",\n      \"issue_date\": \"2015-05-12\",\n      \"country_of_issuance\": \"South Africa\"\n    }\n  },\n  \"asset_specific_details\": {\n    \"vehicle_make_model_and_year\": \"VW Polo 2022\",\n    \"vin_number\": \"WVWZZZ6RZM\",\n    \"engine_number\": \"CJZ123456\",\n    \"registration_license_plate\": \"CA 123 456\",\n    \"estimated_annual_mileage\": 15000,\n    \"primary_parking_location_night\": \"Locked garage\"\n  },\n  \"risk_and_underwriting\": {\n    \"insurable_interest\": \"Financed\",\n    \"finance_house\": \"WesBank, Acc 123456789\",\n    \"tracking_device_installed\": \"True, Tracker\",\n    \"regular_driver_relationship\": \"Policyholder\",\n    \"claims_history_3_5_years\": \"Letter of no claim attached\"\n  },\n  \"legal_and_consent\": {\n    \"signed_schedule_consent\": \"Digital agreement to policy terms\"\n  }\n}"
                         },
                         "url": {
                             "raw": "{{baseUrl}}/api/v1/covers/requirements",
