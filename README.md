@@ -98,6 +98,8 @@ npm run db:seed:local               # load South African demo data
 npm run dev                         # http://127.0.0.1:8787
 ```
 
+> Windows note: keep the clone in a short path (e.g. `C:\dev\Easy-Claim`). In a very long path, `wrangler d1 ... --local` fails with `internal error` / `d1 execute local query failed` (verified on Windows 11, wrangler 4.141).
+
 Run the checks:
 
 ```bash
