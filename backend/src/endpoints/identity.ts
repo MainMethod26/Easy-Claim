@@ -58,4 +58,30 @@ router.post('/mandates/cancel', async (c) => {
   })
 })
 
+// POST Login with SA ID
+router.post('/login', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  
+  if (body.idNumber === '8505125021087') {
+    return c.json({
+      status: 'success',
+      message: 'Login successful',
+      token: 'mock-jwt-token-123',
+      profile: {
+        id: 'user123',
+        firstName: 'Sipho',
+        lastName: 'Nkosi',
+        idNumber: '8505125021087',
+        email: 'sipho.nkosi@example.co.za',
+        phone: '+27 82 123 4567',
+        address: '123 Nelson Mandela Drive, Sandton, 2196',
+        riskProfile: 'Low',
+        kycStatus: 'Verified'
+      }
+    })
+  }
+
+  return c.json({ status: 'error', message: 'Invalid SA ID number' }, 401)
+})
+
 export default router

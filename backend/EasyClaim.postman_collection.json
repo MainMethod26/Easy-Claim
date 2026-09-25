@@ -289,6 +289,34 @@
             "name": "4. Identity & Audit Services",
             "item": [
                 {
+                    "name": "Login with SA ID",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"idNumber\": \"8505125021087\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/profile/login",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "profile",
+                                "login"
+                            ]
+                        }
+                    }
+                },
+                {
                     "name": "Get Profile",
                     "request": {
                         "method": "GET",
