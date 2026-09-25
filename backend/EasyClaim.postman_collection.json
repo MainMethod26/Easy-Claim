@@ -190,6 +190,24 @@
                     }
                 },
                 {
+                    "name": "Intake: Verify Eligibility",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/claims/verify-eligibility",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "claims",
+                                "verify-eligibility"
+                            ]
+                        }
+                    }
+                },
+                {
                     "name": "Intake: Evidence Upload (OCR)",
                     "request": {
                         "method": "POST",
