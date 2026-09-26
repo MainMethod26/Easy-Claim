@@ -1,12 +1,12 @@
 {
   "compilerOptions": {
-    "resolveJsonModule": true,
     "target": "es2021",
     "module": "esnext",
     "moduleResolution": "bundler",
     "strict": true,
-    "lib": ["esnext"],
     "skipLibCheck": true,
-    "types": ["@cloudflare/workers-types"]
-  }
+    "lib": ["esnext"],
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-plugin/types"]
+  },
+  "include": ["src", "test"]
 }

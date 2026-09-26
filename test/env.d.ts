@@ -1,0 +1,11 @@
+import type { D1Migration } from 'cloudflare:test'
+import type { Bindings } from '../src/types'
+
+declare global {
+  namespace Cloudflare {
+    interface Env extends Bindings {
+      TEST_MIGRATIONS: D1Migration[]
+      TEST_SEED_SQL: string
+    }
+  }
+}
