@@ -122,7 +122,41 @@ Integration test rule: every external boundary gets a test that feeds it hostile
 
 ---
 
-## 7. Roles and ownership
+## 7. Quantum screening and post-quantum cryptography
+
+Two different things, deliberately kept apart: quantum **computing** produces an advisory risk signal in
+SCREENING; post-quantum **cryptography** (ML-DSA) protects the integrity of the decision record. Neither
+may ever bypass authentication, tenant isolation, authorization, the state machine or human decision.
+
+### 7.1 Quantum screening signal — IMPLEMENTED (Phase 4, advisory, simulator only)
+
+| Aspect | State |
+|---|---|
+| What | One-class quantum-kernel anomaly score (PennyLane, 5 qubits, simulator) compared against a classical one-class SVM on a synthetic labelled dataset. Code: `quantum/` (Python experiment), `src/screening/` (Worker read side). |
+| Where it enters | Written to `screening_signals` (migration `0006`); attached to the response of `POST /claims/:id/screen` and readable via `GET /claims/:id/risk-signals` — both behind the full security pipeline and tenant boundary. |
+| What it can do | Inform an assessor. It has **no** transition authority: nothing in `src/screening/` calls `transitionClaim`, writes `claims`, or touches decisions/payouts (`test/screeningSignals.test.ts`). |
+| Measured result | Quantum did not beat the classical baseline (8/16 vs 9/16). Reported as measured; no "quantum advantage" claim (`docs/quantum/PHASE_04_REPORT.md`). |
+| Security rules | Signal is untrusted data: schema-validated on read, never shown to customers, never used to auto-approve/auto-reject; experiment reproducibility (features, preprocessing, dataset/split, simulator vs hardware) documented; any future hardware run needs a provider assessment (§5). |
+| Open | Real claim features and a labelled dataset (DECISION REQUIRED); routing of high-risk signals to mandatory human review (PLANNED, `BACKEND-SEC` roadmap). |
+
+### 7.2 Post-quantum cryptography: ML-DSA decision integrity — PLANNED (Phase 5, not built)
+
+| Aspect | Plan |
+|---|---|
+| Purpose | Make a recorded decision tamper-evident even against a party with database access (today only append-only triggers protect it, and a DB admin can drop them). Signatures are quantum-resistant so the evidence survives future adversaries. |
+| What is signed | A canonical **decision bundle**: `claim_id`, `decision_id`, `outcome`, `approved_amount_cents`, `claimed_amount_cents`, `destination_hash`, `evidence_digest`, `rules_version`, `risk_signal`, `actor_id`, `actor_role`, `decided_at`, `previous_stage` → deterministic JSON → SHA-256 → ML-DSA signature. |
+| Where it lands | `claim_decisions.integrity_signature` (column already reserved and empty) plus the key id / algorithm identifier; written in the same D1 batch as the decision. |
+| Verification | `GET /claims/:id/decision/verify` recomputes the bundle from the ledger and answers VALID / TAMPERED, behind the same authorization as `/decision`; `/pay` refuses to pay a decision whose signature does not verify. |
+| Algorithm | NIST FIPS 204 ML-DSA (candidate parameter set ML-DSA-65). Library, Workers compatibility and performance must be validated before integration; no claim is made until a verify test passes. |
+| Key management | DECISION REQUIRED: where the signing key lives (Cloudflare secret vs KMS/HSM), rotation, and who may sign (server-side only, never a client). Public key published for verification. |
+| SSDLC gates before "IMPLEMENTED" | threat model update (key theft, signature stripping, downgrade), tests for VALID / TAMPERED / stripped / wrong-key, live demo evidence, phase report — the same bar as Phases 0–4. |
+
+### 7.3 What must never change when these arrive
+
+Quantum output stays advisory; a signature proves a decision was not altered, it does not authorize one. Both
+sit **after** the six gates, and the state machine remains the only path to a stage change.
+
+## 8. Roles and ownership
 
 | Area | Owner |
 |---|---|
