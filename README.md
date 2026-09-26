@@ -45,12 +45,12 @@ Intended user experiences:
 | OCR/text extraction | NOT IMPLEMENTED (stub endpoint + queue consumer that logs) | `src/endpoints/ocr.ts` |
 | Screening | PARTIAL (customer narrative stored; insurer `/screen` and `/request-info` move the stage; no fraud/risk logic) | `PATCH /api/v1/claims/:claimId/screening`, `src/endpoints/claimsInsurer.ts` |
 | Review | PARTIAL (stage transition via `/review`; no review record) | `src/endpoints/claimsInsurer.ts` |
-| Decisions | IMPLEMENTED (Phase 3): MANAGER-only; insert-only decision record (actor, time, reason, previous stage, claimed/approved amounts, destination snapshot, rules version) written atomically with the stage change; approved amount ≤ claimed amount | `POST /api/v1/claims/:claimId/decide`, `GET /api/v1/claims/:claimId/decision`, `migrations/0005_decisions_payouts.sql` |
-| Payouts | PARTIAL (Phase 3): **simulated** payout — MANAGER-only, no request body, amount = recorded approved amount, destination must match the decision-time snapshot, one payout per claim, `Idempotency-Key` replay; no payment rail | `POST /api/v1/claims/:claimId/pay`, `PUT /api/v1/claims/:claimId/payout-details`, `GET /api/v1/claims/:claimId/payout` |
+| Decisions | IMPLEMENTED (Phase 3): MANAGER-only; insert-only decision record (actor, time, reason, previous stage, claimed/approved amounts, destination snapshot, rules version) written atomically with the stage change and **signed with ML-DSA-65 (NIST FIPS 204, Phase 5)**; verifiable via `GET /claims/:id/decision/verify`; approved amount ≤ claimed amount | `POST /api/v1/claims/:claimId/decide`, `GET /api/v1/claims/:claimId/decision`, `migrations/0005_decisions_payouts.sql` |
+| Payouts | PARTIAL (Phase 3): **simulated** payout — MANAGER-only, no request body, amount = recorded approved amount, destination must match the decision-time snapshot, one payout per claim, refused unless the decision signature verifies, `Idempotency-Key` replay; no payment rail | `POST /api/v1/claims/:claimId/pay`, `PUT /api/v1/claims/:claimId/payout-details`, `GET /api/v1/claims/:claimId/payout` |
 | Audit logging | IMPLEMENTED (append-only `audit_events` incl. acting tenant and server-generated request id; a stage change and its audit row are written in one D1 batch) | `src/security/audit.ts`, `migrations/0002_security.sql`, `migrations/0003_tenants.sql` |
 | Notifications | PARTIAL (hard-coded demo data) | `src/endpoints/gateway.ts` |
 | Database | IMPLEMENTED (Cloudflare D1 + 4 migrations; 0005 = Phase 3, 0004 reserved for Phase 2) | `wrangler.toml`, `migrations/` |
-| Tests | TESTED/PASSED (13 files, 206 passed + 1 todo after Phase 3; the todo is TENANT-004 evidence isolation, BLOCKED until an evidence endpoint exists) | `test/` |
+| Tests | TESTED/PASSED (17 Worker test files, 264 passed; 27 Python tests for the quantum pipeline) | `test/`, `quantum/tests/` |
 
 ## API
 

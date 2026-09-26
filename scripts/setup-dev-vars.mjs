@@ -16,6 +16,11 @@ if (existsSync(target)) {
 
 const example = readFileSync(path.join(backendDir, '.dev.vars.example'), 'utf8')
 const secret = randomBytes(32).toString('hex')
-writeFileSync(target, example.replace(/^JWT_SECRET=.*$/m, `JWT_SECRET=${secret}`))
-console.log('Created .dev.vars with a new JWT_SECRET (local only, gitignored).')
+writeFileSync(
+  target,
+  example
+    .replace(/^JWT_SECRET=.*$/m, `JWT_SECRET=${secret}`)
+    .replace(/^MLDSA_SEED=.*$/m, `MLDSA_SEED=${randomBytes(32).toString('hex')}`)
+)
+console.log('Created .dev.vars with a new JWT_SECRET and MLDSA_SEED (local only, gitignored).')
 console.log('Mint demo tokens with: npm run token -- --demo')

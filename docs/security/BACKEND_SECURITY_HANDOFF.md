@@ -122,3 +122,7 @@
 | 4 | `src/controllers/policyController.ts` | `saveRequirements` inserts against a client-supplied `policyId` with no ownership check | HIGH |
 
 Status: NOT EXPLOITABLE today (not mounted). Required before any of these routes are mounted: go through `requireActor`, `requireRole`, `loadAuthorizedClaim` and `transitionClaim` exactly like `src/endpoints/*`, or delete the layer. Owner: backend team. Rule recorded in `docs/PARALLEL_WORK.md` (`src/index.ts`: append mounts only, keep `requireActor` on `/api/v1/*`).
+
+### BACKEND-SEC-022 — Post-quantum decision signing (Phase 5)
+- **Status:** IMPLEMENTED (ML-DSA-65 over the decision bundle; verify route; `/pay` enforces; fail closed without `MLDSA_SEED`). See `docs/security/PQC_DECISION_INTEGRITY.md`.
+- **Still yours / DECISION REQUIRED:** key custody (KMS/HSM vs Cloudflare secret), key rotation with a registry of past public keys, `wrangler secret put MLDSA_SEED --env production`, re-deciding pre-Phase-5 decisions (they are `UNSIGNED` and cannot be paid).

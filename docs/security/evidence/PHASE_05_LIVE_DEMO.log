@@ -1,0 +1,25 @@
+# Phase 5 live demo evidence: ML-DSA-65 decision integrity
+# Captured 2026-09-26T11:09:04Z against wrangler dev 127.0.0.1:8789, branch phase-5-pqc (uncommitted). Tokens not printed.
+
+## Part 1: decision signed and verified
+[claim] claim_eee406fb-7b73-4921-ac33-d876a86ba203
+[payout details R4 200] {"status":"payout_details_saved","claimedAmountCents":420000,"destination":{"bankName":"Demo Bank","accountLast4":"7890"}} -> HTTP 200
+[screening] {"status":"screening_updated","message":"Cause of loss and context saved."} -> HTTP 200
+[submit] {"status":"submitted","message":"Claim successfully submitted for decision.","claimId":"claim_eee406fb-7b73-4921-ac33-d876a86ba203"} -> HTTP 200
+[verify] {"status":"transitioned","claimId":"claim_eee406fb-7b73-4921-ac33-d876a86ba203","from":"Submitted","to":"Verified"} -> HTTP 200
+[screen] {"status":"transitioned","claimId":"claim_eee406fb-7b73-4921-ac33-d876a86ba203","from":"Verified","to":"Screening","riskSignals":null} -> HTTP 200
+[review] {"status":"transitioned","claimId":"claim_eee406fb-7b73-4921-ac33-d876a86ba203","from":"Screening","to":"Review"} -> HTTP 200
+== Manager decides: the decision is signed with ML-DSA-65
+[decide Approved] {"status":"transitioned","claimId":"claim_eee406fb-7b73-4921-ac33-d876a86ba203","from":"Review","to":"Decision","outcome":"Approved","decisionId":"dec_67d21931-8cf6-47df-8dd7-f39125aea426","approvedAmountCents":420000,"evidenceCount":0,"evidenceDigest":null,"integrity":{"alg":"ML-DSA-65","keyId":"ml
+== Anyone authorised can verify it; the public key is published
+[verify] {"claimId":"claim_eee406fb-7b73-4921-ac33-d876a86ba203","decisionId":"dec_67d21931-8cf6-47df-8dd7-f39125aea426","integrity":{"status":"VALID","alg":"ML-DSA-65","keyId":"mldsa65-dff27374fc23e0e6","bundleDigest":"9758a7a848b80db4cc91e67201d71e5ca3af8a650c0b4baaeb33ead933a9fdc3","recomputedDigest":"975
+[public key (truncated)] {"alg":"ML-DSA-65","standard":"NIST FIPS 204","keyId":"mldsa65-dff27374fc23e0e6","bundleVersion":"easyclaim-decision-bundle-v1","context":"easyclaim/decision/v1","publicKey":"K0MV361L97i8Ov8qVULiFV7D6AzkzYFFcXcNuDnOm7TxheBCn0BU9rnSLi+W/qZT5mTLr3C9fFMNp0IZHDKApxiO6KFQXDpVRwC4N2FRiNs8P/rzGfBCg+aDrpBRx
+
+## Insider tamper (server stopped, direct D1 write)
+== Insider with raw DB access drops the append-only trigger and raises the approved amount to R420 000
+[db after tamper] "approved_amount_cents": 42000000
+
+## Part 2: after tampering
+== After tampering
+[verify] {"claimId":"claim_eee406fb-7b73-4921-ac33-d876a86ba203","decisionId":"dec_67d21931-8cf6-47df-8dd7-f39125aea426","integrity":{"status":"TAMPERED","alg":"ML-DSA-65","keyId":"mldsa65-dff27374fc23e0e6","bundleDigest":"9758a7a848b80db4cc91e67201d71e5ca3af8a650c0b4baaeb33ead933a9fdc3","recomputedDigest":"
+[pay] {"error":"decision_integrity_failed"} -> HTTP 409
