@@ -6,6 +6,7 @@ import '../widgets/picture_background.dart';
 import 'main_navigation_screen.dart';
 import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
+import 'insurer_dashboard_screen.dart';
 import 'dart:convert';
 
 class AuthScreen extends StatefulWidget {
@@ -63,12 +64,15 @@ class _AuthScreenState extends State<AuthScreen> {
       final data = jsonDecode(response.body);
       AuthService.currentUserId = data['profile']['id'];
       AuthService.currentUserName = '${data['profile']['first_name']} ${data['profile']['last_name']}';
-      AuthService.authHeaders['Authorization'] = 'Bearer ${data['token']}';
+      AuthService.token = data['token'];
+      AuthService.currentRole = data['profile']['role'];
+      AuthService.currentTenant = data['profile']['tenant_id'];
       
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
-      );
+      if (AuthService.currentRole == 'ASSESSOR' || AuthService.currentRole == 'MANAGER') {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const InsurerDashboardScreen()));
+      } else {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainNavigationScreen()));
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Login failed: ${response.body}')),
@@ -97,7 +101,9 @@ class _AuthScreenState extends State<AuthScreen> {
       final data = jsonDecode(response.body);
       AuthService.currentUserId = data['profile']['id'];
       AuthService.currentUserName = '${data['profile']['first_name']} ${data['profile']['last_name']}';
-      AuthService.authHeaders['Authorization'] = 'Bearer ${data['token']}';
+      AuthService.token = data['token'];
+      AuthService.currentRole = data['profile']['role'];
+      AuthService.currentTenant = data['profile']['tenant_id'];
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Account Registered successfully!')));
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainNavigationScreen()));

@@ -14,6 +14,7 @@ import audit from './endpoints/audit'
 import riskSignals from './screening/routes'
 import { processQueueBatch } from './endpoints/ocr'
 import { requireActor } from './security/actor'
+import devLogin from './endpoints/devLogin'
 import type { AppEnv } from './types'
 import { swaggerUI } from '@hono/swagger-ui'
 import openapiData from './openapi.json'
@@ -68,6 +69,9 @@ app.use('/api/*', async (c, next) => {
 })
 
 // Every API route requires a verified bearer token. See src/security/actor.ts.
+// Dev Login (no auth required)
+app.route('/api/v1/profile/login', devLogin)
+
 app.use('/api/v1/*', requireActor)
 
 // Second, per-actor limit after authentication (same binding, actor-keyed), so one
