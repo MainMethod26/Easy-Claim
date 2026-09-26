@@ -1,6 +1,8 @@
 {
  "model_version": "phase4-qk1c-v1",
- "generated_at": "2026-09-26T03:26:55+00:00",
+ "feature_version": "claim-features-v1",
+ "kernel_version": "qk-fidelity-zz-r2-v1",
+ "generated_at": "2026-09-26T08:43:09+00:00",
  "execution": "simulator",
  "hardware_used": false,
  "environment": {
@@ -107,10 +109,10 @@
   },
   "kernel_statevector_vs_circuit_max_abs_diff": 0.0,
   "runtime_seconds": {
-   "classical_fit_and_score": 0.0178,
-   "quantum_statevectors": 1.8789,
-   "quantum_kernel_matrices": 0.002,
-   "quantum_one_class_fit_and_score": 0.0036
+   "classical_fit_and_score": 0.0088,
+   "quantum_statevectors": 0.6589,
+   "quantum_kernel_matrices": 0.0029,
+   "quantum_one_class_fit_and_score": 0.0016
   },
   "circuit_evaluations_statevector_path": 139,
   "circuit_evaluations_if_pairwise_on_hardware": 23460
@@ -4564,5 +4566,19 @@
    "synthetic": false,
    "synthetic_anomaly": null
   }
- ]
+ ],
+ "demo_claims": {
+  "claim_demo_normal": {
+   "classical_anomaly": 0.0667,
+   "quantum_anomaly": 0.05,
+   "interpretation": "NORMAL",
+   "content_source": "dev_claim_0025"
+  },
+  "claim_demo_unusual": {
+   "classical_anomaly": 1.0,
+   "quantum_anomaly": 1.0,
+   "interpretation": "HIGH_ANOMALY",
+   "content_source": "dev_claim_0120"
+  }
+ }
 }

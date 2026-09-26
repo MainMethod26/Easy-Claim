@@ -1,4 +1,6 @@
-pennylane>=0.38
-scikit-learn>=1.5
-numpy>=1.26
-pytest>=8
+# Exact versions used for the committed results (quantum/results/). Install into quantum/.venv:
+#   python -m venv quantum/.venv && quantum/.venv/Scripts/python -m pip install -r quantum/requirements.txt
+pennylane==0.45.1
+scikit-learn==1.9.1
+numpy==2.5.3
+pytest==9.1.1

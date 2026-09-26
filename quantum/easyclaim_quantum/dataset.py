@@ -30,7 +30,7 @@ _WORDS = (
 
 ANOMALY_RECIPES: dict[str, str] = {
     "late_report": "incident reported 180-400 days after it happened (reference: median about a week)",
-    "serial_claimant": "eight claims from one user id in the population (reference: 0-2 prior claims)",
+    "serial_claimant": "eight claims from one user id in the population (reference: median 2, maximum 4 prior claims)",
     "night_minimal_narrative": "created at 02:00-04:00 with a 1-3 word narrative (reference: daytime, ~25 words)",
 }
 

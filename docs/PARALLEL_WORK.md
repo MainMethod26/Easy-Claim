@@ -23,6 +23,7 @@ different machines and in different Claude sessions. These rules keep the securi
 | `0004_*.sql` | Phase 2 (evidence storage, hashes) |
 | `0005_*.sql` | Phase 3 (decision records, rules version, payout approvals) |
 | `0006_*.sql` | Phase 4 (screening signals) |
+| `0007_*.sql` | Phase 4 completion (screening signal integrity) |
 
 Never renumber another phase's migration. Existing 0001 to 0003 are frozen.
 

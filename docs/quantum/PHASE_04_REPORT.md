@@ -40,7 +40,7 @@ Fit on the synthetic normal rows only. Median imputation (`[6.0, 1.0, 2.0, 25.0,
 
 ## 8. Quantum kernel
 
-Framework: PennyLane 0.45.1, device `default.qubit` (statevector simulator). Kernel `k(x, y) = |⟨φ(y)|φ(x)⟩|²`. Computed once per claim as a statevector (139 circuit simulations) and combined algebraically; six random entries were cross-checked against the adjoint-overlap circuit (`U(x) U(y)†`, probability of `|00000⟩`), maximum absolute difference 0.00e+00. Kernel validation on the 120×120 reference matrix: symmetric, unit diagonal, entries in [0, 1], positive semidefinite (minimum eigenvalue 1.80e−16).
+Framework: PennyLane 0.45.1, device `default.qubit` (statevector simulator). Kernel `k(x, y) = |⟨φ(y)|φ(x)⟩|²`. Computed once per claim as a statevector (139 circuit simulations) and combined algebraically; six random entries were cross-checked against the adjoint-overlap circuit (`U(x) U(y)†`, probability of `|00000⟩`), maximum absolute difference below 1e-10 (the metric is rounded to 10 decimals, so it prints as 0.00e+00; the random pairs may include diagonal entries). Kernel validation on the 120×120 reference matrix: symmetric, unit diagonal, entries in [0, 1], positive semidefinite (minimum eigenvalue 1.80e−16).
 
 ## 9. Quantum feature map
 
@@ -64,9 +64,9 @@ Per repetition (2 repetitions): `H` and `RZ(x_i)` on each of the 5 wires, then f
 
 Agreement between the models: Spearman rank correlation of raw scores 0.837; overlap of the two top-16 sets 0.4375.
 
-Seed demo claims (real schema, imputed features): `claim_disc_101` 0.77 / 0.54 NORMAL, `claim_sanlam_102` 0.77 / 0.54 NORMAL, `claim_mom_103` 1.00 / 0.70 NORMAL (classical / quantum). Their features are almost entirely imputed, so these numbers demonstrate the pipeline, not the claims.
+Seed demo claims (real schema, imputed features): `claim_disc_101` 0.77 / 0.54 NORMAL, `claim_sanlam_102` 0.77 / 0.54 NORMAL, `claim_mom_103` 1.00 / 0.70 NORMAL (classical / quantum). Their dates, category and submission hour are missing and imputed with reference medians, while the missing narrative is counted as 0 words (not imputed), which makes them resemble the minimal-narrative pattern. These numbers demonstrate the pipeline, not the claims. (Correction, Phase 4 completion.)
 
-**Reading of the result.** Both models find the late-report recipe every time. The classical baseline is clearly better on the night-time minimal-narrative recipe. The quantum kernel is marginally better on the serial-claimant recipe, which both models mostly miss because eight claims for one user is still close to the reference maximum of two prior claims after log scaling. Overall the quantum-kernel model does **not** outperform the classical baseline on this synthetic data, and it is about 100× slower on a simulator. This is the measured result.
+**Reading of the result.** Both models find the late-report recipe every time. The classical baseline is clearly better on the night-time minimal-narrative recipe. The quantum kernel is marginally better on the serial-claimant recipe, which both models mostly miss because after log scaling eight claims for one user is not far above the reference maximum of four prior claims (the reference median is two). (Correction, Phase 4 completion: the original text said the maximum was two.) Overall the quantum-kernel model does **not** outperform the classical baseline on this synthetic data, and it is about 100× slower on a simulator. This is the measured result.
 
 ## 12. Simulator / hardware used
 

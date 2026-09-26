@@ -631,6 +631,27 @@
           }
         },
         {
+          "name": "GET risk signals (Phase 4, advisory)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/risk-signals",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "risk-signals"
+              ]
+            },
+            "description": "Expected: 200 { riskSignals: { classicalAnomaly, quantumAnomaly, anomalyBand, screeningRecommendation, versions, signalDigest, advisory: true } } or riskSignals null; audited screening.signal_read"
+          }
+        },
+        {
           "name": "POST request info (-> Info Needed)",
           "request": {
             "method": "POST",
@@ -1531,6 +1552,288 @@
               ]
             },
             "description": "Expected: 409 already_paid after a successful payout; same Idempotency-Key -> 200 already_paid, no second payout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "9 - Phase 4 quantum screening demo & attacks",
+      "description": "Needs: npm run signals:import:local && npm run demo:quantum:local (before starting the server). Claims claim_demo_normal / claim_demo_unusual are synthetic, stage Verified, tenant ins_discovery.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token_assessor_a}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "DEMO 1: screen normal claim",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_demo_normal/screen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_demo_normal",
+                "screen"
+              ]
+            },
+            "description": "Expected: 200, riskSignals.anomalyBand NORMAL, screeningRecommendation STANDARD_REVIEW"
+          }
+        },
+        {
+          "name": "DEMO 2: screen unusual claim",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_demo_unusual/screen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_demo_unusual",
+                "screen"
+              ]
+            },
+            "description": "Expected: 200, anomalyBand HIGH, REVIEW_REQUIRED, explanation says \"not a fraud finding\""
+          }
+        },
+        {
+          "name": "Attack 1: write a fake score",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_demo_unusual/risk-signals",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_demo_unusual",
+                "risk-signals"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantumScore\": 0\n}"
+            },
+            "description": "Expected: 404 (no write route)"
+          }
+        },
+        {
+          "name": "Attack 1b: fake score on decide",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_demo_unusual/decide",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_demo_unusual",
+                "decide"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"Approved\",\n  \"reason\": \"x\",\n  \"quantumScore\": 0\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_manager_a}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 400 unrecognized_keys"
+          }
+        },
+        {
+          "name": "Attack 2: customer reads signal",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_demo_unusual/risk-signals",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_demo_unusual",
+                "risk-signals"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_customer_a}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 403"
+          }
+        },
+        {
+          "name": "Attack 3: other tenant reads signal",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_demo_unusual/risk-signals",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_demo_unusual",
+                "risk-signals"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_assessor_b}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 404 (audited cross_tenant)"
+          }
+        },
+        {
+          "name": "Attack 5: pay straight from Screening",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_demo_unusual/pay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_demo_unusual",
+                "pay"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_manager_a}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 409 illegal_transition — the signal cannot move a claim"
+          }
+        },
+        {
+          "name": "Human path: review",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_demo_unusual/review",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_demo_unusual",
+                "review"
+              ]
+            },
+            "description": "Expected: 200 Screening -> Review"
+          }
+        },
+        {
+          "name": "Human path: manager decides",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_demo_unusual/decide",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_demo_unusual",
+                "decide"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"Rejected\",\n  \"reason\": \"Reported 300+ days after the incident; outside notification terms\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_manager_a}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 200; claim_decisions.risk_signal stores the band, scores and digest the manager saw"
           }
         }
       ]
