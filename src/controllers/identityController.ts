@@ -21,7 +21,7 @@ export class IdentityController {
   }
 
   static checkMandate(c: Context) {
-    const tenantId = c.req.param('tenantId');
+    const tenantId = c.req.param('tenantId') ?? '';
     return c.json(IdentityService.checkMandate(tenantId));
   }
 

@@ -1,0 +1,80 @@
+# Phase 1 live attack evidence
+# Captured 2026-09-25T23:36:26Z against wrangler dev (127.0.0.1:8787), working tree on branch cyber (Phase 1, uncommitted).
+# Script: run by the cyber team; tokens minted with backend/scripts/mint-token.mjs and a raw hono/jwt signer for negative cases. Tokens are not printed.
+
+== ATTACK-P1-001 forged JWT (signed with a different secret)
+[forged] {"error":"unauthenticated"} -> HTTP 401
+== ATTACK-P1-002 expired JWT
+[expired] {"error":"unauthenticated"} -> HTTP 401
+== ATTACK-P1-003 wrong signature (last char altered)
+[bad-sig] {"error":"unauthenticated"} -> HTTP 401
+== ATTACK-P1-004 role escalation by editing claims (payload replaced, original signature kept)
+[tampered] {"error":"unauthenticated"} -> HTTP 401
+== ATTACK-P1-004b alg=none
+[alg-none] {"error":"unauthenticated"} -> HTTP 401
+== ATTACK-P1-004c HS512 token against pinned HS256
+[hs512] {"error":"unauthenticated"} -> HTTP 401
+== ATTACK-P1-004d valid signature but lifetime above the 8h staff maximum
+[9h manager token] {"error":"unauthenticated"} -> HTTP 401
+== ATTACK-P1-005 tenant B assessor reads tenant A claim
+[cross-tenant read] {"error":"not_found"} -> HTTP 404
+[non-existent claim (compare)] {"error":"not_found"} -> HTTP 404
+== ATTACK-P1-006 tenant B staff transition tenant A claim
+[cross-tenant verify] {"error":"not_found"} -> HTTP 404
+[cross-tenant decide] {"error":"not_found"} -> HTTP 404
+[stage unchanged? (owner reads)] {"claimId":"claim_disc_101","currentStage":"Review","timeline":[{"stage":"Submitted","date":null,"completed":true},{"stage":"Verified","date":null,"completed":true},{"sta
+== ATTACK-P1-007 customer calls insurer-only endpoints
+[customer verify] {"error":"forbidden"} -> HTTP 403
+[customer decide] {"error":"forbidden"} -> HTTP 403
+[customer ocr] {"error":"forbidden"} -> HTTP 403
+== ATTACK-P1-008 assessor attempts manager-only payout (own tenant, claim in Decision/Approved)
+[assessor B pay] {"error":"forbidden"} -> HTTP 403
+== ATTACK-P1-009 token reuse after expiration (2 s token)
+[fresh] {"status":"active"} -> HTTP 200
+[3s later] {"error":"unauthenticated"} -> HTTP 401
+== ATTACK-P1-010 retired dev headers
+[dev headers, no token] {"error":"unauthenticated"} -> HTTP 401
+[dev headers + valid customer token] {"error":"forbidden"} -> HTTP 403
+== ATTACK-P1-011 customer B reads customer A's claim (IDOR regression)
+[IDOR] {"error":"not_found"} -> HTTP 404
+== ATTACK-P1-012 admin
+[admin list] {"error":"forbidden"} -> HTTP 403
+[admin timeline] {"error":"not_found"} -> HTTP 404
+== Tenant-scoped lists
+[assessor A list] {"claims":[{"id":"claim_57a4d070-c0c5-4944-9f10-c7f3db993704","policy_id":"pol_disc_001","tenant_id":"ins_discovery","stage":"Submitted","status":"Pending","category":nul
+[assessor B list] {"claims":[{"id":"claim_sanlam_102","policy_id":"pol_sanlam_002","tenant_id":"ins_sanlam","stage":"Decision","status":"Approved","category":null,"created_at":null,"update
+[customer A list] {"claims":[{"id":"claim_57a4d070-c0c5-4944-9f10-c7f3db993704","policy_id":"pol_disc_001","tenant_id":"ins_discovery","stage":"Submitted","status":"Pending","category":nul
+== Happy path: Submitted -> Paid with the right tenant and roles
+[initiate] claim_0e1930ef-1ed8-45f5-9087-3ea68ab3c9aa
+[draft invisible to assessor A] {"error":"not_found"} -> HTTP 404
+[screening] {"status":"screening_updated","message":"Cause of loss and context saved."} -> HTTP 200
+[submit] {"status":"submitted","message":"Claim successfully submitted for decision.","claimId":"claim_0e1930ef-1ed8-45f5-9087-3ea68ab3c9aa"} -> HTTP 200
+[verify (assessor A)] {"status":"transitioned","claimId":"claim_0e1930ef-1ed8-45f5-9087-3ea68ab3c9aa","from":"Submitted","to":"Verified"} -> HTTP 200
+[screen (assessor A)] {"status":"transitioned","claimId":"claim_0e1930ef-1ed8-45f5-9087-3ea68ab3c9aa","from":"Verified","to":"Screening"} -> HTTP 200
+[review (assessor A)] {"status":"transitioned","claimId":"claim_0e1930ef-1ed8-45f5-9087-3ea68ab3c9aa","from":"Screening","to":"Review"} -> HTTP 200
+[pay before decision (manager A)] {"error":"illegal_transition"} -> HTTP 409
+[decide Approved (manager A)] {"status":"transitioned","claimId":"claim_0e1930ef-1ed8-45f5-9087-3ea68ab3c9aa","from":"Review","to":"Decision","outcome":"Approved"} -> HTTP 200
+[pay by assessor A] {"error":"forbidden"} -> HTTP 403
+[pay by manager A] {"status":"transitioned","claimId":"claim_0e1930ef-1ed8-45f5-9087-3ea68ab3c9aa","from":"Decision","to":"Paid"} -> HTTP 200
+[pay again (replay)] {"error":"illegal_transition"} -> HTTP 409
+[customer timeline] {"claimId":"claim_0e1930ef-1ed8-45f5-9087-3ea68ab3c9aa","currentStage":"Paid","timeline":[{"stage":"Submitted","date":"2026-09-25T23:34:20.236Z","completed":true},{"stage
+== Audit rows for this run (last 10 minutes)
+ "action": "authz.claim_access_denied", "actor_role": "ADMIN", "actor_tenant_id": null, "outcome": "denied", "n": 1
+ "action": "authz.claim_access_denied", "actor_role": "ASSESSOR", "actor_tenant_id": "ins_discovery", "outcome": "denied", "n": 1
+ "action": "authz.claim_access_denied", "actor_role": "ASSESSOR", "actor_tenant_id": "ins_sanlam", "outcome": "denied", "n": 3
+ "action": "authz.claim_access_denied", "actor_role": "CUSTOMER", "actor_tenant_id": null, "outcome": "denied", "n": 1
+ "action": "authz.claim_access_denied", "actor_role": "MANAGER", "actor_tenant_id": "ins_sanlam", "outcome": "denied", "n": 1
+ "action": "authz.role_denied", "actor_role": "ADMIN", "actor_tenant_id": null, "outcome": "denied", "n": 1
+ "action": "authz.role_denied", "actor_role": "CUSTOMER", "actor_tenant_id": null, "outcome": "denied", "n": 4
+ "action": "claim.created", "actor_role": "CUSTOMER", "actor_tenant_id": null, "outcome": "success", "n": 1
+ "action": "claim.screening_updated", "actor_role": "CUSTOMER", "actor_tenant_id": null, "outcome": "success", "n": 1
+ "action": "claim.stage_changed", "actor_role": "ASSESSOR", "actor_tenant_id": "ins_discovery", "outcome": "success", "n": 3
+ "action": "claim.stage_changed", "actor_role": "CUSTOMER", "actor_tenant_id": null, "outcome": "success", "n": 1
+ "action": "claim.stage_changed", "actor_role": "MANAGER", "actor_tenant_id": "ins_discovery", "outcome": "success", "n": 2
+ "action": "claim.transition_rejected", "actor_role": "ASSESSOR", "actor_tenant_id": "ins_discovery", "outcome": "denied", "n": 1
+ "action": "claim.transition_rejected", "actor_role": "ASSESSOR", "actor_tenant_id": "ins_sanlam", "outcome": "denied", "n": 1
+ "action": "claim.transition_rejected", "actor_role": "MANAGER", "actor_tenant_id": "ins_discovery", "outcome": "denied", "n": 2
+
+== ATTACK-P1-004b (re-run) alg=none token WITH a non-empty signature segment so it reaches hono verify() rather than the shape check
+[alg-none, sig=AAAA] {"error":"unauthenticated"} -> HTTP 401
+server log line: token rejected: JwtHeaderInvalid[0m

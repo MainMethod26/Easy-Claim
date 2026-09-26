@@ -16,13 +16,13 @@ export class ClaimsController {
   }
 
   static async uploadEvidence(c: Context) {
-    const claimId = c.req.param('claimId');
+    const claimId = c.req.param('claimId') ?? '';
     await ClaimsService.triggerEvent(c.env, 'ClaimEvidenceUploaded', claimId);
     return c.json({ status: 'processing OCR', message: 'Documents queued for analysis' }, 202);
   }
 
   static async submit(c: Context) {
-    const claimId = c.req.param('claimId');
+    const claimId = c.req.param('claimId') ?? '';
     await ClaimsService.triggerEvent(c.env, 'ClaimSubmitted', claimId);
     return c.json({ stage: 'SUBMITTED', message: 'Claim successfully submitted. Checklist complete.', claimId });
   }
