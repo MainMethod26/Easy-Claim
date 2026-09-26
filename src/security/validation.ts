@@ -9,6 +9,8 @@ const id = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)
 
 export const claimIdParam = z.object({ claimId: id })
 
+export const claimEvidenceParam = z.object({ claimId: id, evidenceId: id })
+
 export const initiateClaimSchema = z
   .object({
     policyId: id,

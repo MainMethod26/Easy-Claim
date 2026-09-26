@@ -26,6 +26,9 @@ export type Bindings = {
   DB: D1Database
   CLAIM_EVENTS: Queue
   RATE_LIMITER?: RateLimit
+  // Private evidence storage (Phase 2). Optional so the API degrades to 503 on evidence
+  // routes instead of failing to boot when the binding is absent (see EVIDENCE_SECURITY.md).
+  EVIDENCE_BUCKET?: R2Bucket
   // Comma-separated list of browser origins allowed by CORS. Empty = no cross-origin access.
   ALLOWED_ORIGINS?: string
   // HS256 signing secret, >= 32 characters. Secret binding only:

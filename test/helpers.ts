@@ -49,6 +49,8 @@ export interface CallOptions {
   authorization?: string
   method?: string
   json?: unknown
+  /** Multipart body (e.g. a file upload); Content-Type/boundary is set by the runtime. */
+  formData?: FormData
   headers?: Record<string, string>
   env?: Partial<typeof env>
 }
@@ -57,10 +59,12 @@ export async function call(path: string, opts: CallOptions = {}): Promise<Respon
   const headers = new Headers(opts.headers)
   if (opts.authorization !== undefined) headers.set('Authorization', opts.authorization)
   else if (opts.as) headers.set('Authorization', `Bearer ${await mintToken(opts.as)}`)
-  let body: string | undefined
+  let body: string | FormData | undefined
   if (opts.json !== undefined) {
     headers.set('Content-Type', 'application/json')
     body = JSON.stringify(opts.json)
+  } else if (opts.formData) {
+    body = opts.formData
   }
   const request = new Request(`${BASE}${path}`, { method: opts.method ?? 'GET', headers, body })
   const ctx = createExecutionContext()
@@ -154,4 +158,30 @@ export async function createSubmittedClaim(): Promise<string> {
   const res = await call(`/claims/${claimId}/submit`, { method: 'POST', as: customerA })
   if (res.status !== 200) throw new Error(`submit failed: ${res.status}`)
   return claimId
+}
+
+// Minimal valid bytes for each allowed evidence type: real magic-byte headers plus filler so
+// tampering tests have something to flip further into the file.
+export const VALID_PDF_BYTES = new Uint8Array([...[0x25, 0x50, 0x44, 0x46, 0x2d], ...Array(32).fill(0x20)])
+export const VALID_PNG_BYTES = new Uint8Array([...[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], ...Array(32).fill(0)])
+
+export function evidenceFile(bytes: Uint8Array = VALID_PDF_BYTES, name = 'receipt.pdf', type = 'application/pdf'): File {
+  return new File([bytes], name, { type })
+}
+
+interface EvidenceRow {
+  id: string
+  claim_id: string
+  tenant_id: string | null
+  uploaded_by: string
+  storage_key: string
+  display_name: string
+  mime_type: string
+  size_bytes: number
+  sha256: string
+  created_at: string
+}
+
+export async function evidenceRow(evidenceId: string) {
+  return env.DB.prepare('SELECT * FROM evidence WHERE id = ?').bind(evidenceId).first<EvidenceRow>()
 }

@@ -17,6 +17,13 @@ queue = "claim-events"
 max_batch_size = 10
 max_batch_timeout = 5
 
+# Private evidence storage (Phase 2). No public access, no r2.dev subdomain: files are only
+# ever served back through the authorized download route in src/endpoints/evidence.ts.
+# Deployed environments must first run: wrangler r2 bucket create easy-claim-evidence
+[[r2_buckets]]
+binding = "EVIDENCE_BUCKET"
+bucket_name = "easy-claim-evidence"
+
 # Approximate per-client throttling for /api/* (see src/index.ts).
 # period must be 10 or 60 seconds.
 [[ratelimits]]

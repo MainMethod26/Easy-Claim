@@ -7,6 +7,7 @@ import gateway from './endpoints/gateway'
 import policy from './endpoints/policy'
 import claims from './endpoints/claims'
 import claimsInsurer from './endpoints/claimsInsurer'
+import evidence from './endpoints/evidence'
 import ocr from './endpoints/ocr'
 import identity from './endpoints/identity'
 import audit from './endpoints/audit'
@@ -39,7 +40,18 @@ app.use(
     maxAge: 600,
   })
 )
-app.use('*', bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: 'payload_too_large' }, 413) }))
+// JSON/API bodies stay capped at 64 KB; only an actual file upload (multipart/form-data,
+// evidence routes) gets the larger cap. Dispatched by content-type, not by path, so this
+// cannot be bypassed by posting a large multipart body to an unrelated JSON route.
+const JSON_BODY_LIMIT = 64 * 1024
+const EVIDENCE_BODY_LIMIT = 10 * 1024 * 1024 + 64 * 1024 // MAX_EVIDENCE_BYTES + form overhead
+app.use('*', (c, next) => {
+  const isMultipart = (c.req.header('content-type') ?? '').toLowerCase().startsWith('multipart/form-data')
+  return bodyLimit({
+    maxSize: isMultipart ? EVIDENCE_BODY_LIMIT : JSON_BODY_LIMIT,
+    onError: (c) => c.json({ error: 'payload_too_large' }, 413),
+  })(c, next)
+})
 
 // Basic per-client rate limit (Workers Rate Limiting binding, see wrangler.toml).
 // The binding is approximate and per-location by design; it is abuse throttling,
@@ -71,6 +83,7 @@ app.route('/api/v1/client', gateway)
 app.route('/api/v1/covers', policy)
 app.route('/api/v1/claims', claims)
 app.route('/api/v1/claims', claimsInsurer)
+app.route('/api/v1/claims', evidence)
 app.route('/api/v1/claims', riskSignals) // Phase 4: read-only advisory screening signal
 app.route('/api/v1/ocr', ocr)
 app.route('/api/v1/profile', identity)
