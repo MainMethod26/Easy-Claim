@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { admin, assessor, auditRows, call, customerA } from './helpers'
+import { auditRows, call, customerA, insurerA, superadmin } from './helpers'
 
 describe('function-level authorization (RBAC)', () => {
   it('customer cannot call the insurer OCR endpoint', async () => {
@@ -8,12 +8,18 @@ describe('function-level authorization (RBAC)', () => {
     expect(await auditRows('authz.role_denied')).not.toHaveLength(0)
   })
 
-  it('assessor can call the OCR endpoint', async () => {
-    expect((await call('/ocr/process', { method: 'POST', as: assessor })).status).toBe(200)
+  it('insurer admin can call the OCR endpoint', async () => {
+    expect((await call('/ocr/process', { method: 'POST', as: insurerA })).status).toBe(200)
   })
 
-  it('admin has no claim-reading powers', async () => {
-    expect((await call('/claims/claim_disc_101/timeline', { as: admin })).status).toBe(404)
+  it('superadmin cannot call the insurer OCR endpoint', async () => {
+    expect((await call('/ocr/process', { method: 'POST', as: superadmin })).status).toBe(403)
+  })
+
+  it('superadmin reads a submitted claim (platform read-only) but has no claim actions', async () => {
+    expect((await call('/claims/claim_disc_101/timeline', { as: superadmin })).status).toBe(200)
+    expect((await call('/claims/claim_disc_101/review', { method: 'POST', as: superadmin })).status).toBe(403)
+    expect((await call('/claims/claim_disc_101/risk-signals', { as: superadmin })).status).toBe(403)
   })
 
   it.each([
@@ -21,8 +27,16 @@ describe('function-level authorization (RBAC)', () => {
     ['POST', '/covers/join-request'],
     ['POST', '/profile/mandates/cancel'],
     ['GET', '/covers/my-covers'],
-  ])('insurer roles cannot use customer-only %s %s', async (method, path) => {
+  ])('insurer admin cannot use customer-only %s %s', async (method, path) => {
     const json = method === 'GET' ? undefined : {}
-    expect((await call(path, { method, as: assessor, json })).status).toBe(403)
+    expect((await call(path, { method, as: insurerA, json })).status).toBe(403)
+  })
+
+  it.each([
+    ['POST', '/claims/initiate'],
+    ['GET', '/covers/my-covers'],
+  ])('superadmin cannot use customer-only %s %s', async (method, path) => {
+    const json = method === 'GET' ? undefined : {}
+    expect((await call(path, { method, as: superadmin, json })).status).toBe(403)
   })
 })

@@ -1,4 +1,5 @@
-import '../services/auth_service.dart';
+import '../core/auth/session.dart';
+import 'auth_screen.dart';
 import 'package:flutter/material.dart';
 import 'consent_dashboard_screen.dart';
 import 'support_screen.dart';
@@ -18,9 +19,20 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _biometricsEnabled = true;
-  bool _smsAlertsEnabled = true;
-  bool _twoFactorEnabled = true;
+  void _signOut() {
+    Session.instance.signOut();
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthScreen()),
+      (_) => false,
+    );
+  }
+
+  String get _roleLine {
+    final a = Session.instance.actor;
+    if (a == null) return 'Not signed in';
+    final who = a.username == null ? a.userRole.label : '@${a.username} · ${a.userRole.label}';
+    return a.tenantId == null ? who : '$who · ${a.tenantId}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,25 +103,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Row(
                             children: [
                               Text(
-                                AuthService.currentUserName ?? 'User',
+                                Session.instance.actor?.label ?? 'Not signed in',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 18,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
-                              SizedBox(width: 6),
-                              Icon(Icons.verified_rounded, color: Color(0xFF16A34A), size: 18),
                             ],
                           ),
                           SizedBox(height: 2),
                           Text(
-                            'ID: 940218 ··· 081 • Member since 2024',
-                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                            _roleLine,
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
                           ),
-                          SizedBox(height: 4),
+                          const SizedBox(height: 4),
                           const Text(
-                            'Verified Vault Identity',
+                            'Demo sign-in (local/demo only)',
                             style: TextStyle(color: Color(0xFFFFAB73), fontSize: 11.5),
                           ),
                         ],
@@ -128,8 +138,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   icon: Icons.lock_person_rounded,
                   iconColor: const Color(0xFF16A34A),
                   title: 'Consent Dashboard',
-                  subtitle: 'Manage 4 underwriters & SAPS API access permissions',
-                  badge: '4 Active',
+                  subtitle: 'Who may access your data (sample content)',
                   onTap: () {
                     Navigator.push(
                       context,
@@ -143,12 +152,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _buildActionRow(
                   icon: Icons.shield_moon_rounded,
                   iconColor: const Color(0xFF0284C7),
-                  title: 'POPIA Compliance Audit',
-                  subtitle: 'View cryptographic access records of your personal data',
+                  title: 'Access history',
+                  subtitle: 'Your insurer keeps an audit trail of every change to your claims',
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('POPIA Certificate: All access logs cryptographically signed.'),
+                        content: Text('Viewing the audit trail in the app is not available yet.'),
                         backgroundColor: Color(0xFF0284C7),
                       ),
                     );
@@ -158,31 +167,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 22),
 
-              // Quick Entry 2: Security Preferences
-              _buildSectionHeader('SECURITY & AUTHENTICATION'),
+              // Session (honest: no biometrics, 2FA or SMS features exist yet)
+              _buildSectionHeader('SESSION'),
               _buildSettingsCard([
-                _buildSwitchRow(
-                  icon: Icons.fingerprint_rounded,
-                  title: 'Biometric Login (FaceID / TouchID)',
-                  subtitle: 'Fast unlock using biometric security hardware',
-                  value: _biometricsEnabled,
-                  onChanged: (v) => setState(() => _biometricsEnabled = v),
-                ),
-                const Divider(color: Color(0xFFE2E8F0), height: 1),
-                _buildSwitchRow(
-                  icon: Icons.security_rounded,
-                  title: 'Two-Factor Authentication (2FA)',
-                  subtitle: 'Require OTP verification for claim submissions',
-                  value: _twoFactorEnabled,
-                  onChanged: (v) => setState(() => _twoFactorEnabled = v),
-                ),
-                const Divider(color: Color(0xFFE2E8F0), height: 1),
-                _buildSwitchRow(
-                  icon: Icons.sms_rounded,
-                  title: 'Real-time Claim SMS Triggers',
-                  subtitle: 'Receive instant notifications when claim stage moves',
-                  value: _smsAlertsEnabled,
-                  onChanged: (v) => setState(() => _smsAlertsEnabled = v),
+                _buildActionRow(
+                  icon: Icons.key_rounded,
+                  iconColor: const Color(0xFF0F172A),
+                  title: 'Signed in with a demo account',
+                  subtitle: 'Sessions last one hour and are not kept after you close the app',
+                  onTap: () {},
                 ),
               ]),
 
@@ -227,17 +220,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // Sign out button
               Center(
                 child: TextButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Session locked securely.'),
-                        backgroundColor: Color(0xFFFF5500),
-                      ),
-                    );
-                  },
+                  onPressed: _signOut,
                   icon: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
                   label: const Text(
-                    'Lock Session & Sign Out',
+                    'Sign Out',
                     style: TextStyle(
                       color: Color(0xFFEF4444),
                       fontWeight: FontWeight.w700,
@@ -347,54 +333,4 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildSwitchRow({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: const Color(0xFF0F172A), size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: value,
-            activeThumbColor: const Color(0xFFFF5500),
-            onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
 }

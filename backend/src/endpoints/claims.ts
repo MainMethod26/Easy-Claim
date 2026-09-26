@@ -38,7 +38,7 @@ router.get('/', validate('query', listQuerySchema), async (c) => {
 
   if (actor.role === 'CUSTOMER') {
     const { results } = await c.env.DB.prepare(
-      `SELECT id, policy_id, tenant_id, stage, status, category, created_at, updated_at
+      `SELECT id, policy_id, tenant_id, stage, status, category, claimed_amount_cents, created_at, updated_at
        FROM claims WHERE user_id = ? ORDER BY created_at DESC, id LIMIT ?`
     )
       .bind(actor.id, limit)
@@ -50,10 +50,22 @@ router.get('/', validate('query', listQuerySchema), async (c) => {
     // Drafts are not yet shared with the insurer. user_id is a platform-wide customer id
     // and is not exposed to tenant staff (DECISION REQUIRED: per-tenant claimant reference).
     const { results } = await c.env.DB.prepare(
-      `SELECT id, policy_id, tenant_id, stage, status, category, created_at, updated_at
+      `SELECT id, policy_id, tenant_id, stage, status, category, claimed_amount_cents, created_at, updated_at
        FROM claims WHERE tenant_id = ? AND stage <> 'Draft' ORDER BY created_at DESC, id LIMIT ?`
     )
       .bind(actor.tenantId, limit)
+      .all()
+    return c.json({ claims: results })
+  }
+
+  if (actor.role === 'SUPERADMIN') {
+    // Platform read-only view across insurers; Drafts stay private. Optional ?tenantId filter.
+    const tenantId = c.req.query('tenantId') ?? null
+    const { results } = await c.env.DB.prepare(
+      `SELECT id, policy_id, tenant_id, stage, status, category, claimed_amount_cents, created_at, updated_at
+       FROM claims WHERE stage <> 'Draft' AND (? IS NULL OR tenant_id = ?) ORDER BY created_at DESC, id LIMIT ?`
+    )
+      .bind(tenantId, tenantId, limit)
       .all()
     return c.json({ claims: results })
   }
@@ -202,6 +214,42 @@ router.post('/:claimId/submit', requireRole('CUSTOMER'), validate('param', claim
     data: { claimId: claim.id, timestamp: new Date().toISOString() },
   })
   return c.json({ status: 'submitted', message: 'Claim successfully submitted for decision.', claimId: claim.id })
+})
+
+/**
+ * Claim detail for the owning customer or the claim's tenant staff (same 'read' access as
+ * /timeline). One object for the app's claim screens. Never returns user_id (platform-wide
+ * customer id, BACKEND-SEC-017) or the payout destination hash; the destination is masked.
+ */
+router.get('/:claimId', validate('param', claimIdParam), async (c) => {
+  const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'read')
+  if (!claim) return c.json(notFound, 404)
+  const context = await c.env.DB.prepare(
+    `SELECT p.plan_name AS plan_name, t.name AS insurer_name
+     FROM policies p LEFT JOIN tenants t ON t.id = p.tenant_id WHERE p.id = ?`
+  )
+    .bind(claim.policy_id)
+    .first<{ plan_name: string | null; insurer_name: string | null }>()
+  return c.json({
+    claim: {
+      id: claim.id,
+      policyId: claim.policy_id,
+      planName: context?.plan_name ?? null,
+      tenantId: claim.tenant_id,
+      insurerName: context?.insurer_name ?? null,
+      stage: isClaimStage(claim.stage) ? claim.stage : 'Unknown',
+      status: claim.status,
+      category: claim.category,
+      causeOfLoss: claim.cause_of_loss,
+      incidentDate: claim.incident_date,
+      claimedAmountCents: claim.claimed_amount_cents,
+      payoutDestination: claim.payout_account_last4
+        ? { bankName: claim.payout_bank_name, accountLast4: claim.payout_account_last4 }
+        : null,
+      createdAt: claim.created_at,
+      updatedAt: claim.updated_at,
+    },
+  })
 })
 
 // Timeline and Decision (For Step 6: Status & Tracking)

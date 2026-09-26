@@ -1,516 +1,250 @@
-import '../services/auth_service.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../models/claims_wizard_models.dart';
-import '../models/home_models.dart';
+import '../data/models/api_models.dart';
+import '../data/models/claim_stage.dart';
+import '../data/repositories/repositories.dart';
 
-/// State management for the 6-stage claims wizard
-/// Handles the interactive claims walkthrough from category selection to submission
+/// Steps of the customer claim wizard. Each step that changes data calls the backend before
+/// the wizard moves on, so the backend always holds the authoritative claim.
+enum ClaimWizardStep { policyAndCategory, eligibility, whatHappened, payout, evidence, review, status }
+
+extension ClaimWizardStepInfo on ClaimWizardStep {
+  String get title {
+    switch (this) {
+      case ClaimWizardStep.policyAndCategory:
+        return 'Policy & category';
+      case ClaimWizardStep.eligibility:
+        return 'Policy check';
+      case ClaimWizardStep.whatHappened:
+        return 'What happened';
+      case ClaimWizardStep.payout:
+        return 'Amount & payout account';
+      case ClaimWizardStep.evidence:
+        return 'Supporting evidence';
+      case ClaimWizardStep.review:
+        return 'Review & submit';
+      case ClaimWizardStep.status:
+        return 'Status & tracking';
+    }
+  }
+}
+
+/// A file the backend accepted (it returns the SHA-256 it computed over the stored bytes).
+class UploadedEvidence {
+  final String filename;
+  final int sizeBytes;
+  final String sha256;
+  const UploadedEvidence(this.filename, this.sizeBytes, this.sha256);
+}
+
+/// Claim categories offered in the wizard, mapped to the backend enum by [backendCategoryFor].
+const wizardCategories = <(String, String)>[
+  ('device_electronics', 'Device & electronics'),
+  ('vehicle_transit', 'Vehicle & transit'),
+  ('home_property', 'Home & property'),
+  ('personal_health', 'Health & medical'),
+  ('other', 'Other'),
+];
+
 class ClaimsWizardProvider with ChangeNotifier {
-  // Current wizard state
-  ClaimsWizardState _wizardState;
-  bool _isSubmitting = false;
-  String? _submissionError;
+  final ClaimsRepository _claims;
+  final CoversRepository _covers;
 
-  // Getters
-  ClaimsWizardState get wizardState => _wizardState;
-  bool get isSubmitting => _isSubmitting;
-  String? get submissionError => _submissionError;
+  ClaimsWizardProvider({ClaimsRepository? claims, CoversRepository? covers, Policy? initialPolicy, String? initialCategory})
+      : _claims = claims ?? ClaimsRepository(),
+        _covers = covers ?? CoversRepository(),
+        _selectedPolicy = initialPolicy,
+        _categoryId = initialCategory ?? 'device_electronics';
 
-  // Computed properties for easy access
-  WizardStep get currentStep => _wizardState.currentStep;
-  String? get selectedCampaignId => _wizardState.selectedCampaignId;
-  String? get selectedCampaignName => _wizardState.selectedCampaignName;
-  ClaimCategory? get selectedCategory => _wizardState.selectedCategory;
-  String? get selectedSubCategory => _wizardState.selectedSubCategory;
-  VerificationStatus get verificationStatus => _wizardState.verificationStatus;
-  ScreeningContext get screeningContext => _wizardState.screeningContext;
-  SupportingEvidence get supportingEvidence => _wizardState.supportingEvidence;
-  ReviewSummary? get reviewSummary => _wizardState.reviewSummary;
-  ClaimStatus? get submittedClaim => _wizardState.submittedClaim;
-  bool get isLoading => _wizardState.isLoading;
-  String? get errorMessage => _wizardState.errorMessage;
-  Map<String, dynamic> get formData => _wizardState.formData;
-  List<String> get completedSteps => _wizardState.completedSteps;
-  DateTime get startedAt => _wizardState.startedAt;
-  DateTime? get completedAt => _wizardState.completedAt;
+  ClaimWizardStep _step = ClaimWizardStep.policyAndCategory;
+  bool _busy = false;
+  Object? _error;
 
-  bool get canProceedToNext => _wizardState.canProceedToNext;
-  bool get isStepCompleted => _wizardState.isStepCompleted;
-  double get overallProgress => _wizardState.overallProgress;
-  bool get isCompleted => _wizardState.isCompleted;
+  List<Policy> _policies = const [];
+  bool _policiesLoaded = false;
+  Policy? _selectedPolicy;
+  String _categoryId;
+  String _itemDescription = '';
 
-  ClaimsWizardProvider()
-      : _wizardState = ClaimsWizardState(
-          currentStep: WizardStep.identifyCategory,
-          verificationStatus: const VerificationStatus(
-            isIdentityVerified: false,
-            isPolicyActive: false,
-            isWithinWaitingPeriod: false,
-            isWithinFilingWindow: false,
-            verificationErrors: [],
-          ),
-          screeningContext: ScreeningContext(
-            causeOfLoss: '',
-            incidentDate: DateTime.now(),
-            incidentLocation: '',
-            incidentDescription: '',
-            witnesses: [],
-            additionalContext: {},
-            isComplete: false,
-          ),
-          supportingEvidence: const SupportingEvidence(
-            documents: [],
-            photos: [],
-            invoices: [],
-            receipts: [],
-            other: [],
-            checklistStatus: {},
-            isComplete: false,
-          ),
-          formData: {},
-          completedSteps: [],
-          startedAt: DateTime.now(),
-        );
+  String? _claimId;
+  Eligibility? _eligibility;
+  String? _causeOfLoss;
+  DateTime? _incidentDate;
+  int? _claimedAmountCents;
+  String? _bankName;
+  String? _accountLast4;
+  final List<UploadedEvidence> _evidence = [];
+  ClaimDetail? _submitted;
+  ClaimTimeline? _timeline;
 
-  // Initialize wizard with campaign
-  void initializeWithCampaign(String campaignId, String campaignName) {
-    _wizardState = _wizardState.copyWith(
-      selectedCampaignId: campaignId,
-      selectedCampaignName: campaignName,
-      startedAt: DateTime.now(),
-    );
+  ClaimWizardStep get step => _step;
+  int get stepNumber => _step.index + 1;
+  int get stepCount => ClaimWizardStep.values.length;
+  bool get busy => _busy;
+  Object? get error => _error;
+  List<Policy> get policies => _policies;
+  List<Policy> get activePolicies => _policies.where((p) => p.isActive).toList();
+  bool get policiesLoaded => _policiesLoaded;
+  Policy? get selectedPolicy => _selectedPolicy;
+  String get categoryId => _categoryId;
+  String get itemDescription => _itemDescription;
+  String? get claimId => _claimId;
+  Eligibility? get eligibility => _eligibility;
+  String? get causeOfLoss => _causeOfLoss;
+  DateTime? get incidentDate => _incidentDate;
+  int? get claimedAmountCents => _claimedAmountCents;
+  String? get bankName => _bankName;
+  String? get accountLast4 => _accountLast4;
+  List<UploadedEvidence> get evidence => List.unmodifiable(_evidence);
+  ClaimDetail? get submittedClaim => _submitted;
+  ClaimTimeline? get timeline => _timeline;
+
+  /// Once the draft exists, its policy cannot change (the backend copied the policy's insurer).
+  bool get policyLocked => _claimId != null;
+
+  Future<T?> _run<T>(Future<T> Function() action) async {
+    _busy = true;
+    _error = null;
     notifyListeners();
-  }
-
-  // Start new wizard
-  void startNewWizard() {
-    _wizardState = _wizardState.reset();
-    _submissionError = null;
-    notifyListeners();
-  }
-
-  // Step 1: Category Selection
-  void selectCategory(ClaimCategory category) {
-    _wizardState = _wizardState.copyWith(
-      selectedCategory: category,
-      formData: {
-        ..._wizardState.formData,
-        'categoryId': category.categoryId,
-        'categoryName': category.name,
-      },
-    );
-    notifyListeners();
-  }
-
-  void selectSubCategory(String subCategory) {
-    _wizardState = _wizardState.copyWith(
-      selectedSubCategory: subCategory,
-      formData: {
-        ..._wizardState.formData,
-        'subCategory': subCategory,
-      },
-    );
-    notifyListeners();
-  }
-
-  // Step 2: Verification
-  void updateVerificationStatus(VerificationStatus status) {
-    _wizardState = _wizardState.copyWith(
-      verificationStatus: status,
-      formData: {
-        ..._wizardState.formData,
-        'verificationData': {
-          'isIdentityVerified': status.isIdentityVerified,
-          'isPolicyActive': status.isPolicyActive,
-          'isWithinWaitingPeriod': status.isWithinWaitingPeriod,
-          'isWithinFilingWindow': status.isWithinFilingWindow,
-          'verifiedAt': status.verifiedAt?.toIso8601String(),
-        },
-      },
-    );
-    notifyListeners();
-  }
-
-  void runVerification({
-    required bool isIdentityVerified,
-    required bool isPolicyActive,
-    required bool isWithinWaitingPeriod,
-    required bool isWithinFilingWindow,
-    String? message,
-    List<String>? errors,
-  }) {
-    final status = VerificationStatus(
-      isIdentityVerified: isIdentityVerified,
-      isPolicyActive: isPolicyActive,
-      isWithinWaitingPeriod: isWithinWaitingPeriod,
-      isWithinFilingWindow: isWithinFilingWindow,
-      verificationMessage: message,
-      verifiedAt: DateTime.now(),
-      verificationErrors: errors ?? [],
-    );
-    updateVerificationStatus(status);
-  }
-
-  // Step 3: Screening Context
-  void updateScreeningContext(ScreeningContext context) {
-    _wizardState = _wizardState.copyWith(
-      screeningContext: context,
-      formData: {
-        ..._wizardState.formData,
-        'screeningData': {
-          'causeOfLoss': context.causeOfLoss,
-          'incidentDate': context.incidentDate.toIso8601String(),
-          'incidentLocation': context.incidentLocation,
-          'incidentDescription': context.incidentDescription,
-          'witnesses': context.witnesses,
-          'additionalContext': context.additionalContext,
-        },
-      },
-    );
-    notifyListeners();
-  }
-
-  void updateScreeningField(String field, dynamic value) {
-    ScreeningContext updatedContext;
-    switch (field) {
-      case 'causeOfLoss':
-        updatedContext = _wizardState.screeningContext.copyWith(causeOfLoss: value as String);
-        break;
-      case 'incidentDate':
-        updatedContext = _wizardState.screeningContext.copyWith(incidentDate: value as DateTime);
-        break;
-      case 'incidentLocation':
-        updatedContext = _wizardState.screeningContext.copyWith(incidentLocation: value as String);
-        break;
-      case 'incidentDescription':
-        updatedContext = _wizardState.screeningContext.copyWith(incidentDescription: value as String);
-        break;
-      case 'witnesses':
-        updatedContext = _wizardState.screeningContext.copyWith(witnesses: value as List<String>);
-        break;
-      case 'additionalContext':
-        updatedContext = _wizardState.screeningContext.copyWith(additionalContext: value as Map<String, dynamic>);
-        break;
-      case 'isComplete':
-        updatedContext = _wizardState.screeningContext.copyWith(isComplete: value as bool);
-        break;
-      default:
-        updatedContext = _wizardState.screeningContext;
-    }
-    updateScreeningContext(updatedContext);
-  }
-
-  // Step 4: Supporting Evidence
-  void updateSupportingEvidence(SupportingEvidence evidence) {
-    _wizardState = _wizardState.copyWith(
-      supportingEvidence: evidence,
-      formData: {
-        ..._wizardState.formData,
-        'evidenceData': {
-          'documentCount': evidence.documents.length,
-          'photoCount': evidence.photos.length,
-          'invoiceCount': evidence.invoices.length,
-          'receiptCount': evidence.receipts.length,
-          'otherCount': evidence.other.length,
-          'checklistStatus': evidence.checklistStatus,
-        },
-      },
-    );
-    notifyListeners();
-  }
-
-  void addEvidenceItem(String type, EvidenceItem item) {
-    SupportingEvidence updatedEvidence;
-    switch (type) {
-      case 'document':
-        updatedEvidence = _wizardState.supportingEvidence.copyWith(
-          documents: [..._wizardState.supportingEvidence.documents, item],
-        );
-        break;
-      case 'photo':
-        updatedEvidence = _wizardState.supportingEvidence.copyWith(
-          photos: [..._wizardState.supportingEvidence.photos, item],
-        );
-        break;
-      case 'invoice':
-        updatedEvidence = _wizardState.supportingEvidence.copyWith(
-          invoices: [..._wizardState.supportingEvidence.invoices, item],
-        );
-        break;
-      case 'receipt':
-        updatedEvidence = _wizardState.supportingEvidence.copyWith(
-          receipts: [..._wizardState.supportingEvidence.receipts, item],
-        );
-        break;
-      case 'other':
-        updatedEvidence = _wizardState.supportingEvidence.copyWith(
-          other: [..._wizardState.supportingEvidence.other, item],
-        );
-        break;
-      default:
-        updatedEvidence = _wizardState.supportingEvidence;
-    }
-    updateSupportingEvidence(updatedEvidence);
-  }
-
-  void removeEvidenceItem(String type, String evidenceId) {
-    SupportingEvidence updatedEvidence;
-    switch (type) {
-      case 'document':
-        updatedEvidence = _wizardState.supportingEvidence.copyWith(
-          documents: _wizardState.supportingEvidence.documents
-              .where((item) => item.evidenceId != evidenceId)
-              .toList(),
-        );
-        break;
-      case 'photo':
-        updatedEvidence = _wizardState.supportingEvidence.copyWith(
-          photos: _wizardState.supportingEvidence.photos
-              .where((item) => item.evidenceId != evidenceId)
-              .toList(),
-        );
-        break;
-      case 'invoice':
-        updatedEvidence = _wizardState.supportingEvidence.copyWith(
-          invoices: _wizardState.supportingEvidence.invoices
-              .where((item) => item.evidenceId != evidenceId)
-              .toList(),
-        );
-        break;
-      case 'receipt':
-        updatedEvidence = _wizardState.supportingEvidence.copyWith(
-          receipts: _wizardState.supportingEvidence.receipts
-              .where((item) => item.evidenceId != evidenceId)
-              .toList(),
-        );
-        break;
-      case 'other':
-        updatedEvidence = _wizardState.supportingEvidence.copyWith(
-          other: _wizardState.supportingEvidence.other
-              .where((item) => item.evidenceId != evidenceId)
-              .toList(),
-        );
-        break;
-      default:
-        updatedEvidence = _wizardState.supportingEvidence;
-    }
-    updateSupportingEvidence(updatedEvidence);
-  }
-
-  void updateChecklistItem(String checklistId, bool isComplete) {
-    final updatedChecklist = Map<String, bool>.from(_wizardState.supportingEvidence.checklistStatus);
-    updatedChecklist[checklistId] = isComplete;
-    
-    final allComplete = updatedChecklist.values.every((status) => status);
-    
-    final updatedEvidence = _wizardState.supportingEvidence.copyWith(
-      checklistStatus: updatedChecklist,
-      isComplete: allComplete,
-    );
-    updateSupportingEvidence(updatedEvidence);
-  }
-
-  // Step 5: Review & Decision
-  void generateReviewSummary(String estimatedAmount, {String? notes}) {
-    if (_wizardState.selectedCategory == null) return;
-
-    final summary = ReviewSummary(
-      category: _wizardState.selectedCategory!,
-      verificationStatus: _wizardState.verificationStatus,
-      screeningContext: _wizardState.screeningContext,
-      supportingEvidence: _wizardState.supportingEvidence,
-      estimatedAmount: estimatedAmount,
-      notes: notes,
-      isReadyForSubmission: _wizardState.verificationStatus.isFullyVerified &&
-          _wizardState.screeningContext.isComplete &&
-          _wizardState.supportingEvidence.isComplete,
-    );
-
-    _wizardState = _wizardState.copyWith(
-      reviewSummary: summary,
-      formData: {
-        ..._wizardState.formData,
-        'reviewData': {
-          'estimatedAmount': estimatedAmount,
-          'notes': notes,
-          'isReadyForSubmission': summary.isReadyForSubmission,
-        },
-      },
-    );
-    notifyListeners();
-  }
-
-  // Navigation
-  void goToStep(WizardStep step) {
-    _wizardState = _wizardState.copyWith(currentStep: step);
-    notifyListeners();
-  }
-
-  void nextStep() {
-    if (canProceedToNext) {
-      _wizardState = _wizardState.markStepCompleted(currentStep).moveToNextStep();
+    try {
+      return await action();
+    } catch (e) {
+      _error = e;
+      return null;
+    } finally {
+      _busy = false;
       notifyListeners();
     }
   }
 
-  void previousStep() {
-    _wizardState = _wizardState.moveToPreviousStep();
+  Future<void> loadPolicies() async {
+    await _run(() async {
+      _policies = await _covers.myPolicies();
+      _policiesLoaded = true;
+      if (_selectedPolicy == null && activePolicies.isNotEmpty) _selectedPolicy = activePolicies.first;
+    });
+  }
+
+  void selectPolicy(Policy policy) {
+    if (policyLocked) return;
+    _selectedPolicy = policy;
     notifyListeners();
   }
 
-  // Form data management
-  void updateFormData(Map<String, dynamic> updates) {
-    _wizardState = _wizardState.copyWithFormData(updates);
+  void selectCategory(String id) {
+    if (policyLocked) return;
+    _categoryId = id;
     notifyListeners();
   }
 
-  void setFormDataValue(String key, dynamic value) {
-    _wizardState = _wizardState.copyWithFormData({key: value});
+  void setItemDescription(String value) => _itemDescription = value.trim();
+
+  void back() {
+    if (_step == ClaimWizardStep.status || _step.index == 0) return;
+    _step = ClaimWizardStep.values[_step.index - 1];
+    _error = null;
     notifyListeners();
   }
 
-  // Loading states
-  void setLoading(bool loading) {
-    _wizardState = _wizardState.copyWith(isLoading: loading);
+  void _goTo(ClaimWizardStep s) {
+    _step = s;
     notifyListeners();
   }
 
-  void setError(String error) {
-    _wizardState = _wizardState.copyWith(
-      isLoading: false,
-      errorMessage: error,
-    );
-    notifyListeners();
-  }
-
-  void clearError() {
-    _wizardState = _wizardState.copyWith(errorMessage: null);
-    _submissionError = null;
-    notifyListeners();
-  }
-
-  // Submission
-  Future<void> submitClaim() async {
-    if (_wizardState.reviewSummary == null || !_wizardState.reviewSummary!.canSubmit) {
-      setError('Claim is not ready for submission');
+  /// Step 1 → creates the Draft on the backend (once), then checks eligibility.
+  Future<void> startClaim() async {
+    final policy = _selectedPolicy;
+    if (policy == null) {
+      _error = 'Choose a policy first.';
+      notifyListeners();
       return;
     }
+    final ok = await _run(() async {
+      _claimId ??= await _claims.create(policyId: policy.id, category: backendCategoryFor(_categoryId));
+      _eligibility = await _claims.checkEligibility(policy.id);
+      return true;
+    });
+    if (ok == true) _goTo(ClaimWizardStep.eligibility);
+  }
 
-    _isSubmitting = true;
-    _submissionError = null;
-    notifyListeners();
+  void confirmEligibility() => _goTo(ClaimWizardStep.whatHappened);
 
-    try {
-      final context = _wizardState.screeningContext;
-      
-      // Step 1: Initiate Claim
-      final initiateResponse = await http.post(
-        Uri.parse('https://easy-claim-backend.pasekamabitsela22.workers.dev/api/v1/claims/initiate'),
-        headers: {'Content-Type': 'application/json', 'x-user-id': 'user123'},
-        body: jsonEncode({
-          'policyId': _wizardState.selectedCampaignId ?? 'pol_123',
-          'cause_of_loss': context.causeOfLoss,
-          'incident_date': context.incidentDate.toIso8601String(),
-          'location': context.incidentLocation,
-          'police_case_number': context.additionalContext['policeCas'] ?? '',
-          'description': context.incidentDescription,
-        }),
-      );
+  /// Folds the narrative fields into the single `causeOfLoss` text the backend stores.
+  static String composeNarrative({
+    required String cause,
+    String item = '',
+    String location = '',
+    String policeCase = '',
+    String details = '',
+  }) {
+    final parts = <String>[
+      'Cause: ${cause.trim()}',
+      if (item.trim().isNotEmpty) 'Item: ${item.trim()}',
+      if (location.trim().isNotEmpty) 'Location: ${location.trim()}',
+      if (policeCase.trim().isNotEmpty) 'SAPS case: ${policeCase.trim()}',
+      if (details.trim().isNotEmpty) 'Details: ${details.trim()}',
+    ];
+    final text = parts.join('. ');
+    return text.length > 2000 ? text.substring(0, 2000) : text;
+  }
 
-      if (initiateResponse.statusCode != 201) {
-        throw Exception('Failed to initiate claim: ${initiateResponse.body}');
-      }
-      
-      final initiateData = jsonDecode(initiateResponse.body);
-      final claimId = initiateData['claimId'];
-
-      // Step 2: Submit Claim
-      final submitResponse = await http.post(
-        Uri.parse('https://easy-claim-backend.pasekamabitsela22.workers.dev/api/v1/claims/$claimId/submit'),
-        headers: {'Content-Type': 'application/json', 'x-user-id': 'user123'},
-      );
-
-      if (submitResponse.statusCode != 200) {
-        throw Exception('Failed to submit claim: ${submitResponse.body}');
-      }
-
-      // Create submitted claim status
-      final submittedClaim = ClaimStatus(
-        claimId: claimId,
-        title: _wizardState.selectedCategory?.name ?? 'New Claim',
-        claimant: AuthService.currentUserName ?? 'User', // Would come from user context
-        amount: _wizardState.reviewSummary?.estimatedAmount ?? 'R0',
-        currentStage: ClaimStage.submitted,
-        lastUpdated: DateTime.now(),
-        policyNumber: 'EC-984210', // Would come from user's active policy
-        category: _wizardState.selectedCategory?.categoryId ?? 'general',
-      );
-
-      _wizardState = _wizardState.copyWith(
-        submittedClaim: submittedClaim,
-        completedAt: DateTime.now(),
-        currentStep: WizardStep.statusTracking,
-      );
-
-      _isSubmitting = false;
-      notifyListeners();
-    } catch (e) {
-      _isSubmitting = false;
-      _submissionError = 'Failed to submit claim: $e';
-      notifyListeners();
+  Future<void> saveWhatHappened({
+    required String cause,
+    required DateTime incidentDate,
+    String location = '',
+    String policeCase = '',
+    String details = '',
+  }) async {
+    final id = _claimId;
+    if (id == null) return;
+    final narrative = composeNarrative(cause: cause, item: _itemDescription, location: location, policeCase: policeCase, details: details);
+    final ok = await _run(() async {
+      await _claims.describe(id, causeOfLoss: narrative, incidentDate: incidentDate);
+      return true;
+    });
+    if (ok == true) {
+      _causeOfLoss = narrative;
+      _incidentDate = incidentDate;
+      _goTo(ClaimWizardStep.payout);
     }
   }
 
-  // Reset wizard
-  void resetWizard() {
-    _wizardState = _wizardState.reset();
-    _submissionError = null;
-    _isSubmitting = false;
-    notifyListeners();
-  }
-
-  // Validation helpers
-  bool validateCurrentStep() {
-    switch (currentStep) {
-      case WizardStep.identifyCategory:
-        return selectedCategory != null;
-      case WizardStep.verifiedStage:
-        return verificationStatus.isFullyVerified;
-      case WizardStep.screeningContext:
-        return screeningContext.isComplete;
-      case WizardStep.supportingEvidence:
-        return supportingEvidence.isComplete;
-      case WizardStep.reviewDecision:
-        return reviewSummary?.canSubmit ?? false;
-      case WizardStep.statusTracking:
-        return submittedClaim != null;
+  Future<void> savePayout({required int claimedAmountCents, required String bankName, required String accountHolder, required String accountNumber}) async {
+    final id = _claimId;
+    if (id == null) return;
+    final ok = await _run(() async {
+      await _claims.setPayoutDetails(id,
+          claimedAmountCents: claimedAmountCents, bankName: bankName, accountHolder: accountHolder, accountNumber: accountNumber);
+      return true;
+    });
+    if (ok == true) {
+      _claimedAmountCents = claimedAmountCents;
+      _bankName = bankName;
+      _accountLast4 = accountNumber.length >= 4 ? accountNumber.substring(accountNumber.length - 4) : accountNumber;
+      _goTo(ClaimWizardStep.evidence);
     }
   }
 
-  String getStepValidationError() {
-    switch (currentStep) {
-      case WizardStep.identifyCategory:
-        return 'Please select a claim category';
-      case WizardStep.verifiedStage:
-        return verificationStatus.hasErrors
-            ? verificationStatus.verificationErrors.join(', ')
-            : 'Verification incomplete';
-      case WizardStep.screeningContext:
-        return 'Please complete all required screening information';
-      case WizardStep.supportingEvidence:
-        return 'Please upload required evidence and complete checklist';
-      case WizardStep.reviewDecision:
-        return 'Please review and confirm all information before submission';
-      case WizardStep.statusTracking:
-        return 'No claim has been submitted yet';
-    }
+  Future<void> uploadEvidence({required List<int> bytes, required String filename}) async {
+    final id = _claimId;
+    if (id == null) return;
+    await _run(() async {
+      final sha = await _claims.uploadEvidence(id, bytes: bytes, filename: filename);
+      _evidence.add(UploadedEvidence(filename, bytes.length, sha));
+    });
   }
 
-  // Computed step information
-  String get currentStepTitle => currentStep.title;
-  String get currentStepDescription => currentStep.description;
-  int get currentStepNumber => currentStep.stepNumber;
-  int get totalSteps => WizardStep.values.length;
+  void finishEvidence() => _goTo(ClaimWizardStep.review);
+
+  Future<void> submit() async {
+    final id = _claimId;
+    if (id == null) return;
+    final ok = await _run(() async {
+      await _claims.submit(id);
+      final results = await Future.wait<Object>([_claims.detail(id), _claims.timeline(id)]);
+      _submitted = results[0] as ClaimDetail;
+      _timeline = results[1] as ClaimTimeline;
+      return true;
+    });
+    if (ok == true) _goTo(ClaimWizardStep.status);
+  }
 }

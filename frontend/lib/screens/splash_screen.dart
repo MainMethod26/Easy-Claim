@@ -4,7 +4,6 @@ import '../widgets/easy_claim_logo.dart';
 import '../widgets/neumorphic_button.dart';
 import '../widgets/picture_background.dart';
 import 'auth_screen.dart';
-import 'main_navigation_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   final bool autoAdvance;
@@ -47,7 +46,7 @@ class _SplashScreenState extends State<SplashScreen>
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+            MaterialPageRoute(builder: (_) => const AuthScreen()),
           );
         }
       });
@@ -218,26 +217,6 @@ class _SplashScreenState extends State<SplashScreen>
                             context,
                             MaterialPageRoute(
                               builder: (_) => const AuthScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 12.0),
-
-                    // Secondary Neumorphic "Direct to Demo Claim" button
-                    SizedBox(
-                      width: double.infinity,
-                      child: NeumorphicButton(
-                        height: 54.0,
-                        variant: NeumorphicButtonVariant.secondaryBlue,
-                        text: 'Explore Live Demo as User',
-                        icon: Icons.touch_app_rounded,
-                        onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const MainNavigationScreen(),
                             ),
                           );
                         },

@@ -71,7 +71,7 @@ def main() -> int:
     if args.regenerate or not data_path.exists():
         save_dev_dataset(generate_dev_dataset(seed=args.seed), data_path)
     dev_rows = load_dev_dataset(data_path)
-    seed_rows = load_seed_claims(ROOT / "seed_sa_data.sql")
+    seed_rows = load_seed_claims(ROOT / "backend" / "seed_sa_data.sql")
 
     ref_rows = [r for r in dev_rows if not r["synthetic_anomaly"]]
     anom_rows = [r for r in dev_rows if r["synthetic_anomaly"]]

@@ -148,7 +148,7 @@ class _ConsentDashboardScreenState extends State<ConsentDashboardScreen> {
               ),
               const SizedBox(height: 6.0),
               const Text(
-                'Swipe left on any partner to quickly revoke or inspect access.',
+                'Sample content: consent management is not connected to the backend yet, so changes here are not saved or enforced.',
                 style: TextStyle(
                   color: Color(0xFF64748B),
                   fontSize: 14.5,
@@ -170,7 +170,7 @@ class _ConsentDashboardScreenState extends State<ConsentDashboardScreen> {
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'EasyClaim never shares data with third parties without your explicit cryptographic consent token.',
+                        'This screen shows how consent will work. The partners listed are illustrative.',
                         style: TextStyle(color: Color(0xFF475569), fontSize: 13.0, height: 1.3),
                       ),
                     ),

@@ -39,16 +39,26 @@ namespace_id = "1001"
 ALLOWED_ORIGINS = ""
 # Expected JWT issuer / audience (see src/security/actor.ts). Change per environment.
 JWT_ISSUER = "easyclaim-dev"
-CF_ACCESS_TEAM_URL = "https://your-team.cloudflareaccess.com"
-CF_ACCESS_AUD = "your-cf-access-aud"
 JWT_AUDIENCE = "easyclaim-api"
+# Fail-safe default: the demo login (src/endpoints/demoAuth.ts) and /swagger are OFF unless an
+# environment deliberately sets ENVIRONMENT = "development" or "demo" (local: backend/.dev.vars).
+ENVIRONMENT = "production"
 # JWT_SECRET is a SECRET, never a var: `wrangler secret put JWT_SECRET` (deployed)
 # or backend/.dev.vars (local, gitignored). The API refuses every request without it.
 
+# Secrets the Worker needs (values never live in this file).
+# Deployed: `wrangler secret put <NAME>`. Local: `npm run setup:local` writes backend/.dev.vars.
+#   JWT_SECRET           required. HS256 token secret (>= 32 bytes); missing -> every request 401
+#   MLDSA_SEED           required. 32-byte hex seed of the ML-DSA-65 decision-signing key (Phase 5);
+#                        missing -> /decide 503, /pay 409
+#   DEMO_LOGIN_PASSWORD  optional, local/demo only; missing -> demo login 404
+# A [secrets] required = [...] block is deliberately NOT used: with it, wrangler 4.141 loads from
+# .dev.vars only the listed names and existing [vars], which would silently drop DEMO_LOGIN_PASSWORD.
+
+# Workers AI for evidence OCR (queue consumer, src/endpoints/ocr.ts). Advisory text only.
 [ai]
 binding = "AI"
 
+# Nightly job: Info Needed -> Expired after 30 days (src/jobs/expireInfoNeeded.ts), audited.
 [triggers]
-crons = ["0 0 * * *"] # Run every midnight
-
-# ANSA_SECRET_KEY should be set via wrangler secret put ANSA_SECRET_KEY
+crons = ["0 0 * * *"]

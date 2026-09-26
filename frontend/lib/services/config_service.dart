@@ -37,31 +37,12 @@ class ConfigService {
     }
   }
 
-  /// Get Logo.dev secret key (for server-side use only)
-  /// Never expose this in client-side code or logs
-  String get logoDevSecretKey {
-    try {
-      if (!dotenv.isInitialized) return '';
-      return dotenv.env['LOGO_DEV_SECRET_KEY'] ?? '';
-    } catch (_) {
-      return '';
-    }
-  }
+  /// Whether a Logo.dev publishable key is configured. Only the publishable key is ever read
+  /// by the app: secret keys must never ship in a client.
+  bool get isLogoDevConfigured => logoDevPublishableKey.isNotEmpty;
 
-  /// Check if Logo.dev is properly configured
-  bool get isLogoDevConfigured {
-    return logoDevPublishableKey.isNotEmpty && logoDevSecretKey.isNotEmpty;
-  }
-
-  /// Get API base URL (configurable for different environments)
-  String get apiBaseUrl {
-    try {
-      if (!dotenv.isInitialized) return 'https://api.logo.dev';
-      return dotenv.env['API_BASE_URL'] ?? 'https://api.logo.dev';
-    } catch (_) {
-      return 'https://api.logo.dev';
-    }
-  }
+  // The EasyClaim API base URL is not read from .env: see core/api/api_client.dart
+  // (--dart-define=API_BASE_URL=...).
 
   /// Get environment (dev, staging, production)
   String get environment {

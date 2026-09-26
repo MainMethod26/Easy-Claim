@@ -19,8 +19,8 @@ import { sign } from 'hono/jwt'
 
 const backendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const ID = /^[A-Za-z0-9_-]{1,64}$/
-const ROLES = ['CUSTOMER', 'ASSESSOR', 'MANAGER', 'ADMIN']
-const MAX_TTL = { CUSTOMER: 24 * 3600, ASSESSOR: 8 * 3600, MANAGER: 8 * 3600, ADMIN: 8 * 3600 }
+const ROLES = ['CUSTOMER', 'INSURER_ADMIN', 'SUPERADMIN']
+const MAX_TTL = { CUSTOMER: 24 * 3600, INSURER_ADMIN: 8 * 3600, SUPERADMIN: 8 * 3600 }
 
 function parseDotEnv(file) {
   if (!existsSync(file)) return {}
@@ -67,22 +67,21 @@ if (Buffer.byteLength(secret) < 32 || secret === 'CHANGE_ME') {
 }
 if (!iss || !aud) fail('JWT_ISSUER / JWT_AUDIENCE not found in wrangler.toml [vars] or .dev.vars.')
 
+// Same ids as src/security/demoUsers.ts, so offline tokens act as the seeded demo accounts.
 const DEMO_ACTORS = [
-  { key: 'customer_a', sub: 'user123', role: 'CUSTOMER', note: 'customer with Discovery, Sanlam and Old Mutual policies' },
-  { key: 'customer_b', sub: 'user456', role: 'CUSTOMER', note: 'customer with an OUTsurance policy, no claims' },
-  { key: 'assessor_a', sub: 'assessor_a1', role: 'ASSESSOR', tenant: 'ins_discovery', note: 'tenant A (Discovery) staff' },
-  { key: 'manager_a', sub: 'manager_a1', role: 'MANAGER', tenant: 'ins_discovery', note: 'tenant A (Discovery) manager' },
-  { key: 'assessor_b', sub: 'assessor_b1', role: 'ASSESSOR', tenant: 'ins_sanlam', note: 'tenant B (Sanlam) staff' },
-  { key: 'manager_b', sub: 'manager_b1', role: 'MANAGER', tenant: 'ins_sanlam', note: 'tenant B (Sanlam) manager' },
-  { key: 'admin', sub: 'admin1', role: 'ADMIN', note: 'no claim access' },
+  { key: 'customer_a', sub: 'user123', role: 'CUSTOMER', note: 'mike: customer with Discovery, Sanlam and Old Mutual policies' },
+  { key: 'customer_b', sub: 'user456', role: 'CUSTOMER', note: 'lerato: customer with an OUTsurance policy, no claims' },
+  { key: 'insurer_a', sub: 'usr_admin_discovery', role: 'INSURER_ADMIN', tenant: 'ins_discovery', note: 'Discovery insurer admin' },
+  { key: 'insurer_b', sub: 'usr_admin_sanlam', role: 'INSURER_ADMIN', tenant: 'ins_sanlam', note: 'Sanlam insurer admin' },
+  { key: 'superadmin', sub: 'usr_superadmin', role: 'SUPERADMIN', note: 'platform superadmin, no claim actions' },
 ]
 
 function validate({ sub, role, tenant }, ttl) {
   if (!ID.test(sub ?? '')) fail(`--sub must match ${ID}`)
   if (!ROLES.includes(role)) fail(`--role must be one of ${ROLES.join(', ')}`)
   if (tenant !== undefined && !ID.test(tenant)) fail(`--tenant must match ${ID}`)
-  if (role === 'CUSTOMER' && tenant) fail('CUSTOMER tokens must not carry a tenant')
-  if ((role === 'ASSESSOR' || role === 'MANAGER') && !tenant) fail(`${role} tokens require --tenant`)
+  if ((role === 'CUSTOMER' || role === 'SUPERADMIN') && tenant) fail(`${role} tokens must not carry a tenant`)
+  if (role === 'INSURER_ADMIN' && !tenant) fail('INSURER_ADMIN tokens require --tenant')
   // 60 s below the server maximum so a minting machine slightly ahead of the server still passes.
   if (!(ttl > 0) || ttl > MAX_TTL[role] - 60) fail(`--ttl must be between 1 and ${MAX_TTL[role] - 60} seconds for ${role}`)
 }
@@ -117,7 +116,7 @@ if (args.demo) {
   console.log(`Wrote ${path.relative(backendDir, outFile)} (tokens valid for ${args.ttl}s). Import it in Postman as an environment.`)
 } else {
   if (!args.sub || !args.role) {
-    fail('Usage: npm run token -- --sub <id> --role <CUSTOMER|ASSESSOR|MANAGER|ADMIN> [--tenant <id>] [--ttl 3600]')
+    fail('Usage: npm run token -- --sub <id> --role <CUSTOMER|INSURER_ADMIN|SUPERADMIN> [--tenant <id>] [--ttl 3600]')
   }
   console.log(await mint({ sub: args.sub, role: args.role, tenant: args.tenant }))
 }

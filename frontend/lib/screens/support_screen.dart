@@ -100,7 +100,7 @@ class _SupportScreenState extends State<SupportScreen> {
         SupportAgent(
           id: 'agent_kagiso',
           name: 'Kagiso Molefe',
-          role: 'Fast-Lane Mobile Assessor',
+          role: 'Fast-Lane Mobile Claims agent',
           avatarUrl:
               'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&fit=crop&q=80',
           isOnline: true,
@@ -144,7 +144,7 @@ class _SupportScreenState extends State<SupportScreen> {
         SupportAgent(
           id: 'agent_johan',
           name: 'Johan van der Merwe',
-          role: 'Lead Motor & Collision Assessor',
+          role: 'Lead Motor & Collision Claims agent',
           avatarUrl:
               'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&fit=crop&q=80',
           isOnline: true,
@@ -617,7 +617,7 @@ class _SupportScreenState extends State<SupportScreen> {
                     ),
                     const SizedBox(height: 2),
                     const Text(
-                      'Accredited assessors ready for instant claim discussion',
+                      'Accredited claims agents ready for instant claim discussion',
                       style: TextStyle(
                         color: Color(0xFF64748B),
                         fontSize: 12.0,
@@ -928,14 +928,14 @@ class _SupportScreenState extends State<SupportScreen> {
                     ),
                   ),
                   GFBadge(
-                    text: 'Assessor SLA',
+                    text: 'Claims agent SLA',
                     color: Color(0xFF0072FF),
                   ),
                 ],
               ),
               const SizedBox(height: 8.0),
               const Text(
-                'Choose a convenient time today for an assessor to call you regarding your claim.',
+                'Choose a convenient time today for an claims agent to call you regarding your claim.',
                 style: TextStyle(color: Color(0xFF64748B), fontSize: 13.0),
               ),
               const SizedBox(height: 12.0),
@@ -1133,7 +1133,7 @@ class _AgentChatModalState extends State<_AgentChatModal> {
     _messages.add({
       'fromAgent': true,
       'text':
-          'Hello User! I am ${widget.agent.name}, your claims assessor for ${widget.cover.underwriter}. I have your active policy (${widget.cover.policyNumber}) open for ${widget.cover.assetName}. How can I assist you right now?',
+          'Hello User! I am ${widget.agent.name}, your claims claims agent for ${widget.cover.underwriter}. I have your active policy (${widget.cover.policyNumber}) open for ${widget.cover.assetName}. How can I assist you right now?',
       'time': 'Just now',
     });
   }
@@ -1161,33 +1161,25 @@ class _AgentChatModalState extends State<_AgentChatModal> {
       _msgCtrl.clear();
     }
 
-    // Simulate realistic intelligent assessor response
+    // Simulate realistic intelligent claims agent response
     Future.delayed(const Duration(milliseconds: 1200), () {
       if (!mounted) return;
       setState(() {
         _isTyping = false;
         _messages.add({
           'fromAgent': true,
-          'text': _generateAssessorResponse(text),
+          'text': _generateAgentResponse(text),
           'time': 'Just now',
         });
       });
     });
   }
 
-  String _generateAssessorResponse(String userText) {
-    final lower = userText.toLowerCase();
-    if (lower.contains('status') || lower.contains('stage')) {
-      return 'Your claim for ${widget.cover.assetName} is verified and currently progressing through our automated review. All criteria have passed!';
-    } else if (lower.contains('payout') ||
-        lower.contains('money') ||
-        lower.contains('settlement')) {
-      return 'Payout of R4,200 is pre-authorized. Once the final review checks finish today, payment will transfer straight to your linked account.';
-    } else if (lower.contains('police') || lower.contains('docket')) {
-      return 'We have already retrieved police CAS docket 482/09/2026 via our automated SAPS API gateway. No physical paperwork needed from you!';
-    } else {
-      return 'Thank you for reaching out, User. I have noted this on your policy docket (${widget.cover.policyNumber}). Is there anything else you need assistance with?';
-    }
+  /// Live chat is not connected to any backend yet. The reply says so plainly instead of
+  /// inventing claim facts (status, payout or police checks) the system never produced.
+  String _generateAgentResponse(String userText) {
+    return 'Live chat with an claims agent is not connected yet, so this message was not sent. '
+        'For the real status of your claim, open Claim activity.';
   }
 
   @override
@@ -1350,7 +1342,7 @@ class _AgentChatModalState extends State<_AgentChatModal> {
                 alignment: Alignment.centerLeft,
                 child: Row(
                   children: [
-                    const Text('Assessor is typing...',
+                    const Text('Claims agent is typing...',
                         style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
                     const SizedBox(width: 6),
                     SizedBox(

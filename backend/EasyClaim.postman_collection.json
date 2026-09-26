@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "b3e34b5c-43f5-46b5-827c-473d092d603a",
-    "name": "EasyClaim API (Phase 1: bearer tokens + tenants)",
-    "description": "Local demo collection. Setup:\n1. cd backend && npm run setup:local && npm run db:migrate:local && npm run db:seed:local && npm run dev\n2. npm run token -- --postman   (writes backend/postman/EasyClaim.local.postman_environment.json, gitignored)\n3. Import that file in Postman as an environment and select it. It holds baseUrl and one token per demo actor.\nTokens are signed locally with the JWT_SECRET from backend/.dev.vars; the secret itself never enters Postman.\nFolders 0, 5, 6, 7 and 8 are attack demonstrations; each request description states the expected response.",
+    "name": "EasyClaim API (three-role model: customer, insurer admin, superadmin)",
+    "description": "Local demo collection for backend/ (the only API). Setup:\n1. cd backend && npm install && npm run setup:local && npm run demo:setup:local && npm run dev\n2. Either import the environment written by `npm run token -- --postman` (offline tokens), or create an environment with baseUrl = http://127.0.0.1:8787 and demoPassword = the DEMO_LOGIN_PASSWORD line of backend/.dev.vars (1234567), then run folder 00.\nRoles: CUSTOMER, INSURER_ADMIN (one insurer role: verify..pay + own-tenant accounts), SUPERADMIN (platform admin, read-only on claims). Folder names still say assessor/manager in places: both are now the insurer admin (token_insurer_a / token_insurer_b).\nSecrets never enter this collection. Folders 0, 5, 6, 7, 8, 11 are attack demonstrations; each request description states the expected response.\nContract: docs/API_CONTRACT.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -16,6 +16,309 @@
     }
   ],
   "item": [
+    {
+      "name": "00 - Sign in (demo accounts)",
+      "description": "Signs in the seeded demo accounts through POST /api/v1/auth/login (real accounts table, PBKDF2 hashes) and stores each token in the active environment (same variable names as `npm run token -- --postman`). Set the environment variable `demoPassword` to the DEMO_LOGIN_PASSWORD line of backend/.dev.vars (agreed demo password 1234567). Roles: CUSTOMER (mike, lerato), INSURER_ADMIN (admin_discovery, admin_sanlam), SUPERADMIN (superadmin).",
+      "auth": {
+        "type": "noauth"
+      },
+      "item": [
+        {
+          "name": "Sign in mike",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Expected: 200 with a token for mike; stored in {{token_customer_a}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"mike\",\n  \"password\": \"{{demoPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('token_customer_a', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in lerato",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Expected: 200 with a token for lerato; stored in {{token_customer_b}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"lerato\",\n  \"password\": \"{{demoPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('token_customer_b', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in admin_discovery",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Expected: 200 with a token for admin_discovery; stored in {{token_insurer_a}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin_discovery\",\n  \"password\": \"{{demoPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('token_insurer_a', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in admin_sanlam",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Expected: 200 with a token for admin_sanlam; stored in {{token_insurer_b}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin_sanlam\",\n  \"password\": \"{{demoPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('token_insurer_b', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in superadmin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Expected: 200 with a token for superadmin; stored in {{token_superadmin}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"superadmin\",\n  \"password\": \"{{demoPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('token_superadmin', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /auth/me (customer)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Expected: 200 {actor:{id:\"user123\",username:\"mike\",role:\"CUSTOMER\",tenantId:null,displayName:\"Mike\",status:\"active\"}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_customer_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /auth/register (new customer)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Expected: 201 with a token (CUSTOMER); 409 username_taken on repeat; a role field -> 400",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"newcustomer\",\n  \"password\": \"{{demoPassword}}\",\n  \"displayName\": \"New Customer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
     {
       "name": "0 - Unauthenticated (expect 401)",
       "description": "No token, or the retired Phase 0 dev headers. Every /api/v1 route must answer 401.",
@@ -532,14 +835,14 @@
       ]
     },
     {
-      "name": "2 - Assessor, tenant A (ins_discovery)",
-      "description": "Insurer staff of Discovery. Sees only submitted Discovery claims. Token: {{token_assessor_a}}.",
+      "name": "2 - Insurer admin, tenant A (ins_discovery)",
+      "description": "Insurer staff of Discovery. Sees only submitted Discovery claims. Token: {{token_insurer_a}}.",
       "auth": {
         "type": "bearer",
         "bearer": [
           {
             "key": "token",
-            "value": "{{token_assessor_a}}",
+            "value": "{{token_insurer_a}}",
             "type": "string"
           }
         ]
@@ -714,14 +1017,14 @@
       ]
     },
     {
-      "name": "3 - Manager, tenant A (ins_discovery)",
-      "description": "Manager of Discovery: decides (with a reason) and pays (simulated). Assessors can no longer decide (Phase 3). Token: {{token_manager_a}}.",
+      "name": "3 - Insurer admin, tenant A: decide & pay",
+      "description": "Manager of Discovery: decides (with a reason) and pays (simulated). Assessors can no longer decide (Phase 3). Token: {{token_insurer_a}}.",
       "auth": {
         "type": "bearer",
         "bearer": [
           {
             "key": "token",
-            "value": "{{token_manager_a}}",
+            "value": "{{token_insurer_a}}",
             "type": "string"
           }
         ]
@@ -815,14 +1118,14 @@
       ]
     },
     {
-      "name": "4 - Assessor, tenant B (ins_sanlam)",
-      "description": "Insurer staff of Sanlam. Token: {{token_assessor_b}}.",
+      "name": "4 - Insurer admin, tenant B (ins_sanlam)",
+      "description": "Insurer staff of Sanlam. Token: {{token_insurer_b}}.",
       "auth": {
         "type": "bearer",
         "bearer": [
           {
             "key": "token",
-            "value": "{{token_assessor_b}}",
+            "value": "{{token_insurer_b}}",
             "type": "string"
           }
         ]
@@ -863,7 +1166,7 @@
         "bearer": [
           {
             "key": "token",
-            "value": "{{token_assessor_b}}",
+            "value": "{{token_insurer_b}}",
             "type": "string"
           }
         ]
@@ -943,7 +1246,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_manager_b}}",
+                  "value": "{{token_insurer_b}}",
                   "type": "string"
                 }
               ]
@@ -974,7 +1277,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_manager_b}}",
+                  "value": "{{token_insurer_b}}",
                   "type": "string"
                 }
               ]
@@ -1092,7 +1395,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_assessor_b}}",
+                  "value": "{{token_insurer_b}}",
                   "type": "string"
                 }
               ]
@@ -1265,7 +1568,7 @@
         "bearer": [
           {
             "key": "token",
-            "value": "{{token_manager_a}}",
+            "value": "{{token_insurer_a}}",
             "type": "string"
           }
         ]
@@ -1343,7 +1646,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_assessor_a}}",
+                  "value": "{{token_insurer_a}}",
                   "type": "string"
                 }
               ]
@@ -1525,7 +1828,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_manager_b}}",
+                  "value": "{{token_insurer_b}}",
                   "type": "string"
                 }
               ]
@@ -1564,7 +1867,7 @@
         "bearer": [
           {
             "key": "token",
-            "value": "{{token_assessor_a}}",
+            "value": "{{token_insurer_a}}",
             "type": "string"
           }
         ]
@@ -1674,7 +1977,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_manager_a}}",
+                  "value": "{{token_insurer_a}}",
                   "type": "string"
                 }
               ]
@@ -1736,7 +2039,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_assessor_b}}",
+                  "value": "{{token_insurer_b}}",
                   "type": "string"
                 }
               ]
@@ -1767,7 +2070,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_manager_a}}",
+                  "value": "{{token_insurer_a}}",
                   "type": "string"
                 }
               ]
@@ -1828,7 +2131,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_manager_a}}",
+                  "value": "{{token_insurer_a}}",
                   "type": "string"
                 }
               ]
@@ -1846,7 +2149,7 @@
         "bearer": [
           {
             "key": "token",
-            "value": "{{token_manager_a}}",
+            "value": "{{token_insurer_a}}",
             "type": "string"
           }
         ]
@@ -1951,7 +2254,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_assessor_b}}",
+                  "value": "{{token_insurer_b}}",
                   "type": "string"
                 }
               ]
@@ -1977,6 +2280,754 @@
               ]
             },
             "description": "Expected: 409 decision_integrity_failed when the signature does not verify"
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 - Integration pass: claim detail, evidence, spoofing attacks",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token_customer_a}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "GET claim detail (owner)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}"
+              ]
+            },
+            "description": "Expected: 200 {claim:{id, stage, status, claimedAmountCents, payoutDestination (masked), insurerName, ...}}; never user_id"
+          }
+        },
+        {
+          "name": "POST evidence (multipart, field \"file\")",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/evidence",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "evidence"
+              ]
+            },
+            "description": "Pick a PDF/JPEG/PNG up to 10 MB. Expected: 201 {evidenceId, sha256} while the claim is Draft / Info Needed; 409 afterwards; 415 for a renamed .exe",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET evidence list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/evidence",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "evidence"
+              ]
+            },
+            "description": "Expected: 200 {evidence:[{id, display_name, mime_type, size_bytes, sha256, created_at}]}"
+          }
+        },
+        {
+          "name": "ATTACK-08 X-User-Id spoof (customer B pretends to be user123)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "user123"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_disc_101"
+              ]
+            },
+            "description": "Expected: 404 not_found. Identity comes only from the verified token; the header is ignored.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_customer_b}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "ATTACK-09 X-Role spoof (customer claims to be an assessor)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Role",
+                "value": "ASSESSOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_mom_103/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_mom_103",
+                "verify"
+              ]
+            },
+            "description": "Expected: 403 forbidden."
+          }
+        },
+        {
+          "name": "ATTACK-10 X-Tenant-Id spoof (Sanlam assessor claims Discovery)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "ins_discovery"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_disc_101"
+              ]
+            },
+            "description": "Expected: 404 not_found.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_assessor_b}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "ATTACK role in body on initiate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/initiate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "initiate"
+              ]
+            },
+            "description": "Expected: 400 validation_failed (unrecognized keys).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"policyId\": \"pol_disc_001\",\n  \"role\": \"MANAGER\",\n  \"tenantId\": \"ins_sanlam\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "ATTACK old open login route",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profile/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profile",
+                "login"
+              ]
+            },
+            "description": "Expected: 401. The pre-integration route that issued MANAGER tokens to anyone is gone.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"manager\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "ATTACK login with a wrong password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Expected: 401 invalid_credentials (same body as an unknown username).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"mike\",\n  \"password\": \"wrong-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "ATTACK login with a client-chosen role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Expected: 400 validation_failed. Role and tenant come from the users table only.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"mike\",\n  \"password\": \"{{demoPassword}}\",\n  \"role\": \"SUPERADMIN\",\n  \"tenantId\": \"ins_discovery\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "ATTACK-21 superadmin tries to decide a claim",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/decide",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_disc_101",
+                "decide"
+              ]
+            },
+            "description": "Expected: 403 forbidden. SUPERADMIN is read-only on claims.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"Approved\",\n  \"reason\": \"platform override\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_superadmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "ATTACK-22 Sanlam admin disables a Discovery admin",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenant/users/usr_admin_discovery",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenant",
+                "users",
+                "usr_admin_discovery"
+              ]
+            },
+            "description": "Expected: 404 not_found (other tenants are invisible).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"disabled\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_insurer_b}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 - Platform (SUPERADMIN) and tenant (INSURER_ADMIN) administration",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token_superadmin}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "GET /admin/stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/stats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "stats"
+              ]
+            },
+            "description": "Expected: 200 {tenants, usersByRole, claims:{total,byStage}, perTenant[]}"
+          }
+        },
+        {
+          "name": "GET /admin/tenants",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/tenants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "tenants"
+              ]
+            },
+            "description": "Expected: 200 {tenants:[{id,name,admin_count,policy_count,claim_count}]}"
+          }
+        },
+        {
+          "name": "POST /admin/tenants",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/tenants",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "tenants"
+              ]
+            },
+            "description": "Expected: 201; repeat -> 409 tenant_exists; id must match ^ins_[a-z0-9_]{2,40}$",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"ins_demo_mutual\",\n  \"name\": \"Demo Mutual\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST /admin/users (insurer admin for a tenant)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users"
+              ]
+            },
+            "description": "Expected: 201 {user}; unknown tenant -> 422; SUPERADMIN role with a tenantId -> 422",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin_demo_mutual\",\n  \"password\": \"{{demoPassword}}\",\n  \"displayName\": \"Demo Mutual Admin\",\n  \"role\": \"INSURER_ADMIN\",\n  \"tenantId\": \"ins_demo_mutual\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /admin/users?tenantId=ins_discovery",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users?tenantId=ins_discovery",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users"
+              ]
+            },
+            "description": "Expected: 200 {users:[...]} without password hashes"
+          }
+        },
+        {
+          "name": "PATCH /admin/users/:id (disable)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/usr_admin_sanlam",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "usr_admin_sanlam"
+              ]
+            },
+            "description": "Expected: 200; that account then gets 401 on login. Re-enable with status active.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"disabled\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /claims (platform read-only list)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims?limit=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims"
+              ]
+            },
+            "description": "Expected: 200 non-draft claims across all insurers (no user_id); ?tenantId= filters"
+          }
+        },
+        {
+          "name": "GET /tenant (insurer admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenant",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenant"
+              ]
+            },
+            "description": "Expected: 200 {tenant:{id,name}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_insurer_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /tenant/stats (insurer admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenant/stats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenant",
+                "stats"
+              ]
+            },
+            "description": "Expected: 200 {tenantId, claims:{total,byStage}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_insurer_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /tenant/users (insurer admin adds a colleague)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenant/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenant",
+                "users"
+              ]
+            },
+            "description": "Expected: 201 INSURER_ADMIN in the caller's tenant; a tenantId in the body -> 400",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"discovery_colleague\",\n  \"password\": \"{{demoPassword}}\",\n  \"displayName\": \"Discovery Colleague\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_insurer_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /tenant/users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenant/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenant",
+                "users"
+              ]
+            },
+            "description": "Expected: 200 own tenant accounts only",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_insurer_a}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         }
       ]

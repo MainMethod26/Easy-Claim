@@ -112,6 +112,8 @@
 
 ### BACKEND-SEC-021 — Unmounted MVC layer must stay unmounted until it is guarded (added 2026-09-26, Phase 4 merge)
 
+> Integration pass (26 Sep 2026): the layer now lives in `backend/legacy/src/` (outside `tsconfig` `include`), so it cannot be mounted or compiled by accident. See `backend/legacy/README.md`. Deletion proposed.
+
 `src/controllers/*`, `src/routes/*`, `src/services/*` are present in the repository but are **not** mounted by `src/index.ts`. Upstream commit `d76a0c6` mounted them in place of the secured entry point; the Phase 4 rebase restored the secured entry point (see `docs/quantum/PHASE_04_REPORT.md` §18a). An automated security review of those unmounted files found, in addition to the missing `requireActor`:
 
 | # | File | Finding | Severity if mounted |
@@ -126,3 +128,30 @@ Status: NOT EXPLOITABLE today (not mounted). Required before any of these routes
 ### BACKEND-SEC-022 — Post-quantum decision signing (Phase 5)
 - **Status:** IMPLEMENTED (ML-DSA-65 over the decision bundle; verify route; `/pay` enforces; fail closed without `MLDSA_SEED`). See `docs/security/PQC_DECISION_INTEGRITY.md`.
 - **Still yours / DECISION REQUIRED:** key custody (KMS/HSM vs Cloudflare secret), key rotation with a registry of past public keys, `wrangler secret put MLDSA_SEED --env production`, re-deciding pre-Phase-5 decisions (they are `UNSIGNED` and cannot be paid).
+
+### BACKEND-SEC-023 — Demo login replaces the open `/profile/login` (integration pass, 26 Sep 2026)
+- **Found:** commit `9bfde3a` mounted `POST /api/v1/profile/login` before `requireActor`: no password, role chosen by
+  substring of the input ("manager" → MANAGER of `ins_discovery`), no audit.
+- **Status:** FIXED. `POST /api/v1/auth/demo-login` (`backend/src/endpoints/demoAuth.ts`): 404 unless
+  `ENVIRONMENT` is `development`/`demo` and `DEMO_LOGIN_PASSWORD` (>= 12 chars) is set; fixed account table; strict
+  body; audited. `wrangler.toml` defaults to `ENVIRONMENT = "production"`. Tests: `backend/test/demoAuth.test.ts`.
+- **Still yours:** it is LOCAL/DEMO authentication with one shared password. Replace with an identity provider (019)
+  before any real data. Never set `ENVIRONMENT=demo` on a Worker with real claims.
+
+### BACKEND-SEC-024 — Deployed Worker may have run the open login (ACTION REQUIRED, human)
+- The Flutter app pointed at `https://easy-claim-backend.pasekamabitsela22.workers.dev`. If that Worker was deployed
+  with the code from `9bfde3a`..`1e432f7`, anyone could mint MANAGER tokens on it.
+- **Action:** someone with Cloudflare access checks the deployed version; if affected, redeploy from the fixed code and
+  rotate `JWT_SECRET` (`wrangler secret put JWT_SECRET`), which invalidates every token it issued.
+
+### BACKEND-SEC-025 — Three-role model and real accounts (26 Sep 2026, team decision)
+- **Decision:** roles are `CUSTOMER`, `INSURER_ADMIN` (one insurer role: verify, screen, review, decide, pay; manages
+  own-tenant admins) and `SUPERADMIN` (platform: insurers, accounts, stats; read-only on claims). `ASSESSOR`, `MANAGER`
+  and `ADMIN` are gone. This answers 015 (no separation of duties on the insurer side, KNOWN LIMITATION, compensated by
+  per-actor audit + ML-DSA signed decisions) and 020 (admin is platform-wide and never a claim actor).
+- **Implemented:** `users` table (migration 0009, PBKDF2-SHA256 hashes), `POST /auth/login`, `POST /auth/register`
+  (customers only), `/admin/*`, `/tenant/*`, superadmin read-only claim access; `backend/test/accounts.test.ts`,
+  ATTACK-21..23. Demo accounts are seeded locally only (`npm run db:seed:users:local`, password from `.dev.vars`).
+- **Still yours:** password reset, MFA, token revocation on disable (today ≤ 1 h), raising `MIN_PASSWORD_LENGTH` (6,
+  hackathon setting), bootstrapping the first superadmin on a real deployment
+  (`node scripts/seed-demo-users.mjs --remote --only superadmin --password '<strong>'`).

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:workers'
 import {
-  assessorA,
-  assessorB,
+  insurerA,
+  insurerB,
   auditRows,
   call,
   createReadyDraft,
@@ -37,7 +37,7 @@ describe('evidence upload authorization', () => {
 
   it('a non-CUSTOMER role is rejected (403)', async () => {
     const claimId = await createReadyDraft()
-    const res = await call(`/claims/${claimId}/evidence`, { method: 'POST', as: assessorA, formData: pdfForm() })
+    const res = await call(`/claims/${claimId}/evidence`, { method: 'POST', as: insurerA, formData: pdfForm() })
     expect(res.status).toBe(403)
   })
 
@@ -145,13 +145,13 @@ describe('evidence read authorization (IDOR / cross-tenant)', () => {
     expect(submitted.status).toBe(200)
 
     // Tenant A (the claim's own insurer) can see it.
-    expect((await call(`/claims/${claimId}/evidence`, { as: assessorA })).status).toBe(200)
-    expect((await call(`/claims/${claimId}/evidence/${evidenceId}`, { as: assessorA })).status).toBe(200)
+    expect((await call(`/claims/${claimId}/evidence`, { as: insurerA })).status).toBe(200)
+    expect((await call(`/claims/${claimId}/evidence/${evidenceId}`, { as: insurerA })).status).toBe(200)
 
     // Tenant B (a different insurer) cannot.
-    expect((await call(`/claims/${claimId}/evidence`, { as: assessorB })).status).toBe(404)
-    expect((await call(`/claims/${claimId}/evidence/${evidenceId}`, { as: assessorB })).status).toBe(404)
-    expect((await call(`/claims/${claimId}/evidence/${evidenceId}/verify`, { as: assessorB })).status).toBe(404)
+    expect((await call(`/claims/${claimId}/evidence`, { as: insurerB })).status).toBe(404)
+    expect((await call(`/claims/${claimId}/evidence/${evidenceId}`, { as: insurerB })).status).toBe(404)
+    expect((await call(`/claims/${claimId}/evidence/${evidenceId}/verify`, { as: insurerB })).status).toBe(404)
   })
 
   it('a successful download is audited', async () => {

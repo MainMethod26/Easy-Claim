@@ -17,3 +17,12 @@ cyber alignment follow-up (decisions now record `evidence_digest`; user-journey 
 Changes in 1.3: version line and §2 baseline refreshed to the actual state of Phases 0–4; Phase 4 completion (signal contract with bands, recommendation, versions and digest; audit and decision snapshot; tamper evidence via migration 0007; attack tests; demo claims scored from their own features) and the end-state flow line.
 
 Changes in 1.4: Phase 5 delivered state (ML-DSA-65 decision signing, verify route, payout enforcement, fail-closed key handling) and the PQC baseline row set to IMPLEMENTED.
+
+
+## Integration pass (26 Sep 2026)
+
+The Flutter app was connected to the real API, the restructure regressions (open login, broken build, misplaced tests,
+broken seed) were fixed, and the repository was cleaned. The `.docx` master plan has **not** been re-issued for this;
+the authoritative write-up is `docs/INTEGRATION_REPORT.md` with `docs/ARCHITECTURE.md` and `docs/API_CONTRACT.md`.
+A v1.5 of the docx should copy the "Canonical architecture", "Security regression findings" and "Remaining
+limitations" sections of that report.

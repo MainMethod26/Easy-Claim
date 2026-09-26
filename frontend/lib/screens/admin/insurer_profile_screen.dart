@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../services/logo_dev_service.dart';
 
 class InsurerProfileScreen extends StatefulWidget {
   final String insurerName;
@@ -193,7 +192,7 @@ class _InsurerProfileScreenState extends State<InsurerProfileScreen> with Single
               children: [
                 Text('Applying for: $planName', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 8),
-                const Text('Your ID (9402185249081) and account details will be securely transmitted to the insurer.', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+                const Text('Applying from the app is not available yet; nothing is sent to the insurer.', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
                 const SizedBox(height: 24),
                 const Text('Additional Info Needed', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                 const SizedBox(height: 10),
@@ -213,10 +212,11 @@ class _InsurerProfileScreenState extends State<InsurerProfileScreen> with Single
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.pop(context);
+                      // No application API exists yet: say so instead of pretending it was sent.
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          backgroundColor: const Color(0xFF16A34A),
-                          content: Text('Application for $planName sent to ${widget.insurerName}. They will contact you shortly.'),
+                          backgroundColor: const Color(0xFF475569),
+                          content: Text('Applying for $planName in the app is not available yet. Nothing was sent to ${widget.insurerName}.'),
                           behavior: SnackBarBehavior.floating,
                         ),
                       );

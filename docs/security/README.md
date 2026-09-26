@@ -1,3 +1,8 @@
+> **Integration pass (26 Sep 2026).** The backend now lives in `backend/` (paths below that start with `src/`, `test/`,
+> `migrations/` or `scripts/` are relative to `backend/`). The open `/profile/login` introduced by the restructure was
+> replaced by a gated, audited demo login; see [../SECURITY_INTEGRATION.md](../SECURITY_INTEGRATION.md) for the
+> integrated OWASP API Top 10 review and [../API_CONTRACT.md](../API_CONTRACT.md) for the current routes.
+
 # EasyClaim Security Documentation
 
 > **Token model (Phase 1).** Every `/api/v1/*` request must carry `Authorization: Bearer <JWT>`. The token is **verified, never merely decoded**, by `src/security/actor.ts` (`resolveActor` → `hono/jwt` `verify(token, JWT_SECRET, { alg: 'HS256', iss: JWT_ISSUER, aud: JWT_AUDIENCE })` → `validateClaims`):

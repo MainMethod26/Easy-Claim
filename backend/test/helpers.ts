@@ -13,7 +13,7 @@ export interface TestActor {
 }
 
 export interface TokenOptions {
-  /** Extra or overriding claims (e.g. { role: 'ADMIN' }, { exp: 1 }). */
+  /** Extra or overriding claims (e.g. { role: 'SUPERADMIN' }, { exp: 1 }). */
   claims?: Record<string, unknown>
   /** Claims to delete after building the payload (e.g. ['exp']). */
   omit?: string[]
@@ -77,16 +77,14 @@ export async function call(path: string, opts: CallOptions = {}): Promise<Respon
 
 // Seed data: tenant A = ins_discovery (claim_disc_101, Review), tenant B = ins_sanlam
 // (claim_sanlam_102, Decision/Approved), tenant C = ins_momentum (claim_mom_103, Submitted).
-export const customerA = { id: 'user123', role: 'CUSTOMER' } as const // owns claim_disc_101, claim_sanlam_102
-export const customerB = { id: 'user456', role: 'CUSTOMER' } as const // owns no claims
-export const assessorA = { id: 'assessor_a1', role: 'ASSESSOR', tenantId: 'ins_discovery' } as const
-export const managerA = { id: 'manager_a1', role: 'MANAGER', tenantId: 'ins_discovery' } as const
-export const assessorB = { id: 'assessor_b1', role: 'ASSESSOR', tenantId: 'ins_sanlam' } as const
-export const managerB = { id: 'manager_b1', role: 'MANAGER', tenantId: 'ins_sanlam' } as const
-export const admin = { id: 'admin1', role: 'ADMIN' } as const
-// Phase 0 aliases (tenant A staff).
-export const assessor = assessorA
-export const manager = managerA
+// Team role model (26 Sep 2026): CUSTOMER, INSURER_ADMIN (one per tenant), SUPERADMIN.
+// Ids match src/security/demoUsers.ts (seeded by test/setup.ts).
+export const customerA = { id: 'user123', role: 'CUSTOMER' } as const // username mike; owns claim_disc_101, claim_sanlam_102
+export const customerB = { id: 'user456', role: 'CUSTOMER' } as const // username lerato; owns no claims
+export const insurerA = { id: 'usr_admin_discovery', role: 'INSURER_ADMIN', tenantId: 'ins_discovery' } as const
+export const insurerB = { id: 'usr_admin_sanlam', role: 'INSURER_ADMIN', tenantId: 'ins_sanlam' } as const
+export const superadmin = { id: 'usr_superadmin', role: 'SUPERADMIN' } as const
+
 
 export async function auditRows(action: string, resourceId?: string) {
   const sql = resourceId
@@ -138,7 +136,7 @@ export async function createReadyDraft(): Promise<string> {
 export async function createReviewedClaim(): Promise<string> {
   const claimId = await createSubmittedClaim()
   for (const step of ['verify', 'screen', 'review']) {
-    const res = await call(`/claims/${claimId}/${step}`, { method: 'POST', as: assessorA })
+    const res = await call(`/claims/${claimId}/${step}`, { method: 'POST', as: insurerA })
     if (res.status !== 200) throw new Error(`${step} failed: ${res.status}`)
   }
   return claimId

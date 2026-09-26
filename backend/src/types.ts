@@ -1,8 +1,10 @@
-export const ROLES = ['CUSTOMER', 'ASSESSOR', 'MANAGER', 'ADMIN'] as const
+// Team role model (26 Sep 2026): a platform SUPERADMIN, one INSURER_ADMIN role per insurer
+// (tenant), and platform-level CUSTOMERs. See docs/ARCHITECTURE.md.
+export const ROLES = ['CUSTOMER', 'INSURER_ADMIN', 'SUPERADMIN'] as const
 export type Role = (typeof ROLES)[number]
 
 /** Roles that act on behalf of an insurer tenant. Their tokens MUST carry tenant_id. */
-export const INSURER_ROLES: readonly Role[] = ['ASSESSOR', 'MANAGER']
+export const INSURER_ROLES: readonly Role[] = ['INSURER_ADMIN']
 
 /** Identifier format shared by actor ids, tenant ids, claim ids and policy ids. */
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
@@ -12,9 +14,11 @@ export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
  *
  * - CUSTOMER: platform-level user; tenantId is always null (a customer holds policies
  *   with several insurers, see seed_sa_data.sql). Access is by ownership (claims.user_id).
- * - ASSESSOR / MANAGER: insurer staff; tenantId is the insurer they work for and is
- *   required. Access is by tenant (claims.tenant_id).
- * - ADMIN: no claim access; tenantId optional (DECISION REQUIRED: platform vs tenant admin).
+ * - INSURER_ADMIN: the insurer's administrator; tenantId is the insurer they own and is
+ *   required. Works every insurer step of a claim (verify ... pay) and manages the tenant's
+ *   staff accounts. Access is by tenant (claims.tenant_id).
+ * - SUPERADMIN: platform operator; no tenant. Creates insurers and insurer admins and reads
+ *   platform-wide data. Never verifies, decides or pays a claim (tenant isolation).
  */
 export interface Actor {
   id: string
@@ -40,11 +44,15 @@ export type Bindings = {
   // Phase 5: 32-byte hex seed for the ML-DSA-65 decision-signing key. Secret binding only
   // (`wrangler secret put MLDSA_SEED` deployed, `.dev.vars` locally). Missing -> decisions refused (fail closed).
   MLDSA_SEED?: string
-  // Cloudflare Workers AI Binding
-  AI?: any
-  // Cloudflare Access (Zero Trust) settings
-  CF_ACCESS_TEAM_URL?: string
-  CF_ACCESS_AUD?: string
+  // Cloudflare Workers AI, used by the OCR queue consumer (endpoints/ocr.ts). Optional: without it
+  // evidence OCR is skipped and logged. OCR output is stored as advisory text only.
+  AI?: { run(model: string, input: Record<string, unknown>): Promise<{ response?: string; text?: string } | undefined> }
+  // 'production' (wrangler.toml default) | 'development' | 'demo'. Anything other than
+  // development/demo keeps the API docs (/swagger) switched off.
+  ENVIRONMENT?: string
+  // Local only: the password the demo accounts are seeded with (scripts/seed-demo-users.mjs,
+  // test/setup.ts). The Worker itself never reads it.
+  DEMO_LOGIN_PASSWORD?: string
 }
 
 export type AppEnv = {

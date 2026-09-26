@@ -1,5 +1,9 @@
 # Parallel work rules (Phases 2, 3, 4)
 
+> Since the integration pass (26 Sep 2026) the backend lives in `backend/` and the Flutter app in `frontend/`; paths
+> such as `src/`, `test/`, `migrations/` below are relative to `backend/`. Local ports: 8787 default, 8790 used by the
+> integration pass because a stale workerd held 8787.
+
 Written 2026-09-26 when Phase 1 was closed on `main`. Three phases now run at the same time on
 different machines and in different Claude sessions. These rules keep the security work mergeable.
 
@@ -37,9 +41,9 @@ Never renumber another phase's migration. Existing 0001 to 0003 are frozen.
 | `src/endpoints/ocr.ts`, evidence routes, queue consumer | Phase 2 | not touch |
 | `src/screening/*` (new) | Phase 4 | not touch |
 | `quantum/*` (new, Python) | Phase 4 | not touch |
-| `src/index.ts` | shared | append route mounts only; keep `requireActor` on `/api/v1/*` |
+| `backend/src/index.ts` | shared | append route mounts only; keep `requireActor` on `/api/v1/*` |
 | `src/controllers`, `src/routes`, `src/services` | backend team | not mount; not touch |
-| `lib/` (Flutter) | backend team | not touch |
+| `frontend/` (Flutter) | frontend/backend team | consume the API only through `lib/core/api` + repositories (docs/API_CONTRACT.md) |
 | `docs/security/*`, `README.md` | shared | edit your own rows; expect a small merge |
 | `docs/phase-reports/PHASE_0N_*` | phase N | not touch other phases' reports |
 

@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Release builds call the EasyClaim API over HTTPS. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="EasyClaim"
         android:name="${applicationName}"

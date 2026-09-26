@@ -25,9 +25,10 @@ export interface ClaimRow {
 }
 
 /**
- * - 'read':        the owning CUSTOMER, or insurer staff of the claim's tenant
+ * - 'read':        the owning CUSTOMER, the INSURER_ADMIN of the claim's tenant, or a
+ *                  SUPERADMIN (platform read-only; Drafts stay private to their owner)
  * - 'owner-write': only the owning CUSTOMER
- * - 'insurer':     only insurer staff (ASSESSOR / MANAGER) of the claim's tenant
+ * - 'insurer':     only the INSURER_ADMIN of the claim's tenant
  */
 export type ClaimAccessMode = 'read' | 'owner-write' | 'insurer'
 
@@ -64,13 +65,16 @@ export async function loadAuthorizedClaim(
 
   const isOwner = claim !== null && actor.role === 'CUSTOMER' && claim.user_id === actor.id
   const tenantInsurer = claim !== null && isTenantInsurer(actor, claim)
+  const platformReader = claim !== null && actor.role === 'SUPERADMIN' && claim.stage !== 'Draft'
 
-  const allowed = mode === 'owner-write' ? isOwner : mode === 'insurer' ? tenantInsurer : isOwner || tenantInsurer
+  const allowed =
+    mode === 'owner-write' ? isOwner : mode === 'insurer' ? tenantInsurer : isOwner || tenantInsurer || platformReader
   if (claim && allowed) return claim
 
   let reason: DenyReason
   if (!claim) reason = 'missing'
   else if (actor.role === 'CUSTOMER') reason = isOwner ? 'mode' : 'not_owner'
+  else if (actor.role === 'SUPERADMIN') reason = claim.stage === 'Draft' ? 'draft' : 'mode'
   else if (!INSURER_ROLES.includes(actor.role)) reason = 'role'
   else if (claim.tenant_id === null) reason = 'tenant_unset'
   else if (claim.tenant_id !== actor.tenantId) reason = 'cross_tenant'

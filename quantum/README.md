@@ -13,7 +13,7 @@ quantum/
     model.py           OneClassSVM(precomputed), percentile scores, bands, ScreeningSignal
     dataset.py         SYNTHETIC dev dataset generator (labelled), seed-claim loader
   experiment.py        runs everything, writes results/
-  tests/               pytest (26 tests)
+  tests/               pytest (27 tests)
   data/dev_claims.json SYNTHETIC development data, committed for reproducibility
   results/             results.md, results.json, screening_signals.sql, demo_claims.sql
 ```
@@ -24,10 +24,12 @@ quantum/
 python -m venv quantum/.venv
 quantum/.venv/Scripts/pip install -r quantum/requirements.txt     # POSIX: quantum/.venv/bin/pip
 quantum/.venv/Scripts/python quantum/experiment.py                # add --regenerate to rebuild the dataset
-npm run quantum:test   # runs pytest from quantum/ with the venv interpreter
+cd backend && npm run quantum:test   # runs pytest from quantum/ with the venv interpreter
 ```
 
-Then, for the local Worker demo: `npm run signals:import:local && npm run demo:quantum:local`.
+Run from the repo root (the pipeline reads the demo seed at `backend/seed_sa_data.sql`). Then, for the local Worker
+demo: `cd backend && npm run signals:import:local && npm run demo:quantum:local` (or `npm run demo:setup:local`,
+which also applies migrations and the seed).
 
 ## Honesty notes
 

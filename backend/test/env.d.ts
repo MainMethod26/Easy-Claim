@@ -9,3 +9,9 @@ declare global {
     }
   }
 }
+
+// Vite raw-text imports (test/accounts.test.ts reads scripts/seed-demo-users.mjs as text).
+declare module '*?raw' {
+  const text: string
+  export default text
+}

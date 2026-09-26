@@ -10,14 +10,15 @@ import claimsInsurer from './endpoints/claimsInsurer'
 import evidence from './endpoints/evidence'
 import ocr from './endpoints/ocr'
 import identity from './endpoints/identity'
-import admin from './endpoints/admin'
 import audit from './endpoints/audit'
 import riskSignals from './screening/routes'
 import { processQueueBatch } from './endpoints/ocr'
 import { decisionIntegrity, integrityInfo } from './integrity/routes'
 import { requireActor } from './security/actor'
-import devLogin from './endpoints/devLogin'
+import { authInfo, authPublic } from './endpoints/auth'
+import { superadmin, tenantAdmin } from './endpoints/admin'
 import type { AppEnv, Bindings } from './types'
+import { expireStaleInfoNeeded } from './jobs/expireInfoNeeded'
 import { swaggerUI } from '@hono/swagger-ui'
 import openapiData from './openapi.json'
 
@@ -70,10 +71,11 @@ app.use('/api/*', async (c, next) => {
   await next()
 })
 
-// Every API route requires a verified bearer token. See src/security/actor.ts.
-// Dev Login (no auth required)
-app.route('/api/v1/profile/login', devLogin)
+// Sign-in and customer self-registration: the only /api/v1 routes reachable without a token
+// (src/endpoints/auth.ts). The per-IP rate limit above still applies to them.
+app.route('/api/v1/auth', authPublic)
 
+// Every other API route requires a verified bearer token. See src/security/actor.ts.
 app.use('/api/v1/*', requireActor)
 
 // Second, per-actor limit after authentication (same binding, actor-keyed), so one
@@ -87,13 +89,20 @@ app.use('/api/v1/*', async (c, next) => {
   await next()
 })
 
-// Swagger UI Endpoint
+// API documentation (Swagger UI + OpenAPI) only outside production: it maps every route.
+const docsEnabled = (env: AppEnv['Bindings']) => env.ENVIRONMENT === 'development' || env.ENVIRONMENT === 'demo'
+for (const path of ['/swagger', '/openapi.json']) {
+  app.use(path, async (c, next) => {
+    if (!docsEnabled(c.env)) return c.json({ error: 'not_found' }, 404)
+    await next()
+  })
+}
 app.get('/swagger', swaggerUI({ url: '/openapi.json' }))
-// Serve OpenAPI JSON
-app.get('/openapi.json', (c) => {
-  return c.json(openapiData)
-})
+app.get('/openapi.json', (c) => c.json(openapiData))
 
+app.route('/api/v1/auth', authInfo)
+app.route('/api/v1/admin', superadmin) // SUPERADMIN: insurers, accounts, platform stats
+app.route('/api/v1/tenant', tenantAdmin) // INSURER_ADMIN: own tenant's accounts and stats
 app.route('/api/v1/client', gateway)
 app.route('/api/v1/covers', policy)
 app.route('/api/v1/claims', claims)
@@ -104,7 +113,6 @@ app.route('/api/v1/claims', decisionIntegrity) // Phase 5: ML-DSA decision verif
 app.route('/api/v1/integrity', integrityInfo) // Phase 5: public key
 app.route('/api/v1/ocr', ocr)
 app.route('/api/v1/profile', identity)
-app.route('/api/v1/admin', admin)
 app.route('/api/v1/activities', audit)
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404))
@@ -125,26 +133,14 @@ export default {
   async queue(batch: MessageBatch<unknown>, env: unknown): Promise<void> {
     await processQueueBatch(batch, env)
   },
-  async scheduled(event: ScheduledEvent, env: Bindings, ctx: ExecutionContext): Promise<void> {
-    // Expire claims that have been in 'Info Needed' for more than 30 days
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-    
+  // Nightly (wrangler.toml [triggers]): expire claims left in 'Info Needed' for 30 days.
+  // Goes through the state machine and writes an audit row per claim (src/jobs/expireInfoNeeded.ts).
+  async scheduled(_event: ScheduledController, env: Bindings): Promise<void> {
     try {
-      const claimsToExpire = await env.DB.prepare(
-        `SELECT id FROM claims WHERE stage = 'Info Needed' AND updated_at < ?`
-      ).bind(thirtyDaysAgo).all<{id: string}>()
-      
-      if (claimsToExpire.results.length > 0) {
-        const stmt = env.DB.prepare(`UPDATE claims SET stage = 'Expired', status = 'Closed', updated_at = ? WHERE id = ?`)
-        const now = new Date().toISOString()
-        
-        const batch = claimsToExpire.results.map(c => stmt.bind(now, c.id))
-        await env.DB.batch(batch)
-        
-        console.log(`Expired ${claimsToExpire.results.length} old claims.`)
-      }
+      const n = await expireStaleInfoNeeded(env)
+      if (n) console.log(`Expired ${n} claim(s) left in Info Needed.`)
     } catch (err) {
-      console.error('Failed to run expiry cron job:', err)
+      console.error('expiry job failed:', err)
     }
-  }
+  },
 }

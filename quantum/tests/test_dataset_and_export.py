@@ -24,7 +24,7 @@ def test_generator_is_deterministic_and_labelled():
 
 
 def test_seed_claims_parse_with_real_schema():
-    rows = load_seed_claims(ROOT / "seed_sa_data.sql")
+    rows = load_seed_claims(ROOT / "backend" / "seed_sa_data.sql")
     assert {r["id"] for r in rows} == {"claim_disc_101", "claim_sanlam_102", "claim_mom_103"}
     assert all(r["synthetic"] is False for r in rows)
     ids, X = extract_features(to_records(rows))  # missing dates/categories become NaN, not errors

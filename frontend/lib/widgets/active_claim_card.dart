@@ -11,14 +11,18 @@ class ActiveClaimCard extends StatefulWidget {
   final int currentStep;
   final ValueChanged<int>? onStepChanged;
 
+  /// Brand shown in the logo tile (the insurer); falls back to an icon when unknown.
+  final String logoName;
+
   const ActiveClaimCard({
     super.key,
-    this.title = 'Phone stolen',
-    this.claimant = 'User',
-    this.amount = 'R4,200',
-    this.status = 'Under review',
-    this.currentStep = 3,
+    required this.title,
+    required this.claimant,
+    required this.amount,
+    required this.status,
+    required this.currentStep,
     this.onStepChanged,
+    this.logoName = 'EasyClaim',
   });
 
   @override
@@ -83,8 +87,8 @@ class _ActiveClaimCardState extends State<ActiveClaimCard> {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  const BrandLogo(
-                    name: 'Apple',
+                  BrandLogo(
+                    name: widget.logoName,
                     size: 42.0,
                     borderRadius: 8.0,
                     padding: 4.0,

@@ -40,6 +40,8 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+# Flutter app build output (was committed by mistake; untracked 26 Sep 2026)
+frontend/build/
 /coverage/
 
 # Symbolication related
@@ -58,3 +60,12 @@ app.*.map.json
 .env.*
 .env.local
 .env.*.local
+
+# Flutter tooling
+.flutter-plugins
+**/.dart_tool/
+
+# Local secrets and generated local state in the backend
+backend/.dev.vars
+backend/.wrangler/
+coverage/

@@ -1,32 +1,21 @@
 import 'package:flutter/material.dart';
-import '../models/covers_models.dart';
+import '../data/models/api_models.dart';
 import '../widgets/claims_wizard_modal.dart';
-import '../providers/claims_wizard_provider.dart';
-import 'package:provider/provider.dart';
 
+/// One of the customer's real policies (GET /covers/my-covers) and what they can do with it.
 class PolicyDetailsScreen extends StatelessWidget {
-  final ActivePolicy policy;
+  final Policy policy;
+  final VoidCallback? onClaimSubmitted;
 
-  const PolicyDetailsScreen({Key? key, required this.policy}) : super(key: key);
+  const PolicyDetailsScreen({super.key, required this.policy, this.onClaimSubmitted});
 
   void _startClaimFlow(BuildContext context) {
-    String categoryId = 'health_medical';
-    if (policy.plan.category.name.toLowerCase().contains('vehicle')) {
-      categoryId = 'vehicle_transit';
-    } else if (policy.plan.category.name.toLowerCase().contains('home')) {
-      categoryId = 'home_property';
-    } else if (policy.plan.category.name.toLowerCase().contains('health')) {
-      categoryId = 'health_medical';
-    } else {
-      categoryId = 'device_electronics';
-    }
+    ClaimsWizardModal.show(context, policy: policy, onCompleted: onClaimSubmitted);
+  }
 
-    ClaimsWizardModal.show(
-      context,
-      campaignName: policy.plan.name,
-      campaignId: policy.policyNumber,
-      initialCategory: categoryId,
-      initialCoveredItemId: policy.assetName,
+  void _notAvailable(BuildContext context, String what) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$what is not available in the app yet.'), behavior: SnackBarBehavior.floating),
     );
   }
 
@@ -35,14 +24,7 @@ class PolicyDetailsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(
-          policy.plan.name,
-          style: const TextStyle(
-            color: Color(0xFF0F172A),
-            fontWeight: FontWeight.w800,
-            fontSize: 20,
-          ),
-        ),
+        title: Text(policy.planName, style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w800, fontSize: 20)),
         backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
@@ -61,43 +43,28 @@ class PolicyDetailsScreen extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(policy.plan.category.icon, size: 40, color: const Color(0xFF0F172A)),
+                  const Icon(Icons.shield_outlined, size: 40, color: Color(0xFF0F172A)),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          policy.assetName,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
+                        Text(policy.insurerName ?? 'Insurer',
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
                         const SizedBox(height: 4),
-                        Text(
-                          'Policy #${policy.policyNumber}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF64748B),
-                          ),
-                        ),
+                        Text('Policy ${policy.id} · ${policy.status}', style: const TextStyle(fontSize: 14, color: Color(0xFF64748B))),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
+            if (!policy.isActive) ...[
+              const SizedBox(height: 12),
+              const Text('Claims can only be made on an active policy.', style: TextStyle(color: Color(0xFFD97706))),
+            ],
             const SizedBox(height: 32),
-            const Text(
-              'Manage Policy',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
-              ),
-            ),
+            const Text('Manage policy', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
             const SizedBox(height: 16),
             Expanded(
               child: GridView.count(
@@ -107,43 +74,31 @@ class PolicyDetailsScreen extends StatelessWidget {
                 children: [
                   _buildOptionCard(
                     icon: Icons.assignment_late_rounded,
-                    title: 'Submit Claim',
-                    subtitle: 'File a new claim',
+                    title: 'Submit claim',
+                    subtitle: policy.isActive ? 'File a new claim' : 'Policy not active',
                     color: const Color(0xFFFF5500),
-                    onTap: () => _startClaimFlow(context),
+                    onTap: policy.isActive ? () => _startClaimFlow(context) : () => _notAvailable(context, 'Claiming on an inactive policy'),
                   ),
                   _buildOptionCard(
                     icon: Icons.description_rounded,
                     title: 'Documents',
-                    subtitle: 'View policy docs',
+                    subtitle: 'Not available yet',
                     color: const Color(0xFF3B82F6),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Documents feature coming soon!')),
-                      );
-                    },
+                    onTap: () => _notAvailable(context, 'Policy documents'),
                   ),
                   _buildOptionCard(
                     icon: Icons.edit_document,
-                    title: 'Update Details',
-                    subtitle: 'Edit asset info',
+                    title: 'Update details',
+                    subtitle: 'Not available yet',
                     color: const Color(0xFF10B981),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Update Details feature coming soon!')),
-                      );
-                    },
+                    onTap: () => _notAvailable(context, 'Updating policy details'),
                   ),
                   _buildOptionCard(
                     icon: Icons.cancel_presentation_rounded,
-                    title: 'Cancel Policy',
-                    subtitle: 'Terminate coverage',
+                    title: 'Cancel policy',
+                    subtitle: 'Not available yet',
                     color: const Color(0xFFEF4444),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Cancel Policy feature coming soon!')),
-                      );
-                    },
+                    onTap: () => _notAvailable(context, 'Cancelling a policy'),
                   ),
                 ],
               ),
@@ -169,43 +124,20 @@ class PolicyDetailsScreen extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: const Color(0xFFE2E8F0)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
               child: Icon(icon, color: color, size: 28),
             ),
             const SizedBox(height: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 15,
-                color: Color(0xFF0F172A),
-              ),
-            ),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Color(0xFF0F172A))),
             const SizedBox(height: 4),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF64748B),
-              ),
-            ),
+            Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
           ],
         ),
       ),

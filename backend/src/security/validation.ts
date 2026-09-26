@@ -83,3 +83,27 @@ export function validate<T extends z.ZodType>(target: Target, schema: T) {
     }
   })
 }
+
+// ---- Accounts (team role model, 26 Sep 2026) ----
+// Usernames are lower-cased by the handlers; the pattern keeps them URL- and log-safe.
+const username = z.string().trim().regex(/^[A-Za-z0-9_-]{3,64}$/)
+// Hackathon setting: 6 characters minimum so the agreed demo password works. Raise for production.
+export const MIN_PASSWORD_LENGTH = 6
+const password = z.string().min(MIN_PASSWORD_LENGTH).max(200)
+const displayName = z.string().trim().min(2).max(100)
+
+export const loginSchema = z.object({ username, password }).strict()
+export const registerSchema = z.object({ username, password, displayName }).strict()
+
+/** SUPERADMIN creates insurer admins (tenant required) or other superadmins (no tenant). */
+export const adminCreateUserSchema = z
+  .object({ username, password, displayName, role: z.enum(['INSURER_ADMIN', 'SUPERADMIN']), tenantId: id.optional() })
+  .strict()
+/** INSURER_ADMIN creates further admins for its own tenant; the tenant comes from the token. */
+export const tenantCreateUserSchema = z.object({ username, password, displayName }).strict()
+export const userStatusSchema = z.object({ status: z.enum(['active', 'disabled']) }).strict()
+export const userIdParam = z.object({ userId: id })
+export const createTenantSchema = z
+  .object({ id: z.string().regex(/^ins_[a-z0-9_]{2,40}$/), name: z.string().trim().min(2).max(100) })
+  .strict()
+export const tenantQuerySchema = z.object({ tenantId: id.optional() })

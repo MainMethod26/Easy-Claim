@@ -2,8 +2,8 @@ import { env } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
 import { readRiskSignals } from '../src/screening/quantumSignal'
 import {
-  assessorA,
-  assessorB,
+  insurerA,
+  insurerB,
   auditRows,
   call,
   claimStage,
@@ -11,7 +11,6 @@ import {
   customerA,
   customerB,
   decisionRows,
-  managerA,
   payoutRows,
 } from './helpers'
 
@@ -33,7 +32,7 @@ async function insertSignal(claimId: string, quantum = 0.99, interpretation = 'H
 
 async function verifiedClaim(): Promise<string> {
   const claimId = await createSubmittedClaim()
-  const res = await call(`/claims/${claimId}/verify`, { method: 'POST', as: assessorA })
+  const res = await call(`/claims/${claimId}/verify`, { method: 'POST', as: insurerA })
   if (res.status !== 200) throw new Error(`verify failed: ${res.status}`)
   return claimId
 }
@@ -51,7 +50,7 @@ describe('signal contract', () => {
   it('HIGH anomaly: band HIGH, REVIEW_REQUIRED, versioned, digest, advisory, never the word "fraud" as a verdict', async () => {
     const id = await verifiedClaim()
     await insertSignal(id)
-    const res = await call(`/claims/${id}/screen`, { method: 'POST', as: assessorA })
+    const res = await call(`/claims/${id}/screen`, { method: 'POST', as: insurerA })
     const { riskSignals } = (await res.json()) as { riskSignals: Signal }
     expect(riskSignals).toMatchObject({
       interpretation: 'HIGH_ANOMALY',
@@ -68,7 +67,7 @@ describe('signal contract', () => {
   it('NORMAL → STANDARD_REVIEW; UNUSUAL → ELEVATED / REVIEW_REQUIRED; unknown model version is reported, not guessed', async () => {
     const a = await verifiedClaim()
     await insertSignal(a, 0.1, 'NORMAL', 0.2)
-    const na = (await (await call(`/claims/${a}/risk-signals`, { as: assessorA })).json()) as { riskSignals: Signal }
+    const na = (await (await call(`/claims/${a}/risk-signals`, { as: insurerA })).json()) as { riskSignals: Signal }
     expect(na.riskSignals).toMatchObject({ anomalyBand: 'NORMAL', screeningRecommendation: 'STANDARD_REVIEW' })
 
     const b = await verifiedClaim()
@@ -76,7 +75,7 @@ describe('signal contract', () => {
       `INSERT INTO screening_signals (claim_id, model_version, classical_anomaly, quantum_anomaly, interpretation, execution, computed_at)
        VALUES (?, 'future-model', 0.8, 0.85, 'UNUSUAL', 'simulator', '2026-09-26T00:00:00Z')`
     ).bind(b).run()
-    const nb = (await (await call(`/claims/${b}/risk-signals`, { as: assessorA })).json()) as { riskSignals: Signal }
+    const nb = (await (await call(`/claims/${b}/risk-signals`, { as: insurerA })).json()) as { riskSignals: Signal }
     expect(nb.riskSignals).toMatchObject({ anomalyBand: 'ELEVATED', screeningRecommendation: 'REVIEW_REQUIRED' })
     expect(nb.riskSignals.versions).toMatchObject({ model: 'future-model', features: 'unknown', kernel: 'unknown' })
   })
@@ -107,8 +106,8 @@ describe('QUANTUM-06/07: screening inherits ownership and tenant isolation', () 
     expect((await call(`/claims/${id}/screen`, { method: 'POST', as: customerA })).status).toBe(403)
     expect((await call(`/claims/${id}/screen`, { method: 'POST', as: customerB })).status).toBe(403)
     expect((await call(`/claims/${id}/risk-signals`, { as: customerB })).status).toBe(403)
-    expect((await call(`/claims/${id}/screen`, { method: 'POST', as: assessorB })).status).toBe(404)
-    expect((await call(`/claims/${id}/risk-signals`, { as: assessorB })).status).toBe(404)
+    expect((await call(`/claims/${id}/screen`, { method: 'POST', as: insurerB })).status).toBe(404)
+    expect((await call(`/claims/${id}/risk-signals`, { as: insurerB })).status).toBe(404)
     expect((await call(`/claims/${id}/risk-signals`)).status).toBe(401)
     expect(await claimStage(id)).toMatchObject({ stage: 'Verified' })
     // the cross-tenant attempt is audited with the actor's tenant, never the claim's
@@ -123,16 +122,16 @@ describe('QUANTUM-08 / Attack 1: a client cannot supply a trusted score', () => 
     async (fake) => {
       const id = await verifiedClaim()
       await insertSignal(id)
-      const screen = await call(`/claims/${id}/screen`, { method: 'POST', as: assessorA, json: fake })
+      const screen = await call(`/claims/${id}/screen`, { method: 'POST', as: insurerA, json: fake })
       expect(screen.status).toBe(200)
       expect(((await screen.json()) as { riskSignals: Signal }).riskSignals).toMatchObject({ anomalyBand: 'HIGH' })
       const row = await env.DB.prepare('SELECT quantum_anomaly, interpretation FROM screening_signals WHERE claim_id = ?').bind(id).first()
       expect(row).toEqual({ quantum_anomaly: 0.99, interpretation: 'HIGH_ANOMALY' })
 
-      await call(`/claims/${id}/review`, { method: 'POST', as: assessorA })
+      await call(`/claims/${id}/review`, { method: 'POST', as: insurerA })
       const decide = await call(`/claims/${id}/decide`, {
         method: 'POST',
-        as: managerA,
+        as: insurerA,
         json: { outcome: 'Approved', reason: 'x', ...fake },
       })
       expect(decide.status).toBe(400)
@@ -143,7 +142,7 @@ describe('QUANTUM-08 / Attack 1: a client cannot supply a trusted score', () => 
   it('no write route exists for signals', async () => {
     const id = await verifiedClaim()
     for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
-      const res = await call(`/claims/${id}/risk-signals`, { method, as: managerA, json: { quantumAnomaly: 0 } })
+      const res = await call(`/claims/${id}/risk-signals`, { method, as: insurerA, json: { quantumAnomaly: 0 } })
       expect([404, 405]).toContain(res.status)
     }
     expect(await env.DB.prepare('SELECT count(*) AS n FROM screening_signals WHERE claim_id = ?').bind(id).first()).toEqual({ n: 0 })
@@ -154,19 +153,19 @@ describe('QUANTUM-09/12 / Attack 5: the signal never moves a claim; humans do', 
   it('HIGH anomaly: /screen only reaches Screening; nothing reaches Decision/Paid without the human routes; then the normal human path works', async () => {
     const id = await verifiedClaim()
     await insertSignal(id)
-    const screen = await call(`/claims/${id}/screen`, { method: 'POST', as: assessorA })
+    const screen = await call(`/claims/${id}/screen`, { method: 'POST', as: insurerA })
     expect(((await screen.json()) as { to: string }).to).toBe('Screening')
     expect(await claimStage(id)).toMatchObject({ stage: 'Screening', status: 'Pending' })
 
     // no shortcut from a signal to an outcome
-    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })).status).toBe(409)
-    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Rejected', reason: 'high anomaly' } })).status).toBe(409)
+    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })).status).toBe(409)
+    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { outcome: 'Rejected', reason: 'high anomaly' } })).status).toBe(409)
     expect(await decisionRows(id)).toHaveLength(0)
 
     // the human workflow continues unchanged
-    expect((await call(`/claims/${id}/review`, { method: 'POST', as: assessorA })).status).toBe(200)
-    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Approved', reason: 'Reviewed; anomaly explained by late reporting' } })).status).toBe(200)
-    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })).status).toBe(200)
+    expect((await call(`/claims/${id}/review`, { method: 'POST', as: insurerA })).status).toBe(200)
+    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { outcome: 'Approved', reason: 'Reviewed; anomaly explained by late reporting' } })).status).toBe(200)
+    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })).status).toBe(200)
     expect(await claimStage(id)).toMatchObject({ stage: 'Paid', status: 'Approved' })
     expect(await payoutRows(id)).toHaveLength(1)
   })
@@ -175,8 +174,8 @@ describe('QUANTUM-09/12 / Attack 5: the signal never moves a claim; humans do', 
     for (const setup of [async (id: string) => insertSignal(id, 0.1, 'NORMAL', 0.2), async () => undefined]) {
       const id = await verifiedClaim()
       await setup(id)
-      for (const step of ['screen', 'review']) expect((await call(`/claims/${id}/${step}`, { method: 'POST', as: assessorA })).status).toBe(200)
-      expect((await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Rejected', reason: 'Outside cover' } })).status).toBe(200)
+      for (const step of ['screen', 'review']) expect((await call(`/claims/${id}/${step}`, { method: 'POST', as: insurerA })).status).toBe(200)
+      expect((await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { outcome: 'Rejected', reason: 'Outside cover' } })).status).toBe(200)
       expect(await claimStage(id)).toMatchObject({ stage: 'Decision', status: 'Rejected' })
     }
   })
@@ -186,44 +185,44 @@ describe('QUANTUM-10 / Attack 4: screening is auditable and tampering is detecta
   it('attach and read are audited with the digest; the decision records the signal the manager had', async () => {
     const id = await verifiedClaim()
     await insertSignal(id)
-    const screen = (await (await call(`/claims/${id}/screen`, { method: 'POST', as: assessorA })).json()) as { riskSignals: Signal }
+    const screen = (await (await call(`/claims/${id}/screen`, { method: 'POST', as: insurerA })).json()) as { riskSignals: Signal }
     const digest = screen.riskSignals.signalDigest
 
     const attached = await auditRows('screening.signal_attached', id)
     expect(attached).toHaveLength(1)
-    expect(attached[0]).toMatchObject({ actor_id: 'assessor_a1', actor_tenant_id: 'ins_discovery', outcome: 'success' })
+    expect(attached[0]).toMatchObject({ actor_id: 'usr_admin_discovery', actor_tenant_id: 'ins_discovery', outcome: 'success' })
     expect(JSON.parse(attached[0].details as string)).toMatchObject({ band: 'HIGH', recommendation: 'REVIEW_REQUIRED', model: MODEL, digest })
     expect(attached[0].details as string).not.toContain('days_to_report') // no feature values in audit
 
-    await call(`/claims/${id}/risk-signals`, { as: managerA })
+    await call(`/claims/${id}/risk-signals`, { as: insurerA })
     const read = await auditRows('screening.signal_read', id)
     expect(JSON.parse(read[0].details as string)).toMatchObject({ digest })
 
-    await call(`/claims/${id}/review`, { method: 'POST', as: assessorA })
-    await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Approved', reason: 'ok' } })
+    await call(`/claims/${id}/review`, { method: 'POST', as: insurerA })
+    await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { outcome: 'Approved', reason: 'ok' } })
     const decision = (await decisionRows(id))[0]
     expect(JSON.parse(decision.risk_signal as string)).toMatchObject({ band: 'HIGH', quantum: 0.99, digest })
   })
 
   it('no signal → audit records band null and the decision stores risk_signal NULL', async () => {
     const id = await verifiedClaim()
-    await call(`/claims/${id}/screen`, { method: 'POST', as: assessorA })
+    await call(`/claims/${id}/screen`, { method: 'POST', as: insurerA })
     expect(JSON.parse((await auditRows('screening.signal_attached', id))[0].details as string)).toEqual({ band: null })
-    await call(`/claims/${id}/review`, { method: 'POST', as: assessorA })
-    await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Rejected', reason: 'x' } })
+    await call(`/claims/${id}/review`, { method: 'POST', as: insurerA })
+    await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { outcome: 'Rejected', reason: 'x' } })
     expect((await decisionRows(id))[0].risk_signal).toBeNull()
   })
 
   it('in-place edits are refused; a re-import is visible as a different digest from the audited one', async () => {
     const id = await verifiedClaim()
     await insertSignal(id)
-    const before = ((await (await call(`/claims/${id}/risk-signals`, { as: assessorA })).json()) as { riskSignals: Signal }).riskSignals.signalDigest
+    const before = ((await (await call(`/claims/${id}/risk-signals`, { as: insurerA })).json()) as { riskSignals: Signal }).riskSignals.signalDigest
 
     await expect(env.DB.prepare('UPDATE screening_signals SET quantum_anomaly = 0.01 WHERE claim_id = ?').bind(id).run()).rejects.toThrow(/never edited in place/)
 
     // a replace (how a new model run is published) goes through, but it no longer matches the audit trail
     await insertSignal(id, 0.01, 'NORMAL', 0.01)
-    const after = ((await (await call(`/claims/${id}/risk-signals`, { as: assessorA })).json()) as { riskSignals: Signal }).riskSignals.signalDigest
+    const after = ((await (await call(`/claims/${id}/risk-signals`, { as: insurerA })).json()) as { riskSignals: Signal }).riskSignals.signalDigest
     expect(after).not.toBe(before)
     const digests = (await auditRows('screening.signal_read', id)).map((r) => JSON.parse(r.details as string).digest)
     expect(digests).toEqual([before, after])

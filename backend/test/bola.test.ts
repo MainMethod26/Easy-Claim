@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assessor, auditRows, call, customerA, customerB } from './helpers'
+import { insurerA, auditRows, call, customerA, customerB } from './helpers'
 
 describe('object-level authorization (IDOR/BOLA)', () => {
   it("customer B cannot read customer A's claim timeline", async () => {
@@ -49,8 +49,8 @@ describe('object-level authorization (IDOR/BOLA)', () => {
   })
 
   it('insurer staff can read, but not act as the customer', async () => {
-    expect((await call('/claims/claim_disc_101/timeline', { as: assessor })).status).toBe(200)
-    expect((await call('/claims/claim_disc_101/submit', { method: 'POST', as: assessor })).status).toBe(403)
+    expect((await call('/claims/claim_disc_101/timeline', { as: insurerA })).status).toBe(200)
+    expect((await call('/claims/claim_disc_101/submit', { method: 'POST', as: insurerA })).status).toBe(403)
   })
 
   it("my-covers returns only the caller's policies", async () => {

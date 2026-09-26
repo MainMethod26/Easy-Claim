@@ -1,116 +1,88 @@
 import 'package:flutter/material.dart';
-import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
+import '../core/api/api_exception.dart';
+import '../core/auth/session.dart';
+import '../data/repositories/repositories.dart';
 import '../widgets/easy_claim_logo.dart';
 import '../widgets/neumorphic_button.dart';
 import '../widgets/picture_background.dart';
-import 'main_navigation_screen.dart';
-import 'package:http/http.dart' as http;
-import '../services/auth_service.dart';
 import 'admin/insurer_dashboard_screen.dart';
-import 'dart:convert';
+import 'main_navigation_screen.dart';
+import 'register_screen.dart';
+import 'superadmin/superadmin_shell.dart';
+
+/// Demo accounts seeded into a LOCAL backend (docs/DEMO_RUNBOOK.md). Shown as a hint only;
+/// the app never stores or sends anything but what the user types.
+const demoAccountHints = <(String, String)>[
+  ('mike', 'Customer · Mike'),
+  ('lerato', 'Customer · Lerato Nkosi'),
+  ('admin_discovery', 'Insurer admin · Discovery'),
+  ('admin_sanlam', 'Insurer admin · Sanlam'),
+  ('superadmin', 'Platform admin'),
+];
+
+/// Where each role lands after signing in. Routing is UX only; the backend authorizes every call.
+Widget homeFor(AuthActor actor) {
+  if (actor.isSuperadmin) return const SuperadminShell();
+  if (actor.isInsurerAdmin) return const InsurerDashboardScreen();
+  return const MainNavigationScreen();
+}
 
 class AuthScreen extends StatefulWidget {
-  final bool initialIsRegister;
+  final AuthRepository? repository;
 
-  const AuthScreen({
-    super.key,
-    this.initialIsRegister = false,
-  });
+  const AuthScreen({super.key, this.repository});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  late bool _isRegister;
   bool _obscurePassword = true;
-  bool _rememberMe = true;
-  bool _agreeTerms = true;
+  bool _busy = false;
+  String? _error;
 
-  // Controllers
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _nameController = TextEditingController();
-  final _idNumberController = TextEditingController();
-  final _phoneController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    _isRegister = widget.initialIsRegister;
-  }
+  late final AuthRepository _auth = widget.repository ?? AuthRepository();
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
-    _nameController.dispose();
-    _idNumberController.dispose();
-    _phoneController.dispose();
     super.dispose();
   }
 
   Future<void> _handleSignIn() async {
-    final response = await http.post(
-      Uri.parse('https://easy-claim-backend.pasekamabitsela22.workers.dev/api/v1/profile/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'idNumber': _emailController.text, // we allow email or ID number in backend
-        'password': _passwordController.text,
-      }),
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      AuthService.currentUserId = data['profile']['id'];
-      AuthService.currentUserName = '${data['profile']['first_name']} ${data['profile']['last_name']}';
-      AuthService.token = data['token'];
-      AuthService.currentRole = data['profile']['role'];
-      AuthService.currentTenant = data['profile']['tenant_id'];
-      
-      if (AuthService.currentRole == 'ASSESSOR' || AuthService.currentRole == 'MANAGER') {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const InsurerDashboardScreen()));
-      } else {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainNavigationScreen()));
+    if (_busy) return;
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
+    if (username.isEmpty || password.isEmpty) {
+      setState(() => _error = 'Enter your username and password.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final actor = await _auth.signIn(username, password);
+      if (!mounted) return;
+      if (actor.userRole == UserRole.unknown) {
+        Session.instance.signOut();
+        setState(() => _error = 'This account has no access to the app.');
+        return;
       }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Login failed: ${response.body}')),
-      );
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => homeFor(actor)));
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
-  Future<void> _handleRegister() async {
-    if (!_agreeTerms) return;
-    final names = _nameController.text.split(' ');
-    final firstName = names.isNotEmpty ? names[0] : '';
-    final lastName = names.length > 1 ? names.sublist(1).join(' ') : '';
-    
-    final response = await http.post(
-      Uri.parse('https://easy-claim-backend.pasekamabitsela22.workers.dev/api/v1/profile/register'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'idNumber': _idNumberController.text,
-        'firstName': firstName,
-        'lastName': lastName,
-        'email': _emailController.text,
-        'phone': _phoneController.text,
-      }),
-    );
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      AuthService.currentUserId = data['profile']['id'];
-      AuthService.currentUserName = '${data['profile']['first_name']} ${data['profile']['last_name']}';
-      AuthService.token = data['token'];
-      AuthService.currentRole = data['profile']['role'];
-      AuthService.currentTenant = data['profile']['tenant_id'];
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Account Registered successfully!')));
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainNavigationScreen()));
-    } else {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Registration failed: ID or Email might exist')));
-    }
+  void _openRegister() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => RegisterScreen(repository: widget.repository)));
   }
 
   @override
@@ -126,37 +98,11 @@ class _AuthScreenState extends State<AuthScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Top Logo & Brand Row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const EasyClaimLogo(size: 44.0),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF5500).withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(12.0),
-                        border: Border.all(
-                          color: const Color(0xFFFF5500).withValues(alpha: 0.4),
-                        ),
-                      ),
-                      child: const Text(
-                        'Secure 256-Bit SSL',
-                        style: TextStyle(
-                          color: Color(0xFFFF5500),
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                const EasyClaimLogo(size: 44.0),
                 const SizedBox(height: 28.0),
-
-                // Greeting Header
-                Text(
-                  _isRegister ? 'Create your\nEasyClaim account' : 'Welcome to\nEasyClaim',
-                  style: const TextStyle(
+                const Text(
+                  'Welcome to\nEasyClaim',
+                  style: TextStyle(
                     color: Color(0xFF0F172A),
                     fontSize: 32.0,
                     fontWeight: FontWeight.w900,
@@ -165,83 +111,11 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
                 const SizedBox(height: 8.0),
-                Text(
-                  _isRegister
-                      ? 'Register in under 60 seconds to track live claims.'
-                      : 'Sign in to track your active claims and stage SLAs.',
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 14.5,
-                  ),
+                const Text(
+                  'Sign in to track your claims.',
+                  style: TextStyle(color: Color(0xFF64748B), fontSize: 14.5),
                 ),
                 const SizedBox(height: 24.0),
-
-                // Tab Switcher (Sign In vs Register)
-                Container(
-                  padding: const EdgeInsets.all(4.0),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(16.0),
-                    border: Border.all(
-                      color: const Color(0xFFE2E8F0),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _isRegister = false),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            padding: const EdgeInsets.symmetric(vertical: 10.0),
-                            decoration: BoxDecoration(
-                              color: !_isRegister
-                                  ? const Color(0xFFFF5500)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(12.0),
-                            ),
-                            child: Text(
-                              'Sign In',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: !_isRegister ? Colors.white : const Color(0xFF64748B),
-                                fontWeight: !_isRegister ? FontWeight.w800 : FontWeight.w600,
-                                fontSize: 14.0,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _isRegister = true),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            padding: const EdgeInsets.symmetric(vertical: 10.0),
-                            decoration: BoxDecoration(
-                              color: _isRegister
-                                  ? const Color(0xFFFF5500)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(12.0),
-                            ),
-                            child: Text(
-                              'Register',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: _isRegister ? Colors.white : const Color(0xFF64748B),
-                                fontWeight: _isRegister ? FontWeight.w800 : FontWeight.w600,
-                                fontSize: 14.0,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24.0),
-
-                // Form Container
                 Container(
                   padding: const EdgeInsets.all(20.0),
                   decoration: BoxDecoration(
@@ -255,32 +129,10 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                     ],
                   ),
-                  child: _isRegister ? _buildRegisterForm() : _buildLoginForm(),
+                  child: _buildLoginForm(),
                 ),
-                const SizedBox(height: 20.0),
-
-                // Quick Demo bypass button
-                Center(
-                  child: TextButton.icon(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const MainNavigationScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.flash_on_rounded, color: Color(0xFFFF5500)),
-                    label: const Text(
-                      'Quick Demo Access (Skip as User)',
-                      style: TextStyle(
-                        color: Color(0xFF0F172A),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14.0,
-                      ),
-                    ),
-                  ),
-                ),
+                const SizedBox(height: 16.0),
+                const DemoAccountsPanel(),
                 const SizedBox(height: 12.0),
               ],
             ),
@@ -295,169 +147,50 @@ class _AuthScreenState extends State<AuthScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildTextField(
-          controller: _emailController,
-          label: 'Email or Policy Number',
-          icon: Icons.shield_outlined,
-          hint: 'e.g. thabo@easyclaim.co.za or EC-984210',
+          controller: _usernameController,
+          label: 'Username',
+          icon: Icons.person_outline_rounded,
+          hint: 'e.g. mike',
         ),
         const SizedBox(height: 16.0),
         _buildTextField(
           controller: _passwordController,
           label: 'Password',
           icon: Icons.lock_outline_rounded,
-          hint: 'Enter your password',
+          hint: 'Your password',
           isPassword: true,
           obscureText: _obscurePassword,
           onTogglePassword: () => setState(() => _obscurePassword = !_obscurePassword),
+          onSubmitted: (_) => _handleSignIn(),
         ),
-        const SizedBox(height: 12.0),
-
-        // Remember me and Forgot password
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                SizedBox(
-                  height: 24.0,
-                  width: 24.0,
-                  child: Checkbox(
-                    value: _rememberMe,
-                    activeColor: const Color(0xFFFF5500),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5.0)),
-                    onChanged: (val) => setState(() => _rememberMe = val ?? true),
-                  ),
-                ),
-                const SizedBox(width: 8.0),
-                const Text(
-                  'Remember me',
-                  style: TextStyle(
-                    color: Color(0xFF475569),
-                    fontSize: 13.0,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            GestureDetector(
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Password reset instructions sent to registered phone.'),
-                    backgroundColor: Color(0xFFFF5500),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-              child: const Text(
-                'Forgot password?',
-                style: TextStyle(
-                  color: Color(0xFFFF5500),
-                  fontSize: 13.0,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 22.0),
-
-        // Neumorphic Sign In Button
-        SizedBox(
-          width: double.infinity,
-          child: NeumorphicButton(
-            height: 54.0,
-            variant: NeumorphicButtonVariant.primaryOrange,
-            text: 'Sign In to EasyClaim',
-            icon: Icons.login_rounded,
-            onTap: _handleSignIn,
+        if (_error != null) ...[
+          const SizedBox(height: 12.0),
+          Text(
+            _error!,
+            key: const Key('auth-error'),
+            style: const TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.w600),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRegisterForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildTextField(
-          controller: _nameController,
-          label: 'Full Name',
-          icon: Icons.person_outline_rounded,
-          hint: 'e.g. User Mokoena',
-        ),
-        const SizedBox(height: 14.0),
-        _buildTextField(
-          controller: _idNumberController,
-          label: 'South African ID / Passport',
-          icon: Icons.badge_outlined,
-          hint: '13-digit national ID',
-        ),
-        const SizedBox(height: 14.0),
-        _buildTextField(
-          controller: _phoneController,
-          label: 'Mobile Phone (WhatsApp Active)',
-          icon: Icons.phone_android_rounded,
-          hint: '+27 82 123 4567',
-        ),
-        const SizedBox(height: 14.0),
-        _buildTextField(
-          controller: _emailController,
-          label: 'Email Address',
-          icon: Icons.email_outlined,
-          hint: 'name@example.com',
-        ),
-        const SizedBox(height: 14.0),
-        _buildTextField(
-          controller: _passwordController,
-          label: 'Create Secure Password',
-          icon: Icons.lock_outline_rounded,
-          hint: 'At least 8 characters',
-          isPassword: true,
-          obscureText: _obscurePassword,
-          onTogglePassword: () => setState(() => _obscurePassword = !_obscurePassword),
-        ),
-        const SizedBox(height: 14.0),
-
-        // Consent terms
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              height: 24.0,
-              width: 24.0,
-              child: Checkbox(
-                value: _agreeTerms,
-                activeColor: const Color(0xFFFF5500),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5.0)),
-                onChanged: (val) => setState(() => _agreeTerms = val ?? true),
-              ),
-            ),
-            const SizedBox(width: 8.0),
-            const Expanded(
-              child: Text(
-                'I consent to automated policy and SAPS verification under EasyClaim standard model terms.',
-                style: TextStyle(
-                  color: Color(0xFF64748B),
-                  fontSize: 12.0,
-                  height: 1.35,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20.0),
-
-        // Neumorphic Register Button
+        ],
+        const SizedBox(height: 22.0),
         SizedBox(
           width: double.infinity,
-          child: NeumorphicButton(
-            height: 54.0,
-            variant: NeumorphicButtonVariant.primaryOrange,
-            text: 'Create My Account',
-            icon: Icons.check_circle_outline_rounded,
-            onTap: _handleRegister,
+          child: _busy
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF5500)))
+              : NeumorphicButton(
+                  height: 54.0,
+                  variant: NeumorphicButtonVariant.primaryOrange,
+                  text: 'Sign In to EasyClaim',
+                  icon: Icons.login_rounded,
+                  onTap: _handleSignIn,
+                ),
+        ),
+        const SizedBox(height: 14.0),
+        Center(
+          child: TextButton(
+            key: const Key('create-account'),
+            onPressed: _busy ? null : _openRegister,
+            child: const Text('New to EasyClaim? Create account',
+                style: TextStyle(color: Color(0xFFFF5500), fontWeight: FontWeight.w700)),
           ),
         ),
       ],
@@ -472,17 +205,14 @@ class _AuthScreenState extends State<AuthScreen> {
     bool isPassword = false,
     bool obscureText = false,
     VoidCallback? onTogglePassword,
+    ValueChanged<String>? onSubmitted,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: Color(0xFF0F172A),
-            fontSize: 13.0,
-            fontWeight: FontWeight.w700,
-          ),
+          style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13.0, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 6.0),
         Container(
@@ -492,24 +222,20 @@ class _AuthScreenState extends State<AuthScreen> {
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: TextField(
+            key: Key('field-$label'),
             controller: controller,
             obscureText: isPassword && obscureText,
-            style: const TextStyle(
-              color: Color(0xFF0F172A),
-              fontSize: 14.5,
-              fontWeight: FontWeight.w600,
-            ),
+            onSubmitted: onSubmitted,
+            autocorrect: false,
+            style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14.5, fontWeight: FontWeight.w600),
             decoration: InputDecoration(
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 13.0),
               prefixIcon: Icon(icon, color: const Color(0xFFFF5500), size: 20.0),
               suffixIcon: isPassword
                   ? IconButton(
-                      icon: Icon(
-                        obscureText ? Icons.visibility_off : Icons.visibility,
-                        color: const Color(0xFF94A3B8),
-                        size: 20.0,
-                      ),
+                      icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility,
+                          color: const Color(0xFF94A3B8), size: 20.0),
                       onPressed: onTogglePassword,
                     )
                   : null,
@@ -520,6 +246,42 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Lists the locally seeded demo accounts. Their password is the demo password of a local
+/// build only; a real deployment has no such accounts.
+class DemoAccountsPanel extends StatelessWidget {
+  final bool dark;
+  const DemoAccountsPanel({super.key, this.dark = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = dark ? Colors.white : const Color(0xFF0F172A);
+    final muted = dark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF1E293B) : const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: dark ? const Color(0xFF334155) : const Color(0xFFFED7AA)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Local demo accounts', style: TextStyle(color: fg, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        for (final (id, who) in demoAccountHints)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 1.5),
+            child: Text('$id  —  $who', style: TextStyle(color: muted, fontSize: 12.5)),
+          ),
+        const SizedBox(height: 8),
+        Text(
+          'Password 1234567 (local demo builds only).',
+          style: TextStyle(color: muted, fontSize: 12),
+        ),
+      ]),
     );
   }
 }

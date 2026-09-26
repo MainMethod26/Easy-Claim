@@ -28,7 +28,7 @@ import { getSigner, signDecision, verifyDecision } from '../security/integrity'
  * approved amount to the destination snapshotted at decision time, once. No money moves.
  */
 const router = new Hono<AppEnv>()
-const insurerOnly = requireRole('ASSESSOR', 'MANAGER')
+const insurerOnly = requireRole('INSURER_ADMIN')
 const notFound = { error: 'not_found' } as const
 
 function respond(c: Context<AppEnv>, claimId: string, from: string, to: ClaimStage) {
@@ -61,7 +61,7 @@ router.post('/:claimId/screen', insurerOnly, validate('param', claimIdParam), as
   return c.json({ status: 'transitioned', claimId: claim.id, from: claim.stage, to: 'Screening', riskSignals })
 })
 
-// Screening → Review, and Appeal → Review (the latter is MANAGER-only in the state machine).
+// Screening → Review, and Appeal → Review.
 router.post('/:claimId/review', insurerOnly, validate('param', claimIdParam), async (c) => {
   const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'insurer')
   if (!claim) return c.json(notFound, 404)
@@ -80,7 +80,7 @@ router.post('/:claimId/request-info', insurerOnly, validate('param', claimIdPara
 })
 
 /**
- * Review → Decision (MANAGER only). Records an insert-only decision in the same batch as
+ * Review → Decision (INSURER_ADMIN). Records an insert-only decision in the same batch as
  * the stage change. For an approval the approved amount defaults to, and can never exceed,
  * the amount the customer claimed; the payout destination is snapshotted by hash.
  */
@@ -189,7 +189,7 @@ router.post('/:claimId/decide', insurerOnly, validate('param', claimIdParam), va
 })
 
 /**
- * Decision → Paid (MANAGER only). SIMULATED payout: no request body is accepted (amount and
+ * Decision → Paid (INSURER_ADMIN). SIMULATED payout: no request body is accepted (amount and
  * destination are never client-supplied); the amount comes from the recorded approved
  * decision, the destination must still hash to the value snapshotted at decision time, and
  * exactly one payout row can exist per claim. An optional Idempotency-Key header makes a
@@ -248,7 +248,7 @@ router.post('/:claimId/pay', insurerOnly, validate('param', claimIdParam), async
     return blocked('already_paid', 409, { payoutId: existing.id })
   }
 
-  // State validation (edge + MANAGER role); transitionClaim produces the audited 403/409.
+  // State validation (edge + role); transitionClaim produces the audited 403/409.
   const pre = checkTransition(claim.stage, 'Paid', actor.role)
   if (!pre.ok) {
     const t = await transitionClaim(c, claim, 'Paid')
@@ -272,32 +272,10 @@ router.post('/:claimId/pay', insurerOnly, validate('param', claimIdParam), async
   }
 
 
-  // Real Payout via Ansa Payment API
-  let ansaStatus = 'simulated'
-  if (c.env.ANSA_SECRET_KEY) {
-     console.log(`Initiating real Ansa payout for claim ${claim.id}...`)
-     try {
-       // Using Ansa's generic REST API for disbursements/payouts
-       const ansaRes = await fetch('https://api.ansa.dev/v1/disbursements', {
-         method: 'POST',
-         headers: {
-           'Authorization': `Bearer ${c.env.ANSA_SECRET_KEY}`,
-           'Content-Type': 'application/json'
-         },
-         body: JSON.stringify({
-           amount: decision.approved_amount_cents,
-           currency: 'ZAR',
-           destination_account: claim.payout_account_last4, // Mapped Ansa customer/account
-           reference: `Payout for claim ${claim.id}`
-         })
-       })
-       if (ansaRes.ok) ansaStatus = 'paid'
-       else throw new Error(await ansaRes.text())
-     } catch (err) {
-       console.error('Ansa Payout failed:', err)
-       return blocked('ansa_payout_failed', 500)
-     }
-  }
+  // A real payment rail (an Ansa/Stripe integration was prototyped in scripts/maintenance/patch_*.mjs) is NOT
+  // wired in: it must (1) record the payout row BEFORE calling the provider, keyed by the Idempotency-Key, so a
+  // retry cannot pay twice, (2) send the real account reference, never the last 4 digits, and (3) add a
+  // migration that allows a status other than 'simulated' (payouts.status CHECK). See docs/INTEGRATION_REPORT.md.
 
   const payoutId = `pay_${crypto.randomUUID()}`
   const row = gatedInsert(c.env.DB, 'payouts', {
@@ -308,7 +286,7 @@ router.post('/:claimId/pay', insurerOnly, validate('param', claimIdParam), async
     amount_cents: decision.approved_amount_cents,
     destination_hash: decision.destination_hash,
     destination_last4: claim.payout_account_last4,
-    status: ansaStatus,
+    status: 'simulated',
     idempotency_key: idemHeader,
     initiated_by: actor.id,
     initiated_role: actor.role,

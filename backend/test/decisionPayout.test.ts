@@ -4,7 +4,6 @@ import { sha256Hex } from '../src/security/ledger'
 import {
   DEMO_PAYOUT,
   VALID_PDF_BYTES,
-  assessorA,
   auditRows,
   call,
   claimStage,
@@ -15,10 +14,11 @@ import {
   customerB,
   decisionRows,
   evidenceFile,
-  managerA,
-  managerB,
+  insurerA,
+  insurerB,
   payoutRows,
   setPayoutDetails,
+  superadmin,
 } from './helpers'
 
 // Phase 3: decision + payout security. The legitimate demo payout is R4 200 (420 000 cents).
@@ -27,7 +27,7 @@ const REJECT = { outcome: 'Rejected', reason: 'Incident outside cover period' } 
 
 async function approvedClaim(): Promise<{ id: string; decisionId: string }> {
   const id = await createReviewedClaim()
-  const res = await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: APPROVE })
+  const res = await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: APPROVE })
   if (res.status !== 200) throw new Error(`decide failed: ${res.status} ${await res.text()}`)
   const { decisionId } = (await res.json()) as { decisionId: string }
   return { id, decisionId }
@@ -44,26 +44,28 @@ describe('decision authorization', () => {
     expect((await auditRows('authz.role_denied')).length).toBeGreaterThan(0)
   })
 
-  it('P3-02 assessor (unauthorized insurer role) cannot decide (403, transition_rejected audited)', async () => {
+  it('P3-02 SUPERADMIN and CUSTOMER cannot decide (403, role denial audited)', async () => {
     const id = await createReviewedClaim()
-    const res = await call(`/claims/${id}/decide`, { method: 'POST', as: assessorA, json: APPROVE })
-    expect(res.status).toBe(403)
+    const before = (await auditRows('authz.role_denied')).length
+    for (const who of [superadmin, customerA]) {
+      const res = await call(`/claims/${id}/decide`, { method: 'POST', as: who, json: APPROVE })
+      expect(res.status).toBe(403)
+    }
     expect(await claimStage(id)).toMatchObject({ stage: 'Review', status: 'Pending' })
     expect(await decisionRows(id)).toHaveLength(0)
-    const rejected = await auditRows('claim.transition_rejected', id)
-    expect(JSON.parse(rejected[0].details as string)).toMatchObject({ to: 'Decision', reason: 'role_not_permitted' })
+    expect((await auditRows('authz.role_denied')).length).toBe(before + 2)
   })
 
   it('P3-07a cross-tenant manager cannot decide (404, stage unchanged)', async () => {
     const id = await createReviewedClaim()
-    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: managerB, json: APPROVE })).status).toBe(404)
+    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: insurerB, json: APPROVE })).status).toBe(404)
     expect(await claimStage(id)).toMatchObject({ stage: 'Review' })
     expect(await decisionRows(id)).toHaveLength(0)
   })
 
   it('P3-10 valid authorized decision succeeds and is recorded (who / what / when / claim / why / inputs)', async () => {
     const id = await createReviewedClaim()
-    const res = await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: APPROVE })
+    const res = await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: APPROVE })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body).toMatchObject({ from: 'Review', to: 'Decision', outcome: 'Approved', approvedAmountCents: 420_000 })
@@ -80,8 +82,8 @@ describe('decision authorization', () => {
       previous_stage: 'Review',
       claimed_amount_cents: 420_000,
       approved_amount_cents: 420_000,
-      actor_id: 'manager_a1',
-      actor_role: 'MANAGER',
+      actor_id: 'usr_admin_discovery',
+      actor_role: 'INSURER_ADMIN',
       rules_version: 'phase3-manual-v1',
     })
     expect(rows[0].decided_at).toMatch(/^\d{4}-\d{2}-\d{2}T/)
@@ -90,26 +92,26 @@ describe('decision authorization', () => {
 
     // the customer sees the outcome and rationale through the existing endpoint
     const view = (await (await call(`/claims/${id}/decision`, { as: customerA })).json()) as Record<string, unknown>
-    expect(view).toMatchObject({ decision: 'Approved', record: { reason: APPROVE.reason, approvedAmountCents: 420_000, decidedByRole: 'MANAGER' } })
+    expect(view).toMatchObject({ decision: 'Approved', record: { reason: APPROVE.reason, approvedAmountCents: 420_000, decidedByRole: 'INSURER_ADMIN' } })
   })
 
   it('partial approval: approved amount below the claimed amount is recorded; rejection carries no amount', async () => {
     const id = await createReviewedClaim()
-    const res = await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { ...APPROVE, approvedAmountCents: 300_000 } })
+    const res = await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { ...APPROVE, approvedAmountCents: 300_000 } })
     expect(res.status).toBe(200)
     expect((await decisionRows(id))[0]).toMatchObject({ approved_amount_cents: 300_000, claimed_amount_cents: 420_000 })
 
     const id2 = await createReviewedClaim()
-    expect((await call(`/claims/${id2}/decide`, { method: 'POST', as: managerA, json: { ...REJECT, approvedAmountCents: 1 } })).status).toBe(422)
-    expect((await call(`/claims/${id2}/decide`, { method: 'POST', as: managerA, json: REJECT })).status).toBe(200)
+    expect((await call(`/claims/${id2}/decide`, { method: 'POST', as: insurerA, json: { ...REJECT, approvedAmountCents: 1 } })).status).toBe(422)
+    expect((await call(`/claims/${id2}/decide`, { method: 'POST', as: insurerA, json: REJECT })).status).toBe(200)
     expect((await decisionRows(id2))[0]).toMatchObject({ outcome: 'Rejected', approved_amount_cents: null })
   })
 
   it('decision requires a reason and rejects any other field', async () => {
     const id = await createReviewedClaim()
-    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Approved' } })).status).toBe(400)
-    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { ...APPROVE, actorId: 'someone_else' } })).status).toBe(400)
-    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { ...APPROVE, state: 'Paid' } })).status).toBe(400)
+    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { outcome: 'Approved' } })).status).toBe(400)
+    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { ...APPROVE, actorId: 'someone_else' } })).status).toBe(400)
+    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { ...APPROVE, state: 'Paid' } })).status).toBe(400)
     expect(await claimStage(id)).toMatchObject({ stage: 'Review' })
   })
 
@@ -119,13 +121,13 @@ describe('decision authorization', () => {
     const { claimId } = (await res.json()) as { claimId: string }
     await call(`/claims/${claimId}/screening`, { method: 'PATCH', as: customerA, json: { causeOfLoss: 'x', incidentDate: '2026-01-10' } })
     await call(`/claims/${claimId}/submit`, { method: 'POST', as: customerA })
-    for (const step of ['verify', 'screen', 'review']) await call(`/claims/${claimId}/${step}`, { method: 'POST', as: assessorA })
-    const decide = await call(`/claims/${claimId}/decide`, { method: 'POST', as: managerA, json: APPROVE })
+    for (const step of ['verify', 'screen', 'review']) await call(`/claims/${claimId}/${step}`, { method: 'POST', as: insurerA })
+    const decide = await call(`/claims/${claimId}/decide`, { method: 'POST', as: insurerA, json: APPROVE })
     expect(decide.status).toBe(422)
     expect(await decide.json()).toEqual({ error: 'payout_details_missing' })
     expect((await auditRows('claim.decision_rejected', claimId))[0]).toBeDefined()
     // a rejection is still possible
-    expect((await call(`/claims/${claimId}/decide`, { method: 'POST', as: managerA, json: REJECT })).status).toBe(200)
+    expect((await call(`/claims/${claimId}/decide`, { method: 'POST', as: insurerA, json: REJECT })).status).toBe(200)
   })
 })
 
@@ -138,15 +140,15 @@ describe('state-machine protection', () => {
     const patch2 = await call(`/claims/${id}/payout-details`, { method: 'PUT', as: customerA, json: { ...DEMO_PAYOUT, stage: 'Paid' } })
     expect(patch2.status).toBe(400)
     // manager: state field on decide
-    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { ...APPROVE, state: 'Paid' } })).status).toBe(400)
+    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { ...APPROVE, state: 'Paid' } })).status).toBe(400)
     // no generic transition route exists
-    expect((await call(`/claims/${id}/transition`, { method: 'POST', as: managerA, json: { to: 'Paid' } })).status).toBe(404)
+    expect((await call(`/claims/${id}/transition`, { method: 'POST', as: insurerA, json: { to: 'Paid' } })).status).toBe(404)
     expect(await claimStage(id)).toMatchObject({ stage: 'Submitted' })
   })
 
   it('P3-04 Submitted → Paid is refused (409 illegal_transition, audited), even for a manager', async () => {
     const id = await createSubmittedClaim()
-    const res = await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })
+    const res = await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })
     expect(res.status).toBe(409)
     expect(await res.json()).toEqual({ error: 'illegal_transition' })
     expect(await claimStage(id)).toMatchObject({ stage: 'Submitted' })
@@ -156,7 +158,7 @@ describe('state-machine protection', () => {
 
   it('Review → Paid (skipping the decision) is refused', async () => {
     const id = await createReviewedClaim()
-    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })).status).toBe(409)
+    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })).status).toBe(409)
     expect(await payoutRows(id)).toHaveLength(0)
   })
 })
@@ -165,14 +167,14 @@ describe('payout protection', () => {
   it('P3-05 payout amount cannot be manipulated: R420 000 against a R4 200 claim is blocked at decision and at payout', async () => {
     const id = await createReviewedClaim()
     // at decision time: approving more than was claimed
-    const over = await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { ...APPROVE, approvedAmountCents: 42_000_000 } })
+    const over = await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { ...APPROVE, approvedAmountCents: 42_000_000 } })
     expect(over.status).toBe(422)
     expect(await over.json()).toEqual({ error: 'amount_exceeds_claimed' })
     expect(await decisionRows(id)).toHaveLength(0)
 
     // legitimate decision, then a payout request that carries an amount
-    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: APPROVE })).status).toBe(200)
-    const forged = await call(`/claims/${id}/pay`, { method: 'POST', as: managerA, json: { amount: 42_000_000 } })
+    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: APPROVE })).status).toBe(200)
+    const forged = await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA, json: { amount: 42_000_000 } })
     expect(forged.status).toBe(400)
     expect(await forged.json()).toEqual({ error: 'client_supplied_fields' })
     expect(await claimStage(id)).toMatchObject({ stage: 'Decision' })
@@ -181,7 +183,7 @@ describe('payout protection', () => {
     expect(JSON.parse(blockedRows[0].details as string)).toMatchObject({ reason: 'client_supplied_fields', fields: 'amount' })
 
     // the real payout pays exactly the recorded amount
-    const pay = await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })
+    const pay = await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })
     expect(pay.status).toBe(200)
     expect(await pay.json()).toMatchObject({ status: 'paid', simulated: true, amountCents: 420_000 })
     expect((await payoutRows(id))[0]).toMatchObject({ amount_cents: 420_000, status: 'simulated' })
@@ -202,7 +204,7 @@ describe('payout protection', () => {
 
     // even a direct database change of the destination is caught by the decision snapshot
     await env.DB.prepare("UPDATE claims SET payout_destination_hash = 'deadbeef', payout_account_last4 = '1122' WHERE id = ?").bind(id).run()
-    const pay = await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })
+    const pay = await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })
     expect(pay.status).toBe(409)
     expect(await pay.json()).toEqual({ error: 'destination_mismatch' })
     expect(await claimStage(id)).toMatchObject({ stage: 'Decision' })
@@ -213,30 +215,30 @@ describe('payout protection', () => {
 
   it('P3-07b cross-tenant manager cannot pay (404, no payout)', async () => {
     const { id } = await approvedClaim()
-    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: managerB })).status).toBe(404)
+    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: insurerB })).status).toBe(404)
     expect(await claimStage(id)).toMatchObject({ stage: 'Decision' })
     expect(await payoutRows(id)).toHaveLength(0)
   })
 
-  it('assessor cannot pay (403) and a customer cannot pay (403)', async () => {
+  it('superadmin cannot pay (403) and a customer cannot pay (403)', async () => {
     const { id } = await approvedClaim()
-    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: assessorA })).status).toBe(403)
+    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: superadmin })).status).toBe(403)
     expect((await call(`/claims/${id}/pay`, { method: 'POST', as: customerA })).status).toBe(403)
     expect(await payoutRows(id)).toHaveLength(0)
   })
 
   it('P3-08 duplicate payout: repeated request is refused; identical Idempotency-Key replays the same payout', async () => {
     const { id } = await approvedClaim()
-    const first = await call(`/claims/${id}/pay`, { method: 'POST', as: managerA, headers: { 'Idempotency-Key': 'pay-req-1' } })
+    const first = await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA, headers: { 'Idempotency-Key': 'pay-req-1' } })
     expect(first.status).toBe(200)
     const { payoutId } = (await first.json()) as { payoutId: string }
 
-    const again = await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })
+    const again = await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })
     expect(again.status).toBe(409)
     expect(await again.json()).toEqual({ error: 'already_paid' })
-    const otherKey = await call(`/claims/${id}/pay`, { method: 'POST', as: managerA, headers: { 'Idempotency-Key': 'pay-req-2' } })
+    const otherKey = await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA, headers: { 'Idempotency-Key': 'pay-req-2' } })
     expect(otherKey.status).toBe(409)
-    const sameKey = await call(`/claims/${id}/pay`, { method: 'POST', as: managerA, headers: { 'Idempotency-Key': 'pay-req-1' } })
+    const sameKey = await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA, headers: { 'Idempotency-Key': 'pay-req-1' } })
     expect(sameKey.status).toBe(200)
     expect(await sameKey.json()).toMatchObject({ status: 'already_paid', payoutId })
 
@@ -247,7 +249,7 @@ describe('payout protection', () => {
 
   it('concurrent payout requests produce exactly one payout row', async () => {
     const { id } = await approvedClaim()
-    const results = await Promise.all([1, 2, 3].map(() => call(`/claims/${id}/pay`, { method: 'POST', as: managerA })))
+    const results = await Promise.all([1, 2, 3].map(() => call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })))
     expect(results.map((r) => r.status).sort()).toEqual([200, 409, 409])
     expect(await payoutRows(id)).toHaveLength(1)
     expect(await auditRows('claim.stage_changed', id)).toHaveLength(6)
@@ -255,7 +257,7 @@ describe('payout protection', () => {
 
   it('P3-11 valid payout after a legitimate decision succeeds (simulated) and is bound to the decision', async () => {
     const { id, decisionId } = await approvedClaim()
-    const res = await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })
+    const res = await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({
       status: 'paid',
@@ -265,7 +267,7 @@ describe('payout protection', () => {
       destination: { bankName: 'Demo Bank', accountLast4: '7890' },
     })
     expect(await claimStage(id)).toMatchObject({ stage: 'Paid', status: 'Approved' })
-    expect((await payoutRows(id))[0]).toMatchObject({ decision_id: decisionId, amount_cents: 420_000, destination_last4: '7890', initiated_by: 'manager_a1', initiated_role: 'MANAGER', tenant_id: 'ins_discovery' })
+    expect((await payoutRows(id))[0]).toMatchObject({ decision_id: decisionId, amount_cents: 420_000, destination_last4: '7890', initiated_by: 'usr_admin_discovery', initiated_role: 'INSURER_ADMIN', tenant_id: 'ins_discovery' })
 
     const view = (await (await call(`/claims/${id}/payout`, { as: customerA })).json()) as Record<string, unknown>
     expect(view).toMatchObject({ stage: 'Paid', claimedAmountCents: 420_000, payout: { amountCents: 420_000, status: 'simulated' } })
@@ -273,22 +275,22 @@ describe('payout protection', () => {
 
   it('a rejected decision cannot be paid and a pre-Phase-3 approval without a record cannot be paid', async () => {
     const id = await createReviewedClaim()
-    await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: REJECT })
-    expect(await (await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })).json()).toEqual({ error: 'not_approved' })
+    await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: REJECT })
+    expect(await (await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })).json()).toEqual({ error: 'not_approved' })
     // seed claim_sanlam_102 is Decision/Approved with no decision record
-    const legacy = await call('/claims/claim_sanlam_102/pay', { method: 'POST', as: managerB })
+    const legacy = await call('/claims/claim_sanlam_102/pay', { method: 'POST', as: insurerB })
     expect(legacy.status).toBe(409)
     expect(await legacy.json()).toEqual({ error: 'decision_record_missing' })
   })
 
   it('the full account number is never stored or returned', async () => {
     const { id } = await approvedClaim()
-    await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })
+    await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })
     const dumps = await Promise.all(
       ['claims', 'claim_decisions', 'payouts', 'audit_events'].map(async (t) => JSON.stringify((await env.DB.prepare(`SELECT * FROM ${t}`).all()).results))
     )
     for (const d of dumps) expect(d).not.toContain(DEMO_PAYOUT.accountNumber)
-    const view = await (await call(`/claims/${id}/payout`, { as: managerA })).text()
+    const view = await (await call(`/claims/${id}/payout`, { as: insurerA })).text()
     expect(view).not.toContain(DEMO_PAYOUT.accountNumber)
     expect(view).toContain('7890')
   })
@@ -310,9 +312,9 @@ describe('decision is bound to the evidence set (Phase 2 → Phase 3)', () => {
       expect(up.status).toBe(201)
     }
     await call(`/claims/${id}/submit`, { method: 'POST', as: customerA })
-    for (const step of ['verify', 'screen', 'review']) await call(`/claims/${id}/${step}`, { method: 'POST', as: assessorA })
+    for (const step of ['verify', 'screen', 'review']) await call(`/claims/${id}/${step}`, { method: 'POST', as: insurerA })
 
-    const res = await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: APPROVE })
+    const res = await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: APPROVE })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { evidenceCount: number; evidenceDigest: string }
     expect(body.evidenceCount).toBe(2)
@@ -328,7 +330,7 @@ describe('decision is bound to the evidence set (Phase 2 → Phase 3)', () => {
 
   it('a claim decided without evidence records a null digest and count 0', async () => {
     const id = await createReviewedClaim()
-    const res = await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: APPROVE })
+    const res = await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: APPROVE })
     expect(await res.json()).toMatchObject({ evidenceCount: 0, evidenceDigest: null })
     expect((await decisionRows(id))[0]).toMatchObject({ evidence_digest: null })
   })
@@ -343,7 +345,7 @@ describe('decision is bound to the evidence set (Phase 2 → Phase 3)', () => {
 describe('decision history integrity', () => {
   it('P3-09 decision, payout and audit history cannot be rewritten or deleted, and no route exposes writes to them', async () => {
     const { id } = await approvedClaim()
-    await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })
+    await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })
 
     await expect(env.DB.prepare("UPDATE claim_decisions SET outcome = 'Rejected' WHERE claim_id = ?").bind(id).run()).rejects.toThrow(/append-only/)
     await expect(env.DB.prepare('DELETE FROM claim_decisions WHERE claim_id = ?').bind(id).run()).rejects.toThrow(/append-only/)
@@ -358,7 +360,7 @@ describe('decision history integrity', () => {
       ['POST', '/activities/audit-trail'],
       ['DELETE', '/activities/audit-trail'],
     ] as const) {
-      expect((await call(path, { method, as: managerA, json: {} })).status).toBe(404)
+      expect((await call(path, { method, as: insurerA, json: {} })).status).toBe(404)
     }
     expect(await decisionRows(id)).toHaveLength(1)
     expect(await payoutRows(id)).toHaveLength(1)
@@ -366,10 +368,10 @@ describe('decision history integrity', () => {
 
   it('P3-12 decision and payout leave a reconstructable audit trail (who, what, when, claim, result)', async () => {
     const { id, decisionId } = await approvedClaim()
-    await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })
+    await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })
 
     const decided = (await auditRows('claim.stage_changed', id)).find((r) => JSON.parse(r.details as string).to === 'Decision')!
-    expect(decided).toMatchObject({ actor_id: 'manager_a1', actor_role: 'MANAGER', actor_tenant_id: 'ins_discovery', outcome: 'success' })
+    expect(decided).toMatchObject({ actor_id: 'usr_admin_discovery', actor_role: 'INSURER_ADMIN', actor_tenant_id: 'ins_discovery', outcome: 'success' })
     expect(JSON.parse(decided.details as string)).toMatchObject({ from: 'Review', to: 'Decision', outcome: 'Approved', decisionId, approvedAmountCents: 420_000 })
     expect(decided.occurred_at).toMatch(/^\d{4}/)
     expect(decided.request_id).toMatch(/^[0-9a-f-]{36}$/)
@@ -391,8 +393,8 @@ describe('decision history integrity', () => {
   it('a decision row is never written without its stage change (stale precondition)', async () => {
     const id = await createReviewedClaim()
     const [a, b] = await Promise.all([
-      call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: APPROVE }),
-      call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: REJECT }),
+      call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: APPROVE }),
+      call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: REJECT }),
     ])
     expect([a.status, b.status].sort()).toEqual([200, 409])
     expect(await decisionRows(id)).toHaveLength(1)
