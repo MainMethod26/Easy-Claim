@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Phase 1 live attack evidence against the local wrangler dev server (127.0.0.1:8787).
 set -u
-cd /c/Users/HomePC/Music/Hackathon/Easy-Claim/backend
-B=http://127.0.0.1:8787/api/v1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+cd "$PROJECT_ROOT"
+B="${BASE_URL:-http://127.0.0.1:8787}/api/v1"
 CT="Content-Type: application/json"
 
 mint() { node scripts/mint-token.mjs "$@"; }
