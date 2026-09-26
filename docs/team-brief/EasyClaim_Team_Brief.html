@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>EasyClaim Team Brief</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#f6f7f4; --surface:#ffffff; --surface-2:#eef0ea; --ink:#1c2330; --ink-2:#4f5865; --muted:#7a828e;
+  --line:#d9ddd5; --accent:#0f5e8f; --accent-ink:#ffffff; --quantum:#5b3fa0; --cyber:#0f5e8f;
+  --good:#0ca30c; --warn:#b8791a; --bad:#c43c3c; --good-bg:#e6f4e6; --warn-bg:#fbf1dc; --bad-bg:#f9e3e3; --info-bg:#e4eef6;
+  --s1:#2a78d6; --s2:#eb6834; --grid:#e1e0d9; --axis:#c3c2b7;
+  --display:"Fraunces",Georgia,serif; --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ color-scheme:dark;
+  --bg:#161a20; --surface:#1e232b; --surface-2:#262c36; --ink:#eef1f5; --ink-2:#c1c8d2; --muted:#8d95a1;
+  --line:#343b47; --accent:#6db3e8; --accent-ink:#0e1a26; --quantum:#b39ff0; --cyber:#6db3e8;
+  --good:#4fc24f; --warn:#e0a94d; --bad:#e86b6b; --good-bg:#1d2f1d; --warn-bg:#332a17; --bad-bg:#3a1f1f; --info-bg:#1f2c3a;
+  --s1:#3987e5; --s2:#d95926; --grid:#2c2c2a; --axis:#383835; } }
+:root[data-theme="dark"]{ color-scheme:dark;
+  --bg:#161a20; --surface:#1e232b; --surface-2:#262c36; --ink:#eef1f5; --ink-2:#c1c8d2; --muted:#8d95a1;
+  --line:#343b47; --accent:#6db3e8; --accent-ink:#0e1a26; --quantum:#b39ff0; --cyber:#6db3e8;
+  --good:#4fc24f; --warn:#e0a94d; --bad:#e86b6b; --good-bg:#1d2f1d; --warn-bg:#332a17; --bad-bg:#3a1f1f; --info-bg:#1f2c3a;
+  --s1:#3987e5; --s2:#d95926; --grid:#2c2c2a; --axis:#383835; }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55;margin:0;padding-inline:16px;padding-block:0 64px}
+.wrap{max-width:1080px;margin:0 auto}
+header.hero{padding-block:40px 24px;border-bottom:1px solid var(--line)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(34px,5vw,54px);line-height:1.05;margin:8px 0 12px;text-wrap:balance;letter-spacing:-.01em}
+h2{font-family:var(--display);font-weight:600;font-size:clamp(24px,3vw,32px);line-height:1.15;margin:0 0 14px;text-wrap:balance}
+h3{font-size:18px;font-weight:600;margin:0 0 8px}
+p{max-width:70ch}
+.lede{font-size:18px;color:var(--ink-2);max-width:70ch}
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;padding-block:8px;scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs button{font:inherit;font-size:14px;font-weight:500;color:var(--ink-2);background:transparent;border:1px solid transparent;border-radius:999px;padding:8px 14px;cursor:pointer;white-space:nowrap}
+nav.tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+nav.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section.panel{padding-block:32px 8px}
+section.panel[hidden]{display:none}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.card.tint{background:var(--surface-2)}
+.pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;font-weight:500;padding:3px 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+.pill.live{background:var(--good-bg);color:var(--good)}
+.pill.wait{background:var(--warn-bg);color:var(--warn)}
+.pill.no{background:var(--bad-bg);color:var(--bad)}
+.pill.info{background:var(--info-bg);color:var(--accent)}
+.pill::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+table{width:100%;border-collapse:collapse;font-size:15px}
+.tbl{overflow-x:auto}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+td.num{font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:14px}
+code,kbd{font-family:var(--mono);font-size:.92em;background:var(--surface-2);padding:1px 6px;border-radius:5px}
+pre{font-family:var(--mono);font-size:13.5px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto;line-height:1.5;margin:0}
+ul,ol{padding-left:22px;margin:8px 0}
+li{margin:4px 0;max-width:75ch}
+.stat{display:flex;flex-direction:column;gap:2px}
+.stat b{font-family:var(--display);font-size:38px;font-weight:600;line-height:1;color:var(--ink)}
+.stat span{font-size:13px;color:var(--muted)}
+.tag{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.track-cyber{border-left:4px solid var(--cyber)}
+.track-quantum{border-left:4px solid var(--quantum)}
+details{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:0 18px;margin:8px 0}
+details summary{cursor:pointer;padding:14px 0;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:12px}
+details summary::after{content:"+";font-family:var(--mono);color:var(--muted)}
+details[open] summary::after{content:"–"}
+details summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+details .body{padding-bottom:16px;color:var(--ink-2)}
+.check{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed var(--line)}
+.check:last-child{border-bottom:0}
+.check input{margin-top:5px;width:16px;height:16px;accent-color:var(--accent);flex:none}
+.check label{cursor:pointer}
+.check.done label{color:var(--muted);text-decoration:line-through}
+.progress{height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden;margin:6px 0 14px}
+.progress i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+figure{margin:0}
+figure svg{max-width:100%;height:auto;display:block}
+figcaption{font-size:13px;color:var(--muted);margin-top:8px;max-width:75ch}
+.btn{font:inherit;font-size:14px;font-weight:500;background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:9px 14px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.toast{font-size:13px;color:var(--good);margin-left:10px}
+.callout{border:1px solid var(--line);border-left:4px solid var(--bad);background:var(--surface);border-radius:10px;padding:14px 18px}
+.callout.ok{border-left-color:var(--good)}
+.callout.note{border-left-color:var(--warn)}
+.legend{display:flex;gap:16px;font-size:13px;color:var(--ink-2);margin:6px 0 10px;flex-wrap:wrap}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:6px}
+.chart-wrap{position:relative}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12.5px;padding:6px 9px;border-radius:6px;transform:translate(-50%,-115%);white-space:nowrap;opacity:0;transition:opacity .12s}
+.tip.on{opacity:1}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:720px){.two{grid-template-columns:1fr}}
+.timeline{display:grid;gap:0}
+.step{display:grid;grid-template-columns:34px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.step:last-child{border-bottom:0}
+.step .n{font-family:var(--mono);font-size:13px;color:var(--muted);padding-top:3px}
+.footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+
+@media print {
+  :root{--bg:#ffffff;--surface:#ffffff;--surface-2:#f1f2ee}
+  body{padding-inline:0;font-size:12.5px}
+  nav.tabs,.btn,.toast,.tip,.progress{display:none!important}
+  section.panel[hidden]{display:block!important}
+  section.panel{break-before:page;padding-block:18px 8px}
+  section.panel:first-of-type{break-before:auto}
+  header.hero{padding-block:8px 16px}
+  h1{font-size:30px} h2{font-size:22px}
+  .card,details,.callout,figure{break-inside:avoid}
+  details{border:1px solid var(--line)} details summary::after{content:""}
+  details:not([open]) .body{display:block}
+  .check input{accent-color:#333}
+  a{color:inherit;text-decoration:none}
+  @page{size:A4;margin:14mm 12mm}
+}
+</style>
+<style>img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+
+<div class="wrap">
+<header class="hero">
+  <div class="eyebrow">EasyClaim · GKHack26 · Cyber + Quantum tracks · brief as of 26 September 2026</div>
+  <h1>Where EasyClaim stands, what we built, and how we talk about it</h1>
+  <p class="lede">A single page for the whole team. It answers the question "are we done?" honestly, explains the security and quantum work in plain words, and gives you the pitch, the demo, and the answers judges will push on.</p>
+  <div class="grid g3" style="margin-top:22px">
+    <div class="card"><div class="stat"><b>190</b><span>Worker security tests passing on <code>main</code>, plus 1 pre-existing todo</span></div></div>
+    <div class="card"><div class="stat"><b>26</b><span>Python tests passing for the quantum experiment</span></div></div>
+    <div class="card"><div class="stat"><b>0</b><span>npm audit vulnerabilities and 0 TypeScript errors on <code>main</code></span></div></div>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Sections">
+  <button role="tab" aria-selected="true" data-tab="status">Are we done?</button>
+  <button role="tab" aria-selected="false" data-tab="story">What is happening</button>
+  <button role="tab" aria-selected="false" data-tab="cyber">What we built: cyber</button>
+  <button role="tab" aria-selected="false" data-tab="quantum">What we built: quantum</button>
+  <button role="tab" aria-selected="false" data-tab="know">Must know / best know</button>
+  <button role="tab" aria-selected="false" data-tab="judges">Judges and pitch</button>
+  <button role="tab" aria-selected="false" data-tab="open">Loose ends</button>
+</nav>
+
+<!-- ============ STATUS ============ -->
+<section class="panel" id="tab-status">
+  <h2>Are we done? Cyber: yes for what is on main. Quantum: yes, honestly scoped.</h2>
+  <p>Everything below was verified against the GitHub <code>main</code> branch at commit <code>210e126</code> on 26 September 2026 by running typecheck, the full test suite, the audit, and the Python tests on a fresh checkout.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Phase</th><th>Track</th><th>What it delivers</th><th>Status</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td>0 Foundation</td><td>Cyber</td><td>Ownership checks, RBAC, state machine, strict validation, append-only audit, headers, limits</td><td><span class="pill live">LIVE ON MAIN</span></td><td>85 original tests, all still passing inside the 190</td></tr>
+      <tr><td>1 Identity and tenants</td><td>Cyber</td><td>Real JWT authentication, actor with tenant, cross-tenant isolation, insurer endpoints</td><td><span class="pill live">LIVE ON MAIN</span></td><td>183 tests, live attack log <code>PHASE_01_LIVE_ATTACKS.log</code></td></tr>
+      <tr><td>2 Evidence and OCR</td><td>Cyber</td><td>Private storage, hashes, untrusted-document boundary</td><td><span class="pill no">NOT ON MAIN</span></td><td>Teammate's machine. No remote branch seen yet. Migration number 0004 reserved.</td></tr>
+      <tr><td>3 Decision and payout</td><td>Cyber</td><td>Insert-only decision records, simulated payout protection, idempotency</td><td><span class="pill wait">READY, PR #2 OPEN</span></td><td>213 tests pass on the rebased local branch. The copy on GitHub is older and conflicts; the Phase 3 session must push its rebase, then PR #2 fast-forwards.</td></tr>
+      <tr><td>4 Quantum screening</td><td>Quantum</td><td>One-class quantum-kernel anomaly signal vs classical baseline, read-only integration</td><td><span class="pill live">LIVE ON MAIN</span></td><td>26 Python tests, 7 new Worker tests, live demo log <code>PHASE_04_LIVE_DEMO.log</code></td></tr>
+      <tr><td>5 Post-quantum signatures</td><td>Quantum</td><td>ML-DSA signature over the decision bundle, tamper demo</td><td><span class="pill no">NOT STARTED</span></td><td>Planned in master plan §11. Phase 3 already reserved the column for it.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="grid g2" style="margin-top:18px">
+    <div class="callout ok"><h3>What "done" means for you personally</h3><p>Your cyber work (Phases 0 and 1) and the quantum work (Phase 4) are merged, tested, documented and pushed. The master plan document is at version 1.1 and records both. You can stop building and start rehearsing.</p></div>
+    <div class="callout note"><h3>What is not done for the team</h3><p>Phase 3 needs one push from the session that owns it. Phase 2 is with your teammate. Phase 5 is optional stretch. None of these blocks the demo you can already give.</p></div>
+  </div>
+</section>
+
+<!-- ============ STORY ============ -->
+<section class="panel" id="tab-story" hidden>
+  <h2>What is happening: one claim, six gates, and one experimental signal</h2>
+  <p>EasyClaim is an insurance claims backend on Cloudflare Workers with a Flutter app on top. A customer starts a claim, an insurer's assessor moves it through a fixed lifecycle, a manager decides and pays. The cyber track made every step of that lifecycle enforce who may do what. The quantum track added one advisory signal at the Screening step, and nowhere else.</p>
+  <figure class="card">
+    <svg viewBox="0 0 1000 300" role="img" aria-label="Claim lifecycle from Draft to Paid. Every request passes through six security gates before it can move a claim. The quantum screening signal enters only at the Screening stage as advisory context for a human." style="font-family:var(--body)">
+      <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+      <g fill="none" stroke="currentColor" stroke-width="1.5" color="var(--ink)">
+        <rect x="20" y="40" width="960" height="110" rx="10" stroke="var(--line)" fill="var(--surface-2)"/>
+        <text x="36" y="62" fill="var(--muted)" stroke="none" font-size="11" letter-spacing="1.2">SECURITY GATES ON EVERY REQUEST (PHASES 0 TO 3)</text>
+        <g stroke="none" fill="var(--ink)" font-size="12.5" text-anchor="middle">
+          <text x="110" y="100">Bearer token</text><text x="110" y="118" fill="var(--muted)" font-size="11">requireActor</text>
+          <text x="270" y="100">Strict schema</text><text x="270" y="118" fill="var(--muted)" font-size="11">unknown fields 400</text>
+          <text x="430" y="100">Role gate</text><text x="430" y="118" fill="var(--muted)" font-size="11">requireRole</text>
+          <text x="590" y="100">Tenant + owner</text><text x="590" y="118" fill="var(--muted)" font-size="11">loadAuthorizedClaim 404</text>
+          <text x="750" y="100">State machine</text><text x="750" y="118" fill="var(--muted)" font-size="11">transitionClaim</text>
+          <text x="905" y="100">Audit row</text><text x="905" y="118" fill="var(--muted)" font-size="11">append-only</text>
+        </g>
+        <g stroke="var(--cyber)" marker-end="url(#arr)" color="var(--cyber)">
+          <line x1="165" y1="95" x2="212" y2="95"/><line x1="325" y1="95" x2="372" y2="95"/><line x1="480" y1="95" x2="527" y2="95"/><line x1="660" y1="95" x2="690" y2="95"/><line x1="815" y1="95" x2="860" y2="95"/>
+        </g>
+      </g>
+      <g fill="none" stroke="var(--ink)" stroke-width="1.5">
+        <g stroke="var(--line)" fill="var(--surface)">
+          <rect x="20" y="200" width="110" height="44" rx="8"/><rect x="160" y="200" width="110" height="44" rx="8"/><rect x="300" y="200" width="110" height="44" rx="8"/><rect x="440" y="200" width="120" height="44" rx="8" stroke="var(--quantum)" stroke-width="2"/><rect x="590" y="200" width="110" height="44" rx="8"/><rect x="730" y="200" width="110" height="44" rx="8"/><rect x="870" y="200" width="110" height="44" rx="8"/>
+        </g>
+        <g stroke="none" fill="var(--ink)" font-size="13" text-anchor="middle" font-weight="600">
+          <text x="75" y="227">Draft</text><text x="215" y="227">Submitted</text><text x="355" y="227">Verified</text><text x="500" y="227">Screening</text><text x="645" y="227">Review</text><text x="785" y="227">Decision</text><text x="925" y="227">Paid</text>
+        </g>
+        <g stroke="var(--ink)" marker-end="url(#arr)" color="var(--ink)">
+          <line x1="130" y1="222" x2="158" y2="222"/><line x1="270" y1="222" x2="298" y2="222"/><line x1="410" y1="222" x2="438" y2="222"/><line x1="560" y1="222" x2="588" y2="222"/><line x1="700" y1="222" x2="728" y2="222"/><line x1="840" y1="222" x2="868" y2="222"/>
+        </g>
+        <g stroke="none" fill="var(--muted)" font-size="11" text-anchor="middle">
+          <text x="75" y="262">customer</text><text x="215" y="262">customer</text><text x="355" y="262">assessor</text><text x="500" y="262">assessor</text><text x="645" y="262">assessor</text><text x="785" y="262">manager</text><text x="925" y="262">manager only</text>
+        </g>
+        <line x1="500" y1="150" x2="500" y2="198" stroke="var(--quantum)" stroke-width="2" stroke-dasharray="4 4" marker-end="url(#arr)" color="var(--quantum)"/>
+        <text x="512" y="176" fill="var(--quantum)" stroke="none" font-size="12" font-weight="600">quantum signal enters here, read-only</text>
+        <text x="20" y="290" fill="var(--muted)" stroke="none" font-size="11.5">Side states: Info Needed, Appeal, Withdrawn, Expired. ADMIN has no claim transitions. Phase 5 would sign the Decision bundle with ML-DSA.</text>
+      </g>
+    </svg>
+    <figcaption>Every request crosses all six gates before a claim can move. The quantum signal is attached after the Screening transition has already happened, so it can inform the assessor but never move the claim.</figcaption>
+  </figure>
+  <div class="grid g2" style="margin-top:18px">
+    <div class="card track-cyber"><div class="tag">Cyber track</div><h3>Make the lifecycle unbreakable</h3><p>Phases 0 to 3. Every phase shipped with tests, live attack logs, a written report and a threat-to-control map. The rule was "never call planned work implemented".</p></div>
+    <div class="card track-quantum"><div class="tag">Quantum track</div><h3>Add a credible, honest quantum use case</h3><p>Phase 4. A quantum-kernel anomaly signal compared fairly with a classical baseline. Phase 5 (post-quantum signatures) is the planned second half.</p></div>
+  </div>
+  <div class="card" style="margin-top:16px"><h3>How the team worked</h3>
+    <div class="timeline">
+      <div class="step"><div class="n">1</div><div>One master plan document as the source of truth for direction. Code and phase reports as the source of truth for what exists.</div></div>
+      <div class="step"><div class="n">2</div><div>Phases run in parallel on different machines and branches. Reserved migration numbers and file ownership are written in <code>docs/PARALLEL_WORK.md</code>.</div></div>
+      <div class="step"><div class="n">3</div><div>Claude sessions implement, test and document; humans own product, security and quantum decisions. Every phase ends with a report you can hand a judge.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CYBER ============ -->
+<section class="panel" id="tab-cyber" hidden>
+  <h2>What we built: the cyber track</h2>
+  <p>The backend started as a demo with a spoofable header for identity. It now has a verified identity boundary, tenant isolation for insurer staff, object-level ownership checks, a central state machine and an audit trail that cannot be edited.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Phase 0: foundation</h3><ul>
+      <li>Ownership check on every claim route. A claim you may not see returns the same 404 as one that does not exist, and the attempt is audited.</li>
+      <li>Central state machine: only legal transitions, each with the roles allowed to make it. Replay-safe.</li>
+      <li>Strict request schemas. Any unknown field, including <code>stage</code>, <code>status</code>, <code>riskScore</code> or <code>tenantId</code>, is rejected with 400.</li>
+      <li>Append-only audit table protected by database triggers.</li>
+      <li>Security headers, CORS allowlist, 64 KB body limit, rate limits per IP and per actor, generic error bodies.</li>
+    </ul></div>
+    <div class="card"><h3>Phase 1: identity and tenants</h3><ul>
+      <li>HS256 JWT verified by the app: pinned algorithm, issuer, audience, required expiry, per-role maximum lifetime. Fails closed when the secret is missing.</li>
+      <li>Actor is <code>{ id, role, tenantId }</code>. Insurer staff must carry a tenant; customers never do.</li>
+      <li>Tenants table and tenant column on policies, claims and audit rows. A claim inherits its policy's insurer, never a client value.</li>
+      <li>Insurer endpoints for verify, screen, review, request-info, decide and pay, all through the state machine.</li>
+      <li>Stage change and its audit row are written in one database batch, so they always exist together.</li>
+    </ul></div>
+    <div class="card"><h3>Phase 3: decisions and payout (in PR #2)</h3><ul>
+      <li>Decision is manager-only. Insert-only decision record with who, when, reason, amounts, payout-destination snapshot and rules version.</li>
+      <li>Payout is simulated: no request body accepted, amount can never exceed the claimed amount, destination must match the decision-time snapshot, one payout per claim with idempotency key.</li>
+      <li>Reserved columns for the Phase 2 evidence digest, the Phase 4 risk signal and the Phase 5 signature.</li>
+    </ul></div>
+    <div class="card"><h3>Something judges love: the attack log</h3><p>Every phase re-ran real attacks against the running server and saved the raw responses. You can show the file, not a slide.</p>
+      <pre>cross-tenant read      → 404 not_found
+customer on insurer route → 403 forbidden
+no / forged token       → 401 unauthenticated
+client sets stage=Paid  → 400 validation_failed
+replayed transition     → 409 stale_state
+R420 000 on R4 200 claim → 422 / 400</pre></div>
+  </div>
+  <h3 style="margin-top:22px">Threat to control map</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Threat (OWASP API Top 10 language)</th><th>Control in EasyClaim</th><th>Proved by</th></tr></thead>
+    <tbody>
+      <tr><td>Broken object level authorization (BOLA / IDOR)</td><td>Ownership + tenant check, uniform 404, audited denial</td><td><code>bola.test.ts</code>, <code>tenant.test.ts</code>, live log</td></tr>
+      <tr><td>Broken authentication</td><td>Verified JWT, fail-closed configuration</td><td><code>auth.test.ts</code>, <code>actor.test.ts</code></td></tr>
+      <tr><td>Broken function level authorization</td><td>Server-side RBAC per route and per transition</td><td><code>rbac.test.ts</code>, <code>stateMachine.test.ts</code></td></tr>
+      <tr><td>Mass assignment / property authorization</td><td>Strict schemas, server-set ownership fields</td><td><code>massAssignment.test.ts</code></td></tr>
+      <tr><td>Unrestricted business flow</td><td>Central state machine, replay-safe writes</td><td><code>claimLifecycle.test.ts</code></td></tr>
+      <tr><td>Resource consumption</td><td>Body limit, two rate limits, timeouts</td><td><code>hardening.test.ts</code></td></tr>
+      <tr><td>Audit tampering</td><td>Append-only triggers, server-generated request ids</td><td><code>audit.test.ts</code></td></tr>
+      <tr><td>Model output abused as a decision</td><td>Quantum signal is read-only, never reaches the state machine</td><td><code>screeningSignals.test.ts</code></td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout" style="margin-top:18px"><h3>The regression we caught on merge day</h3><p>A backend commit replaced the app entry point with an unmounted MVC layer, which silently removed authentication, role checks, tenant checks, headers, limits and the queue consumer. Typecheck failed and all 12 test files failed to load. The Phase 4 rebase restored the secured entry point and left the MVC files unmounted, and the findings are recorded as handoff item BACKEND-SEC-021. This is a good story for judges: the test suite is what caught it.</p></div>
+</section>
+
+<!-- ============ QUANTUM ============ -->
+<section class="panel" id="tab-quantum" hidden>
+  <h2>What we built: the quantum track</h2>
+  <p>We did not build a quantum fraud detector. We built an experimental quantum-kernel anomaly signal for the Screening stage and compared it, fairly, against a classical baseline using the same features and preprocessing. On the synthetic data we had, the classical model was slightly ahead. We say so.</p>
+  <figure class="card">
+    <svg viewBox="0 0 1000 250" role="img" aria-label="Quantum screening pipeline: claim features flow through shared preprocessing into two branches, a classical one-class SVM and a five-qubit quantum feature map producing a fidelity kernel for a one-class SVM. Both produce a percentile score that becomes a screening signal read by the Worker." style="font-family:var(--body)">
+      <defs><marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+      <g stroke="var(--line)" fill="var(--surface)" stroke-width="1.5">
+        <rect x="16" y="95" width="130" height="60" rx="8"/><rect x="186" y="95" width="150" height="60" rx="8"/>
+        <rect x="386" y="20" width="170" height="60" rx="8"/>
+        <rect x="386" y="140" width="170" height="60" rx="8" stroke="var(--quantum)" stroke-width="2"/><rect x="596" y="140" width="130" height="60" rx="8" stroke="var(--quantum)" stroke-width="2"/>
+        <rect x="596" y="20" width="130" height="60" rx="8"/>
+        <rect x="776" y="95" width="208" height="60" rx="8" fill="var(--surface-2)"/>
+      </g>
+      <g fill="var(--ink)" font-size="12.5" text-anchor="middle" font-weight="600">
+        <text x="81" y="120">5 claim features</text><text x="261" y="120">Shared preprocessing</text>
+        <text x="471" y="45">Classical baseline</text><text x="471" y="165">Quantum feature map</text><text x="661" y="165">Fidelity kernel</text><text x="661" y="45">One-class SVM</text><text x="880" y="120">ScreeningSignal</text>
+      </g>
+      <g fill="var(--muted)" font-size="11" text-anchor="middle">
+        <text x="81" y="138">from existing columns</text><text x="261" y="138">impute, log1p, scale, angles</text>
+        <text x="471" y="63">OneClassSVM, RBF kernel</text><text x="471" y="183">5 qubits, 2 repetitions</text><text x="661" y="183">squared state overlap</text><text x="661" y="63">nu 0.1</text><text x="880" y="138">classical, quantum, band, "simulator"</text>
+      </g>
+      <g fill="none" stroke="var(--ink)" stroke-width="1.5" marker-end="url(#arr2)" color="var(--ink)">
+        <line x1="146" y1="125" x2="184" y2="125"/>
+        <path d="M336 118 C360 118 360 50 384 50"/><path d="M556 50 L594 50"/><path d="M726 50 C750 50 750 118 774 118"/>
+      </g>
+      <g fill="none" stroke="var(--quantum)" stroke-width="1.5" marker-end="url(#arr2)" color="var(--quantum)">
+        <path d="M336 132 C360 132 360 170 384 170"/><path d="M556 170 L594 170"/><path d="M726 170 C750 170 750 132 774 132"/>
+      </g>
+      <text x="16" y="235" fill="var(--muted)" font-size="11.5">Both branches get identical inputs and the same percentile scoring, so the comparison is fair. Scores go to a server-only table; the Worker reads, never writes.</text>
+    </svg>
+    <figcaption>The quantum kernel is only a similarity function. A classical one-class SVM does the actual anomaly ranking on top of it, which is why the comparison with the RBF kernel is apples to apples.</figcaption>
+  </figure>
+
+  <div class="two" style="margin-top:18px">
+    <div class="card">
+      <h3>Measured result on synthetic data</h3>
+      <p style="font-size:14px;color:var(--ink-2)">Synthetic anomalies flagged at UNUSUAL or higher, per recipe. 120 synthetic normal claims as the reference. Hover a bar for the exact count.</p>
+      <div class="legend"><span><i style="background:var(--s1)"></i>Classical (RBF)</span><span><i style="background:var(--s2)"></i>Quantum kernel</span></div>
+      <div class="chart-wrap">
+        <svg id="chart" viewBox="0 0 520 260" role="img" aria-label="Grouped bar chart. Late report recipe: classical 4 of 4, quantum 4 of 4. Serial claimant: classical 2 of 8, quantum 3 of 8. Night minimal narrative: classical 4 of 4, quantum 1 of 4. Top 16 overall: classical 9 of 16, quantum 8 of 16." style="font-family:var(--body)"></svg>
+        <div class="tip" id="tip"></div>
+      </div>
+      <div class="tbl" style="margin-top:8px"><table style="font-size:13.5px">
+        <thead><tr><th>Recipe</th><th>n</th><th>Classical</th><th>Quantum</th></tr></thead>
+        <tbody>
+          <tr><td>Late report (180 to 400 days)</td><td class="num">4</td><td class="num">4</td><td class="num">4</td></tr>
+          <tr><td>Serial claimant (8 claims, one user)</td><td class="num">8</td><td class="num">2</td><td class="num">3</td></tr>
+          <tr><td>Night, 1 to 3 word narrative</td><td class="num">4</td><td class="num">4</td><td class="num">1</td></tr>
+          <tr><td>All anomalies inside each model's top 16</td><td class="num">16</td><td class="num">9</td><td class="num">8</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <h3>The honest reading</h3>
+      <ul>
+        <li>Both models catch every late report.</li>
+        <li>Classical clearly wins on night-time minimal narratives.</li>
+        <li>Quantum is marginally ahead on serial claimants, which both mostly miss.</li>
+        <li>Rank correlation between the two models is 0.84. They mostly agree.</li>
+        <li>Quantum fit and score took 1.9 seconds on the simulator against 0.02 seconds classical.</li>
+        <li>Kernel checks passed: symmetric, unit diagonal, positive semidefinite, and the statevector path matched the circuit path exactly.</li>
+      </ul>
+      <p><b>So: quantum did not outperform the classical baseline.</b> That is the result, and it is exactly what the master plan told us to report if it happened.</p>
+      <h3 style="margin-top:14px">Why one-class and not a classifier</h3>
+      <p>The repository has no fraud labels. A supervised model would have needed invented labels. A one-class model learns what normal claims look like and scores how far a claim sits from them. No labels needed, no fabrication.</p>
+    </div>
+  </div>
+  <div class="grid g3" style="margin-top:16px">
+    <div class="card tint"><div class="tag">Features (5 qubits)</div><p style="font-size:14.5px">Days to report, category, prior claim count, narrative word count, submission hour. All derived from columns that already exist. No claim amount exists yet, so none was invented.</p></div>
+    <div class="card tint"><div class="tag">Security boundary</div><p style="font-size:14.5px">No API route writes a score. Reads pass the same token, role, tenant and ownership gates. Database constraints reject scores outside 0 to 1. A high score leaves the claim row byte-identical.</p></div>
+    <div class="card tint"><div class="tag">Simulator, not hardware</div><p style="font-size:14.5px">PennyLane <code>default.qubit</code> statevector simulator. Every stored signal says <code>execution: simulator</code>. A full 120-row kernel would need 23,460 circuit runs on real hardware.</p></div>
+  </div>
+</section>
+
+<!-- ============ KNOW ============ -->
+<section class="panel" id="tab-know" hidden>
+  <h2>What every team member must know, and what is good to know</h2>
+  <p>Tick items as you can explain them without notes. Ticks are saved in your own browser only.</p>
+  <div class="progress"><i id="prog"></i></div>
+  <div class="two">
+    <div class="card track-cyber">
+      <div class="tag">Cyber · must know</div>
+      <div id="must-cyber">
+        <div class="check"><input type="checkbox" id="k1"><label for="k1">The lifecycle: Draft, Submitted, Verified, Screening, Review, Decision, Paid, and who may move each step.</label></div>
+        <div class="check"><input type="checkbox" id="k2"><label for="k2">The order of checks on every request: token, schema, role, tenant and ownership, state machine, audit.</label></div>
+        <div class="check"><input type="checkbox" id="k3"><label for="k3">Why a forbidden claim returns 404 and not 403: so IDs cannot be probed for existence across tenants.</label></div>
+        <div class="check"><input type="checkbox" id="k4"><label for="k4">What a tenant is here: the insurer. Staff carry a tenant in the token; customers never do and are matched by ownership.</label></div>
+        <div class="check"><input type="checkbox" id="k5"><label for="k5">Why unknown fields are rejected: a client must never set stage, status, tenant, owner or a risk score.</label></div>
+        <div class="check"><input type="checkbox" id="k6"><label for="k6">The audit table is append-only at the database level, and the stage change and audit row are written together.</label></div>
+      </div>
+      <div class="tag" style="margin-top:16px">Cyber · best know</div>
+      <div class="check"><input type="checkbox" id="k7"><label for="k7">JWT details: HS256 pinned, issuer and audience checked, expiry required, per-role max lifetime, fails closed without a secret. JWKS and rotation are planned, not done.</label></div>
+      <div class="check"><input type="checkbox" id="k8"><label for="k8">The replay defence: a conditional UPDATE on the stage that was read, so two concurrent transitions cannot both apply.</label></div>
+      <div class="check"><input type="checkbox" id="k9"><label for="k9">Phase 3 payout rules: manager-only, no body accepted, amount capped by claim, destination frozen at decision, one payout per claim.</label></div>
+      <div class="check"><input type="checkbox" id="k10"><label for="k10">Which frameworks we referenced without claiming compliance: OWASP API Top 10, ASVS, NIST SSDF, FIPS 204.</label></div>
+      <div class="check"><input type="checkbox" id="k11"><label for="k11">The merge-day regression and how the tests caught it.</label></div>
+    </div>
+    <div class="card track-quantum">
+      <div class="tag">Quantum · must know</div>
+      <div class="check"><input type="checkbox" id="q1"><label for="q1">One sentence: "We use a quantum kernel as a similarity measure inside a one-class anomaly model at the Screening stage, and we compared it with a classical baseline on identical features."</label></div>
+      <div class="check"><input type="checkbox" id="q2"><label for="q2">Why anomaly detection and not fraud classification: no labels exist, and we refused to invent them.</label></div>
+      <div class="check"><input type="checkbox" id="q3"><label for="q3">The signal is advisory. It never approves, rejects, pays or changes state. A human moves the claim.</label></div>
+      <div class="check"><input type="checkbox" id="q4"><label for="q4">The result: quantum did not beat classical on our synthetic data, and it was about 100 times slower on a simulator.</label></div>
+      <div class="check"><input type="checkbox" id="q5"><label for="q5">Simulator only. Nothing ran on a real quantum computer. Never say otherwise.</label></div>
+      <div class="check"><input type="checkbox" id="q6"><label for="q6">The data was synthetic and labelled as such. Anomalies were generated by three named recipes.</label></div>
+      <div class="tag" style="margin-top:16px">Quantum · best know</div>
+      <div class="check"><input type="checkbox" id="q7"><label for="q7">How the kernel is computed: each claim's five scaled features become rotation angles; the circuit prepares a state; the kernel is the squared overlap between two states.</label></div>
+      <div class="check"><input type="checkbox" id="q8"><label for="q8">The feature map: Hadamard and RZ on each qubit, then CNOT, RZ of the product, CNOT on neighbours, repeated twice.</label></div>
+      <div class="check"><input type="checkbox" id="q9"><label for="q9">Why the kernel must be positive semidefinite and how we checked it, and that the statevector shortcut equals the circuit overlap.</label></div>
+      <div class="check"><input type="checkbox" id="q10"><label for="q10">What a percentile score means: 0.95 is "more unusual than 95 percent of the reference population", and the bands are a heuristic, not a fraud threshold.</label></div>
+      <div class="check"><input type="checkbox" id="q11"><label for="q11">The difference between quantum computing (Phase 4) and post-quantum cryptography (Phase 5, ML-DSA per FIPS 204). One computes, the other defends against future quantum attackers.</label></div>
+      <div class="check"><input type="checkbox" id="q12"><label for="q12">Why the teammate's QUBO prioritisation idea was deferred: it needs a risk signal as input, so it sits downstream of this work.</label></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ JUDGES ============ -->
+<section class="panel" id="tab-judges" hidden>
+  <h2>What judges will want to hear</h2>
+  <div class="callout note"><h3>About GKHack26 specifically</h3><p>GKHack26 is the Geekulcha Annual Hackathon 2026. Its published focus areas are quality education and skills, smart digital solutions for tourism, empowering township businesses through digital innovation, and platforms that accelerate open source work in Africa. We could not find a published judging rubric. So anchor the pitch on impact for ordinary South Africans, a working demo, evidence over claims, and honesty about limits. If the organisers hand out a rubric on the day, map each line of the pitch to it.</p></div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h3>The three-minute pitch <button class="btn ghost" id="copy-pitch" style="float:right">Copy</button></h3>
+      <div id="pitch">
+      <p><b>Problem.</b> Insurance claims in South Africa are slow, opaque and easy to abuse. A claimant cannot see where their claim is, an insurer cannot trust what arrives, and one leaked ID lets someone read another person's claim.</p>
+      <p><b>What EasyClaim is.</b> A claims backend where every step of a claim's life is a controlled transition, every request proves who it is and which insurer it belongs to, and every change is written to an audit trail that cannot be edited.</p>
+      <p><b>What we proved.</b> 190 automated security tests run on every change. We attacked our own server live: cross-tenant reads, forged tokens, clients setting their own claim status, replayed payouts. Every attempt is blocked and logged, and we can show the raw responses.</p>
+      <p><b>The quantum part.</b> At the Screening stage we added an experimental quantum-kernel anomaly signal and compared it fairly with a classical baseline on identical features. On our synthetic data the classical model was slightly ahead. We report that honestly, because a screening signal that a human reviews is the right place to experiment, and the right way to talk about quantum today.</p>
+      <p><b>What is next.</b> Evidence hashing and OCR isolation, and post-quantum signatures over decision records so a claim decision stays verifiable after quantum computers break today's signatures.</p>
+      </div>
+      <span class="toast" id="toast" aria-live="polite"></span>
+    </div>
+    <div class="card"><h3>Demo, in order (about 5 minutes)</h3>
+      <ol>
+        <li>Show <code>docs/security/ATTACK_SCENARIOS.md</code> open next to the terminal. Say: "everything you are about to see is repeatable."</li>
+        <li>Customer creates a claim, fills screening, submits. Point at the audit row appearing.</li>
+        <li>Assessor verifies then screens <code>claim_demo_normal</code>: the response carries <code>riskSignals.interpretation: NORMAL</code>.</li>
+        <li>Assessor screens <code>claim_demo_unusual</code>: <code>HIGH_ANOMALY</code>, with the explanation text. Read it aloud: "not a fraud finding".</li>
+        <li>Attack: an assessor from another insurer reads the signal, 404. A customer reads it, 403. No token, 401. A POST to the signal route, 404.</li>
+        <li>Assessor moves the claim to Review by hand. Say: "the model informed, the human decided."</li>
+        <li>Open <code>quantum/results/results.md</code>: show the recipe table where classical wins one recipe and quantum another.</li>
+      </ol>
+      <p style="font-size:14px;color:var(--muted)">Before the demo: import first, then start the server, then wait until a request returns 401. On the demo laptop the dev server takes a few minutes to answer after start.</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:22px">Questions judges will ask, and answers that hold</h3>
+  <details><summary>Is quantum actually better than the classical method?</summary><div class="body">No, not on our data. Classical found 9 of 16 synthetic anomalies in its top 16, quantum found 8, and quantum was about 100 times slower on a simulator. We built the experiment so the comparison is fair, and we report the measured result. The value is a credible, correctly-bounded quantum use case inside a real security architecture, not a speed-up.</div></details>
+  <details><summary>Did you run on a real quantum computer?</summary><div class="body">No. Everything ran on a local statevector simulator. Every stored signal is marked "simulator". The circuit path a hardware backend would run exists and is tested against the simulator path, and a hardware run is listed as optional future work that would be reported separately.</div></details>
+  <details><summary>Where did your fraud data come from?</summary><div class="body">We have no fraud labels and refused to invent any. The experiment uses a synthetic development dataset, clearly labelled, with anomalies generated by three named recipes. That is why we chose one-class anomaly detection: it learns what normal looks like and needs no labels.</div></details>
+  <details><summary>Could the model reject a claim or block a payout?</summary><div class="body">No. The signal is written by an offline pipeline into a server-only table. No API route accepts a score. The Worker reads it after the Screening transition already happened and attaches it as context. Tests prove a high-anomaly row leaves the claim row byte-identical, and moving a claim to Review still requires an assessor.</div></details>
+  <details><summary>How do you know your security controls work?</summary><div class="body">190 automated tests in the Workers runtime, run on every change, plus live attack logs saved from the running server for each phase. On merge day the suite caught a commit that had removed authentication from the entry point. That is the proof it is not decoration.</div></details>
+  <details><summary>What about the mobile app, is it secure?</summary><div class="body">The Flutter app is treated as an untrusted client. Every control is server-side. The threat model says so explicitly, and nothing in the API trusts a header or body field for identity, tenant or state.</div></details>
+  <details><summary>Are you compliant with OWASP or NIST?</summary><div class="body">We used OWASP API Security Top 10, ASVS, NIST SSDF and FIPS 204 as reference frameworks to structure the work. We do not claim certification or compliance. Each control is mapped to the threat it addresses and the test that proves it.</div></details>
+  <details><summary>What is post-quantum here, and why is it separate from quantum computing?</summary><div class="body">Phase 5 plans ML-DSA signatures over the decision bundle so a decision stays verifiable even against future quantum attackers. That is cryptography defending against quantum machines. Phase 4 uses a quantum algorithm to compute a signal. Different problems, and we keep the vocabulary separate on purpose.</div></details>
+  <details><summary>What would you do with more time?</summary><div class="body">Evidence hashing and OCR isolation with prompt-injection treated as hostile data; real per-tenant data to refit the anomaly model; claim amount and evidence features; a hardware run of a small kernel block; ML-DSA signing; and the assessor-prioritisation optimisation idea from our teammate as a downstream consumer of the signal.</div></details>
+  <details><summary>Why should a judge care about township businesses or ordinary people here?</summary><div class="body">A claim that cannot be read by the wrong person, cannot be silently changed, and cannot be paid twice protects the customer as much as the insurer. Faster, transparent screening with a human in the loop lowers the cost of insuring small businesses and households that insurers often treat as too risky to serve well.</div></details>
+
+  <div class="grid g2" style="margin-top:18px">
+    <div class="card"><h3>Say this</h3><ul>
+      <li>"Experimental quantum-kernel anomaly detection compared with a classical baseline on identical features."</li><li>"Advisory signal. A human moves the claim."</li><li>"Simulator only, and every stored result says so."</li><li>"We report the measured result."</li><li>"Every control has a test and a live attack log."</li></ul></div>
+    <div class="card"><h3>Never say this</h3><ul>
+      <li>"Quantum detects fraud." or "Quantum proved this claim is fraudulent."</li><li>"Quantum is faster" or "more accurate" (it was not, here).</li><li>"We run on a quantum computer."</li><li>"We are OWASP or NIST compliant."</li><li>"The AI decides."</li></ul></div>
+  </div>
+</section>
+
+<!-- ============ OPEN ============ -->
+<section class="panel" id="tab-open" hidden>
+  <h2>Loose ends, owners, and how to close them</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Item</th><th>Owner</th><th>Why it matters</th><th>How to close</th></tr></thead>
+    <tbody>
+      <tr><td>Phase 3 PR #2 shows as conflicting on GitHub</td><td>Phase 3 session on this PC</td><td>The local branch is rebased on current main and passes 213 tests; the remote copy is old and would delete Phase 4 files if merged as-is.</td><td>Push the rebased branch (force-with-lease), then merge PR #2 as a fast-forward. Do not merge the current remote copy.</td></tr>
+      <tr><td>Phase 2 not on a remote branch</td><td>Teammate</td><td>Evidence handling is part of the story and Phase 3 reserved a column for its digest.</td><td>Branch from <code>main</code>, use migration <code>0004</code>, open a PR. Rules in <code>docs/PARALLEL_WORK.md</code>.</td></tr>
+      <tr><td>Backend team's MVC layer</td><td>Backend teammate</td><td>It is unmounted, but if mounted it bypasses every control. Findings recorded as BACKEND-SEC-021.</td><td>Talk to them directly. Either route through the existing guards or delete the layer. Their Swagger route needs a dependency that is not installed.</td></tr>
+      <tr><td>Phase 5 ML-DSA signatures</td><td>Quantum track</td><td>Completes the post-quantum half of the story.</td><td>Stretch goal. Validate library and parameter set first; do not claim compliance because a library is used.</td></tr>
+      <tr><td>Customer visibility of the signal</td><td>Team decision</td><td>Currently insurer-only by design.</td><td>Decide, record in the master plan §21.</td></tr>
+      <tr><td>Demo laptop readiness</td><td>Whoever presents</td><td>Dev server is slow to start and restarts if D1 is imported while running.</td><td>Import first, start server, wait for a 401, then demo. Rehearse once.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="card" style="margin-top:18px"><h3>Where everything lives</h3>
+    <ul>
+      <li>Master plan: <code>docs/master-plan/EasyClaim_Cyber_Quantum_Master_Source_of_Truth.docx</code> (v1.1), also in Downloads.</li>
+      <li>Security docs: <code>docs/security/</code>, especially <code>THREAT_MODEL.md</code>, <code>ATTACK_SCENARIOS.md</code>, <code>BACKEND_SECURITY_HANDOFF.md</code>.</li>
+      <li>Phase reports: <code>docs/phase-reports/</code> and <code>docs/quantum/</code>, with evidence logs beside them.</li>
+      <li>Quantum code and results: <code>quantum/</code>, results table in <code>quantum/results/results.md</code>.</li>
+      <li>Parallel work rules: <code>docs/PARALLEL_WORK.md</code>.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="footer">Verified against <code>main</code> at <code>210e126</code>, 26 September 2026. Numbers in this brief are copied from test runs and result files, not estimated.</div>
+</div>
+
+<script>
+(function(){
+  // Tabs
+  var tabs=document.querySelectorAll('nav.tabs button');
+  var panels={};
+  document.querySelectorAll('section.panel').forEach(function(p){panels[p.id.replace('tab-','')]=p;});
+  function show(name){
+    tabs.forEach(function(b){b.setAttribute('aria-selected',String(b.dataset.tab===name));});
+    Object.keys(panels).forEach(function(k){panels[k].hidden=(k!==name);});
+    try{localStorage.setItem('ec-brief-tab',name);}catch(e){}
+  }
+  tabs.forEach(function(b){b.addEventListener('click',function(){show(b.dataset.tab);});});
+  var start='status';
+  var h=(location.hash||'').replace('#','');
+  if(panels[h]) start=h; else { try{var s=localStorage.getItem('ec-brief-tab'); if(s&&panels[s]) start=s;}catch(e){} }
+  show(start);
+
+  // Checklist
+  var boxes=document.querySelectorAll('.check input');
+  function refresh(){
+    var done=0;
+    boxes.forEach(function(b){ b.parentElement.classList.toggle('done',b.checked); if(b.checked)done++; });
+    document.getElementById('prog').style.width=Math.round(100*done/boxes.length)+'%';
+  }
+  boxes.forEach(function(b){
+    try{ b.checked=localStorage.getItem('ec-brief-'+b.id)==='1'; }catch(e){}
+    b.addEventListener('change',function(){ try{localStorage.setItem('ec-brief-'+b.id,b.checked?'1':'0');}catch(e){} refresh(); });
+  });
+  refresh();
+
+  // Copy pitch
+  var btn=document.getElementById('copy-pitch'), toast=document.getElementById('toast');
+  btn.addEventListener('click',function(){
+    var text=Array.prototype.map.call(document.querySelectorAll('#pitch p'),function(p){return p.textContent;}).join('\n\n');
+    function ok(){toast.textContent='Copied';setTimeout(function(){toast.textContent='';},1800);}
+    function fallback(){ var r=document.createRange(); r.selectNodeContents(document.getElementById('pitch')); var sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(r); toast.textContent='Selected, press Ctrl+C'; setTimeout(function(){toast.textContent='';},2500); }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(ok,fallback); } else { fallback(); }
+  });
+
+  // Chart: grouped bars, drawn to one scale (fraction of recipe n)
+  var drawn=false;
+  function drawChart(){
+    if(drawn) return; drawn=true;
+    var svg=document.getElementById('chart'); var tip=document.getElementById('tip');
+    var data=[
+      {label:'Late report',n:4,c:4,q:4},
+      {label:'Serial claimant',n:8,c:2,q:3},
+      {label:'Night narrative',n:4,c:4,q:1},
+      {label:'Top-16 overall',n:16,c:9,q:8}
+    ];
+    var W=520,H=260,L=40,R=12,T=16,B=48; var pw=W-L-R, ph=H-T-B;
+    var cs=getComputedStyle(document.documentElement);
+    var ink=cs.getPropertyValue('--ink').trim()||'#222', muted=cs.getPropertyValue('--muted').trim()||'#777', grid=cs.getPropertyValue('--grid').trim()||'#ddd', axis=cs.getPropertyValue('--axis').trim()||'#bbb';
+    var s1=cs.getPropertyValue('--s1').trim(), s2=cs.getPropertyValue('--s2').trim();
+    var ns='http://www.w3.org/2000/svg';
+    function el(t,a){var e=document.createElementNS(ns,t);for(var k in a)e.setAttribute(k,a[k]);return e;}
+    function y(frac){return T+ph-frac*ph;}
+    [0,0.25,0.5,0.75,1].forEach(function(f){
+      svg.appendChild(el('line',{x1:L,x2:W-R,y1:y(f),y2:y(f),stroke:f===0?axis:grid,'stroke-width':1}));
+      var t=el('text',{x:L-6,y:y(f)+4,'text-anchor':'end','font-size':11,fill:muted}); t.textContent=Math.round(f*100)+'%'; svg.appendChild(t);
+    });
+    var gw=pw/data.length, bw=Math.min(34,(gw-28)/2);
+    data.forEach(function(d,i){
+      var cx=L+gw*i+gw/2;
+      [{v:d.c,col:s1,name:'Classical'},{v:d.q,col:s2,name:'Quantum'}].forEach(function(s,j){
+        var frac=s.v/d.n, x=cx-bw-1+j*(bw+2), top=y(frac), h=Math.max(0,y(0)-top);
+        var r=el('path',{d:'M'+x+' '+y(0)+' V'+(top+4)+' Q'+x+' '+top+' '+(x+4)+' '+top+' H'+(x+bw-4)+' Q'+(x+bw)+' '+top+' '+(x+bw)+' '+(top+4)+' V'+y(0)+' Z',fill:s.col});
+        if(h<4){ r.setAttribute('d','M'+x+' '+y(0)+' h'+bw+' v-2 h-'+bw+' z'); }
+        r.style.cursor='default';
+        r.addEventListener('mousemove',function(ev){ var rect=svg.getBoundingClientRect(); var sx=rect.width/W; tip.textContent=s.name+': '+s.v+' of '+d.n+' ('+Math.round(frac*100)+'%)'; tip.style.left=((x+bw/2)*sx)+'px'; tip.style.top=(top*sx)+'px'; tip.classList.add('on'); });
+        r.addEventListener('mouseleave',function(){tip.classList.remove('on');});
+        svg.appendChild(r);
+        var lab=el('text',{x:x+bw/2,y:top-5,'text-anchor':'middle','font-size':11,fill:ink,'font-family':'IBM Plex Mono, monospace'}); lab.textContent=s.v; svg.appendChild(lab);
+      });
+      var t=el('text',{x:cx,y:H-B+18,'text-anchor':'middle','font-size':11.5,fill:ink}); t.textContent=d.label; svg.appendChild(t);
+      var t2=el('text',{x:cx,y:H-B+33,'text-anchor':'middle','font-size':10.5,fill:muted}); t2.textContent='n = '+d.n; svg.appendChild(t2);
+    });
+  }
+  drawChart();
+})();
+</script>
+
+</body>
+</html>
