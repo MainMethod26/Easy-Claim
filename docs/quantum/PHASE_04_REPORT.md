@@ -1,6 +1,6 @@
 # EasyClaim Phase 4 Report — Quantum Screening Signal
 
-Date: 2026-09-26 · Branch: `phase-4` (worktree `ec-phase4`) · Base: `main` `685b3de` · Status: **PARTIAL** (experiment and integration IMPLEMENTED and TESTED on the simulator; real hardware NOT USED; production scoring service PLANNED)
+Date: 2026-09-26 · Branch: `phase-4` (worktree `ec-phase4`), rebased onto `main` `d76a0c6` and pushed to `main` · Status: **PARTIAL** (experiment and integration IMPLEMENTED and TESTED on the simulator; real hardware NOT USED; production scoring service PLANNED)
 
 Status vocabulary: IMPLEMENTED · PARTIAL · NOT IMPLEMENTED · PLANNED · BLOCKED · TESTED/PASSED · NOT TESTED · DECISION REQUIRED.
 Numbers below are copied from `quantum/results/results.md` / `results.json` (generated 2026-09-26T03:26:55Z) and from the test runs recorded in §11 and §16. Nothing is rounded up.
@@ -101,7 +101,7 @@ PLANNED (backend team, after Phases 2–3): a scoring job that runs `experiment.
 |---|---|
 | `quantum/tests` (pytest) | 26 passed (features, preprocessing, kernel validity, statevector-vs-circuit match, reproducibility, missing data, invalid input, bands, signal shape, export SQL touches only `screening_signals`) |
 | `npm run typecheck` | exit 0 |
-| `npx vitest run` | 13 files, **190 passed, 1 todo** (183 Phase 1 tests unchanged + 7 new in `test/screeningSignals.test.ts`) |
+| `npx vitest run` | 13 files, **190 passed, 1 todo** (183 Phase 1 tests unchanged + 7 new in `test/screeningSignals.test.ts`); re-run after the rebase onto `main` `d76a0c6`: same result |
 | Local D1 | migrations 0001–0003 and 0006 applied; seed, `screening_signals.sql` and `demo_claims.sql` imported |
 | Live demo over HTTP | see `docs/quantum/evidence/PHASE_04_LIVE_DEMO.log` and §18 |
 
@@ -132,6 +132,19 @@ With an ASSESSOR token for `ins_discovery` (`npm run token -- --demo`):
 
 `claim_demo_normal` and `claim_demo_unusual` are synthetic rows copied from the development dataset for the local database only; they are labelled as such in `demo_claims.sql`.
 
+## 18a. Merge note — upstream regression found and resolved during the rebase (2026-09-26)
+
+While rebasing `phase-4` onto `main`, the newest upstream commit `d76a0c6` ("feat: refactor backend to use Cloudflare D1 and fix flutter SDK version") had replaced `src/index.ts` with the backend team's MVC layer. Verified at `origin/main` in the `Easy-Claim-main` worktree:
+
+| Check at `origin/main` `d76a0c6` | Result |
+|---|---|
+| `requireActor`, `requireRole`, `loadAuthorizedClaim`, `transitionClaim`, `writeAuditEvent` used in `src/routes`, `src/controllers`, `src/services` | 0 files |
+| Security headers, CORS allowlist, body limit, rate limits, generic error handler, queue consumer in `src/index.ts` | removed |
+| `npm run typecheck` | FAILED: `Cannot find module '@hono/swagger-ui'` (not in `package.json`) |
+| `npx vitest run` | 12 files FAILED, no tests executed |
+
+This violated `docs/PARALLEL_WORK.md` ("`src/index.ts`: append route mounts only; keep `requireActor` on `/api/v1/*`") and the Phase 1 report's warning that the MVC layer must not be mounted without the Phase 1 controls. Resolution applied in this branch: the conflict in `src/index.ts` was resolved by keeping the secured Phase 1 entry point plus the one Phase 4 mount line; the MVC files remain in the repository, unmounted, exactly as before `d76a0c6`. After the rebase: typecheck exit 0, 190 tests passed + 1 todo. The backend team's Swagger routes are not mounted because their dependency is not installed; re-adding them is a backend-team decision and must sit outside `/api/v1` or behind `requireActor`.
+
 ## 19. Research decisions / open questions
 
 - Method: one-class quantum kernel in SCREENING (this report). Quantum optimisation for prioritisation: future research. The master plan `.docx` §10/§21 should be updated to record this (it is outside the repository).
@@ -139,4 +152,4 @@ With an ASSESSOR token for `ins_discovery` (`npm run token -- --demo`):
 
 ## 20. Files created / modified
 
-See the final status in the delivery message (`git status`, `git diff --stat`, `git diff --name-only`). Nothing was committed or pushed. No Phase 2 or Phase 3 file was touched apart from the `/screen` handler in `claimsInsurer.ts`, as agreed in `docs/PARALLEL_WORK.md`.
+See the final status in the delivery message (`git status`, `git diff --stat`, `git diff --name-only`). Committed on `phase-4` and pushed to `main` on the user's instruction (the original Phase 4 brief said not to; the user overrode this in the session). No Phase 2 or Phase 3 file was touched apart from the `/screen` handler in `claimsInsurer.ts`, as agreed in `docs/PARALLEL_WORK.md`.
