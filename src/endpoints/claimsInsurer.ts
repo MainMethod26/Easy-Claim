@@ -5,6 +5,7 @@ import { writeAuditEvent } from '../security/audit'
 import { loadAuthorizedClaim, transitionClaim } from '../security/claimAccess'
 import { checkTransition, type ClaimStage } from '../security/claimStateMachine'
 import { claimIdParam, decideSchema, validate } from '../security/validation'
+import { readRiskSignals } from '../screening/quantumSignal'
 
 /**
  * Insurer-side claim operations (Phase 1). Each route is a thin wrapper: the state machine
@@ -44,7 +45,10 @@ router.post('/:claimId/screen', insurerOnly, validate('param', claimIdParam), as
   if (!claim) return c.json(notFound, 404)
   const t = await transitionClaim(c, claim, 'Screening')
   if (!t.ok) return c.json({ error: t.error }, t.status)
-  return respond(c, claim.id, claim.stage, 'Screening')
+  // Phase 4: attach the advisory screening signal (read-only; null when none was computed).
+  // It is context for the assessor and has no effect on the transition above.
+  const riskSignals = await readRiskSignals(c.env.DB, claim.id)
+  return c.json({ status: 'transitioned', claimId: claim.id, from: claim.stage, to: 'Screening', riskSignals })
 })
 
 // Screening → Review, and Appeal → Review (the latter is MANAGER-only in the state machine).
