@@ -1,0 +1,4568 @@
+{
+ "model_version": "phase4-qk1c-v1",
+ "generated_at": "2026-09-26T03:26:55+00:00",
+ "execution": "simulator",
+ "hardware_used": false,
+ "environment": {
+  "python": "3.13.15",
+  "platform": "Windows-11-10.0.26200-SP0"
+ },
+ "features": [
+  "days_to_report",
+  "category_index",
+  "prior_claim_count",
+  "narrative_word_count",
+  "submission_hour"
+ ],
+ "preprocessing": {
+  "impute_medians": [
+   6.0,
+   1.0,
+   2.0,
+   25.0,
+   12.0
+  ],
+  "log1p_columns": [
+   0,
+   2,
+   3
+  ],
+  "scale_min": [
+   0.6931,
+   0.0,
+   0.0,
+   2.1972,
+   7.0
+  ],
+  "scale_max": [
+   3.8286,
+   4.0,
+   1.6094,
+   3.7842,
+   21.0
+  ],
+  "in_range_top": 0.75,
+  "above_range": "IN_RANGE_TOP + (1 - IN_RANGE_TOP) * (1 - exp(-(s - 1)))"
+ },
+ "classical_baseline": {
+  "model": "sklearn OneClassSVM",
+  "kernel": "rbf",
+  "gamma": "scale",
+  "nu": 0.1
+ },
+ "quantum_model": {
+  "framework": "PennyLane",
+  "device": "default.qubit (statevector simulator)",
+  "n_qubits": 5,
+  "reps": 2,
+  "feature_map": "H + RZ(x_i) per wire, then CNOT-RZ(x_i*x_j/pi)-CNOT on neighbouring wires, repeated",
+  "kernel": "state fidelity |<phi(y)|phi(x)>|^2",
+  "one_class": "sklearn OneClassSVM(kernel='precomputed')",
+  "nu": 0.1
+ },
+ "score_definition": "percentile of the raw one-class score within the synthetic reference population; bands NORMAL < 0.80 <= UNUSUAL < 0.95 <= HIGH_ANOMALY (screening heuristic, not a fraud threshold)",
+ "metrics": {
+  "n_reference_synthetic_normal": 120,
+  "n_synthetic_anomalies": 16,
+  "n_seed_demo_claims": 3,
+  "spearman_rank_correlation_classical_vs_quantum": 0.8374,
+  "top_k_overlap_fraction": 0.4375,
+  "synthetic_anomalies_in_classical_top_k": 9,
+  "synthetic_anomalies_in_quantum_top_k": 8,
+  "reference_score_mean_classical": 0.5042,
+  "reference_score_mean_quantum": 0.5035,
+  "anomaly_score_mean_classical": 0.8135,
+  "anomaly_score_mean_quantum": 0.7984,
+  "by_recipe": {
+   "late_report": {
+    "n": 4,
+    "classical_mean": 1.0,
+    "quantum_mean": 1.0,
+    "classical_flagged_unusual_or_higher": 4,
+    "quantum_flagged_unusual_or_higher": 4
+   },
+   "serial_claimant": {
+    "n": 8,
+    "classical_mean": 0.627,
+    "quantum_mean": 0.71,
+    "classical_flagged_unusual_or_higher": 2,
+    "quantum_flagged_unusual_or_higher": 3
+   },
+   "night_minimal_narrative": {
+    "n": 4,
+    "classical_mean": 1.0,
+    "quantum_mean": 0.773,
+    "classical_flagged_unusual_or_higher": 4,
+    "quantum_flagged_unusual_or_higher": 1
+   }
+  },
+  "kernel_checks": {
+   "square": true,
+   "symmetric": true,
+   "unit_diagonal": true,
+   "in_unit_interval": true,
+   "min_eigenvalue": 1.803574674801062e-16,
+   "positive_semidefinite": true,
+   "valid": true
+  },
+  "kernel_statevector_vs_circuit_max_abs_diff": 0.0,
+  "runtime_seconds": {
+   "classical_fit_and_score": 0.0178,
+   "quantum_statevectors": 1.8789,
+   "quantum_kernel_matrices": 0.002,
+   "quantum_one_class_fit_and_score": 0.0036
+  },
+  "circuit_evaluations_statevector_path": 139,
+  "circuit_evaluations_if_pairwise_on_hardware": 23460
+ },
+ "signals": [
+  {
+   "claim_id": "dev_claim_0000",
+   "classical_anomaly": 0.725,
+   "quantum_anomaly": 0.625,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 23.0,
+     "scaled": 0.5944
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 11.0,
+     "scaled": 0.136
+    },
+    "submission_hour": {
+     "raw": 15.0,
+     "scaled": 0.4286
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0001",
+   "classical_anomaly": 0.7833,
+   "quantum_anomaly": 0.3917,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 9.0,
+     "scaled": 0.385
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 43.0,
+     "scaled": 0.75
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0002",
+   "classical_anomaly": 0.0833,
+   "quantum_anomaly": 0.05,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 31.0,
+     "scaled": 0.5995
+    },
+    "submission_hour": {
+     "raw": 15.0,
+     "scaled": 0.4286
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0003",
+   "classical_anomaly": 0.8083,
+   "quantum_anomaly": 0.875,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 31.0,
+     "scaled": 0.5995
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0004",
+   "classical_anomaly": 0.425,
+   "quantum_anomaly": 0.4917,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 3.0,
+     "scaled": 0.1658
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 31.0,
+     "scaled": 0.5995
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0005",
+   "classical_anomaly": 0.3417,
+   "quantum_anomaly": 0.5583,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 6.0,
+     "scaled": 0.2997
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 33.0,
+     "scaled": 0.6281
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0006",
+   "classical_anomaly": 0.8417,
+   "quantum_anomaly": 0.9917,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 36.0,
+     "scaled": 0.6979
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 25.0,
+     "scaled": 0.5014
+    },
+    "submission_hour": {
+     "raw": 20.0,
+     "scaled": 0.6964
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0007",
+   "classical_anomaly": 0.7583,
+   "quantum_anomaly": 0.7417,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 16.0,
+     "scaled": 0.5119
+    },
+    "category_index": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 24.0,
+     "scaled": 0.4828
+    },
+    "submission_hour": {
+     "raw": 16.0,
+     "scaled": 0.4821
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0008",
+   "classical_anomaly": 0.075,
+   "quantum_anomaly": 0.2417,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 23.0,
+     "scaled": 0.4635
+    },
+    "submission_hour": {
+     "raw": 10.0,
+     "scaled": 0.1607
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0009",
+   "classical_anomaly": 0.825,
+   "quantum_anomaly": 0.8583,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 19.0,
+     "scaled": 0.5508
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 15.0,
+     "scaled": 0.2719
+    },
+    "submission_hour": {
+     "raw": 15.0,
+     "scaled": 0.4286
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0010",
+   "classical_anomaly": 0.5333,
+   "quantum_anomaly": 0.55,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 7.0,
+     "scaled": 0.3316
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 27.0,
+     "scaled": 0.5364
+    },
+    "submission_hour": {
+     "raw": 8.0,
+     "scaled": 0.0536
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0011",
+   "classical_anomaly": 0.6167,
+   "quantum_anomaly": 0.8167,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 2.0,
+     "scaled": 0.097
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 32.0,
+     "scaled": 0.614
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0012",
+   "classical_anomaly": 0.9917,
+   "quantum_anomaly": 0.9,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 2.0,
+     "scaled": 0.097
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 33.0,
+     "scaled": 0.6281
+    },
+    "submission_hour": {
+     "raw": 9.0,
+     "scaled": 0.1071
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0013",
+   "classical_anomaly": 0.3083,
+   "quantum_anomaly": 0.3333,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 6.0,
+     "scaled": 0.2997
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 19.0,
+     "scaled": 0.3774
+    },
+    "submission_hour": {
+     "raw": 17.0,
+     "scaled": 0.5357
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0014",
+   "classical_anomaly": 0.2,
+   "quantum_anomaly": 0.4667,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 3.0,
+     "scaled": 0.1658
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 24.0,
+     "scaled": 0.4828
+    },
+    "submission_hour": {
+     "raw": 9.0,
+     "scaled": 0.1071
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0015",
+   "classical_anomaly": 0.2833,
+   "quantum_anomaly": 0.6417,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 6.0,
+     "scaled": 0.2997
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 19.0,
+     "scaled": 0.3774
+    },
+    "submission_hour": {
+     "raw": 10.0,
+     "scaled": 0.1607
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0016",
+   "classical_anomaly": 0.6833,
+   "quantum_anomaly": 0.9833,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 35.0,
+     "scaled": 0.6552
+    },
+    "submission_hour": {
+     "raw": 16.0,
+     "scaled": 0.4821
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0017",
+   "classical_anomaly": 0.1667,
+   "quantum_anomaly": 0.1917,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 9.0,
+     "scaled": 0.385
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 30.0,
+     "scaled": 0.5845
+    },
+    "submission_hour": {
+     "raw": 10.0,
+     "scaled": 0.1607
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0018",
+   "classical_anomaly": 0.3917,
+   "quantum_anomaly": 0.375,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 6.0,
+     "scaled": 0.2997
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 33.0,
+     "scaled": 0.6281
+    },
+    "submission_hour": {
+     "raw": 19.0,
+     "scaled": 0.6429
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0019",
+   "classical_anomaly": 0.7,
+   "quantum_anomaly": 0.725,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 13.0,
+     "scaled": 0.4655
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 24.0,
+     "scaled": 0.4828
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0020",
+   "classical_anomaly": 1.0,
+   "quantum_anomaly": 0.825,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 2.0,
+     "scaled": 0.097
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 8.0,
+     "scaled": 0.0
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0021",
+   "classical_anomaly": 0.1917,
+   "quantum_anomaly": 0.2083,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 7.0,
+     "scaled": 0.3316
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 27.0,
+     "scaled": 0.5364
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0022",
+   "classical_anomaly": 0.225,
+   "quantum_anomaly": 0.1083,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 13.0,
+     "scaled": 0.4655
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 23.0,
+     "scaled": 0.4635
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0023",
+   "classical_anomaly": 0.8917,
+   "quantum_anomaly": 0.575,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 23.0,
+     "scaled": 0.5944
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 34.0,
+     "scaled": 0.6418
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0024",
+   "classical_anomaly": 0.7083,
+   "quantum_anomaly": 0.925,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 2.0,
+     "scaled": 0.097
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 17.0,
+     "scaled": 0.3276
+    },
+    "submission_hour": {
+     "raw": 9.0,
+     "scaled": 0.1071
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0025",
+   "classical_anomaly": 0.0333,
+   "quantum_anomaly": 0.0083,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 6.0,
+     "scaled": 0.2997
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 20.0,
+     "scaled": 0.4004
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0026",
+   "classical_anomaly": 0.125,
+   "quantum_anomaly": 0.1667,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 16.0,
+     "scaled": 0.5119
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 26.0,
+     "scaled": 0.5192
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0027",
+   "classical_anomaly": 0.7333,
+   "quantum_anomaly": 0.775,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 29.0,
+     "scaled": 0.569
+    },
+    "submission_hour": {
+     "raw": 17.0,
+     "scaled": 0.5357
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0028",
+   "classical_anomaly": 0.1,
+   "quantum_anomaly": 0.1583,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 6.0,
+     "scaled": 0.2997
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 20.0,
+     "scaled": 0.4004
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0029",
+   "classical_anomaly": 0.5167,
+   "quantum_anomaly": 0.475,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 2.0,
+     "scaled": 0.097
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 14.0,
+     "scaled": 0.2414
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0030",
+   "classical_anomaly": 0.0417,
+   "quantum_anomaly": 0.15,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 9.0,
+     "scaled": 0.385
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 19.0,
+     "scaled": 0.3774
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0031",
+   "classical_anomaly": 0.025,
+   "quantum_anomaly": 0.025,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 8.0,
+     "scaled": 0.3598
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 19.0,
+     "scaled": 0.3774
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0032",
+   "classical_anomaly": 0.8,
+   "quantum_anomaly": 0.8333,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 42.0,
+     "scaled": 0.7391
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0033",
+   "classical_anomaly": 0.1833,
+   "quantum_anomaly": 0.1833,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 3.0,
+     "scaled": 0.1658
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 28.0,
+     "scaled": 0.553
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0034",
+   "classical_anomaly": 0.8833,
+   "quantum_anomaly": 0.7333,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 17.0,
+     "scaled": 0.5256
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 13.0,
+     "scaled": 0.2088
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0035",
+   "classical_anomaly": 0.4333,
+   "quantum_anomaly": 0.2583,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 10.0,
+     "scaled": 0.4078
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 23.0,
+     "scaled": 0.4635
+    },
+    "submission_hour": {
+     "raw": 8.0,
+     "scaled": 0.0536
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0036",
+   "classical_anomaly": 0.2917,
+   "quantum_anomaly": 0.2,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 21.0,
+     "scaled": 0.5736
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 21.0,
+     "scaled": 0.4224
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0037",
+   "classical_anomaly": 0.7417,
+   "quantum_anomaly": 0.75,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 26.0,
+     "scaled": 0.5192
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0038",
+   "classical_anomaly": 0.9583,
+   "quantum_anomaly": 0.8917,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 45.0,
+     "scaled": 0.75
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 21.0,
+     "scaled": 0.4224
+    },
+    "submission_hour": {
+     "raw": 9.0,
+     "scaled": 0.1071
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0039",
+   "classical_anomaly": 0.4,
+   "quantum_anomaly": 0.2667,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 19.0,
+     "scaled": 0.5508
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 24.0,
+     "scaled": 0.4828
+    },
+    "submission_hour": {
+     "raw": 16.0,
+     "scaled": 0.4821
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0040",
+   "classical_anomaly": 0.0083,
+   "quantum_anomaly": 0.0333,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 6.0,
+     "scaled": 0.2997
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 24.0,
+     "scaled": 0.4828
+    },
+    "submission_hour": {
+     "raw": 14.0,
+     "scaled": 0.375
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0041",
+   "classical_anomaly": 0.9,
+   "quantum_anomaly": 0.8,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 12.0,
+     "scaled": 0.4477
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 10.0,
+     "scaled": 0.0948
+    },
+    "submission_hour": {
+     "raw": 18.0,
+     "scaled": 0.5893
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0042",
+   "classical_anomaly": 0.05,
+   "quantum_anomaly": 0.0417,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 24.0,
+     "scaled": 0.4828
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0043",
+   "classical_anomaly": 0.2083,
+   "quantum_anomaly": 0.2333,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 16.0,
+     "scaled": 0.5119
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 21.0,
+     "scaled": 0.4224
+    },
+    "submission_hour": {
+     "raw": 14.0,
+     "scaled": 0.375
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0044",
+   "classical_anomaly": 0.2583,
+   "quantum_anomaly": 0.1083,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 29.0,
+     "scaled": 0.569
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0045",
+   "classical_anomaly": 0.2167,
+   "quantum_anomaly": 0.225,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 23.0,
+     "scaled": 0.4635
+    },
+    "submission_hour": {
+     "raw": 10.0,
+     "scaled": 0.1607
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0046",
+   "classical_anomaly": 0.175,
+   "quantum_anomaly": 0.075,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 11.0,
+     "scaled": 0.4286
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 21.0,
+     "scaled": 0.4224
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0047",
+   "classical_anomaly": 0.6333,
+   "quantum_anomaly": 0.5667,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 8.0,
+     "scaled": 0.3598
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 38.0,
+     "scaled": 0.693
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0048",
+   "classical_anomaly": 0.1167,
+   "quantum_anomaly": 0.1333,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 7.0,
+     "scaled": 0.3316
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 20.0,
+     "scaled": 0.4004
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0049",
+   "classical_anomaly": 0.6583,
+   "quantum_anomaly": 0.7667,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 3.0,
+     "scaled": 0.1658
+    },
+    "category_index": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 21.0,
+     "scaled": 0.4224
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0050",
+   "classical_anomaly": 0.3333,
+   "quantum_anomaly": 0.3,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 3.0,
+     "scaled": 0.1658
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 26.0,
+     "scaled": 0.5192
+    },
+    "submission_hour": {
+     "raw": 14.0,
+     "scaled": 0.375
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0051",
+   "classical_anomaly": 0.4083,
+   "quantum_anomaly": 0.5833,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 3.0,
+     "scaled": 0.1658
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 21.0,
+     "scaled": 0.4224
+    },
+    "submission_hour": {
+     "raw": 9.0,
+     "scaled": 0.1071
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0052",
+   "classical_anomaly": 0.875,
+   "quantum_anomaly": 0.8417,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 28.0,
+     "scaled": 0.6396
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 24.0,
+     "scaled": 0.4828
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0053",
+   "classical_anomaly": 0.625,
+   "quantum_anomaly": 0.7167,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 7.0,
+     "scaled": 0.3316
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 25.0,
+     "scaled": 0.5014
+    },
+    "submission_hour": {
+     "raw": 17.0,
+     "scaled": 0.5357
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0054",
+   "classical_anomaly": 0.6083,
+   "quantum_anomaly": 0.9167,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 38.0,
+     "scaled": 0.7105
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 28.0,
+     "scaled": 0.553
+    },
+    "submission_hour": {
+     "raw": 14.0,
+     "scaled": 0.375
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0055",
+   "classical_anomaly": 0.5417,
+   "quantum_anomaly": 0.35,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 17.0,
+     "scaled": 0.5256
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 23.0,
+     "scaled": 0.4635
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0056",
+   "classical_anomaly": 0.5917,
+   "quantum_anomaly": 0.325,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 11.0,
+     "scaled": 0.4286
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 33.0,
+     "scaled": 0.6281
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0057",
+   "classical_anomaly": 0.775,
+   "quantum_anomaly": 0.975,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 26.0,
+     "scaled": 0.5192
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0058",
+   "classical_anomaly": 0.9333,
+   "quantum_anomaly": 0.8833,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 19.0,
+     "scaled": 0.3774
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0059",
+   "classical_anomaly": 0.6417,
+   "quantum_anomaly": 0.9333,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 6.0,
+     "scaled": 0.2997
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 13.0,
+     "scaled": 0.2088
+    },
+    "submission_hour": {
+     "raw": 17.0,
+     "scaled": 0.5357
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0060",
+   "classical_anomaly": 0.55,
+   "quantum_anomaly": 0.4083,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 1.0,
+     "scaled": 0.0
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 19.0,
+     "scaled": 0.3774
+    },
+    "submission_hour": {
+     "raw": 15.0,
+     "scaled": 0.4286
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0061",
+   "classical_anomaly": 0.7167,
+   "quantum_anomaly": 0.6167,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 2.0,
+     "scaled": 0.097
+    },
+    "category_index": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 26.0,
+     "scaled": 0.5192
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0062",
+   "classical_anomaly": 0.6917,
+   "quantum_anomaly": 0.6083,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 32.0,
+     "scaled": 0.6706
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 24.0,
+     "scaled": 0.4828
+    },
+    "submission_hour": {
+     "raw": 16.0,
+     "scaled": 0.4821
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0063",
+   "classical_anomaly": 0.4167,
+   "quantum_anomaly": 0.4833,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 3.0,
+     "scaled": 0.1658
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 36.0,
+     "scaled": 0.6681
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0064",
+   "classical_anomaly": 0.675,
+   "quantum_anomaly": 0.6583,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 11.0,
+     "scaled": 0.4286
+    },
+    "category_index": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 21.0,
+     "scaled": 0.4224
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0065",
+   "classical_anomaly": 0.7667,
+   "quantum_anomaly": 0.75,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 31.0,
+     "scaled": 0.5995
+    },
+    "submission_hour": {
+     "raw": 16.0,
+     "scaled": 0.4821
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0066",
+   "classical_anomaly": 0.4917,
+   "quantum_anomaly": 0.7,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 21.0,
+     "scaled": 0.4224
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0067",
+   "classical_anomaly": 0.4833,
+   "quantum_anomaly": 0.65,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 30.0,
+     "scaled": 0.6556
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 31.0,
+     "scaled": 0.5995
+    },
+    "submission_hour": {
+     "raw": 14.0,
+     "scaled": 0.375
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0068",
+   "classical_anomaly": 0.4417,
+   "quantum_anomaly": 0.45,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 25.0,
+     "scaled": 0.5014
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0069",
+   "classical_anomaly": 0.5,
+   "quantum_anomaly": 0.5,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 8.0,
+     "scaled": 0.3598
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 36.0,
+     "scaled": 0.6681
+    },
+    "submission_hour": {
+     "raw": 16.0,
+     "scaled": 0.4821
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0070",
+   "classical_anomaly": 0.3167,
+   "quantum_anomaly": 0.0917,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 18.0,
+     "scaled": 0.3531
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0071",
+   "classical_anomaly": 0.975,
+   "quantum_anomaly": 0.6833,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 2.0,
+     "scaled": 0.097
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 37.0,
+     "scaled": 0.6807
+    },
+    "submission_hour": {
+     "raw": 8.0,
+     "scaled": 0.0536
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0072",
+   "classical_anomaly": 0.15,
+   "quantum_anomaly": 0.3667,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 29.0,
+     "scaled": 0.569
+    },
+    "submission_hour": {
+     "raw": 10.0,
+     "scaled": 0.1607
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0073",
+   "classical_anomaly": 0.1333,
+   "quantum_anomaly": 0.2667,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 29.0,
+     "scaled": 0.569
+    },
+    "submission_hour": {
+     "raw": 14.0,
+     "scaled": 0.375
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0074",
+   "classical_anomaly": 0.5667,
+   "quantum_anomaly": 0.4333,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 26.0,
+     "scaled": 0.5192
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0075",
+   "classical_anomaly": 0.6667,
+   "quantum_anomaly": 0.7833,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 3.0,
+     "scaled": 0.1658
+    },
+    "category_index": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 25.0,
+     "scaled": 0.5014
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0076",
+   "classical_anomaly": 0.7917,
+   "quantum_anomaly": 0.525,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 24.0,
+     "scaled": 0.6041
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 16.0,
+     "scaled": 0.3006
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0077",
+   "classical_anomaly": 0.4583,
+   "quantum_anomaly": 0.3417,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 35.0,
+     "scaled": 0.6552
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0078",
+   "classical_anomaly": 0.0917,
+   "quantum_anomaly": 0.0667,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 18.0,
+     "scaled": 0.5385
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 23.0,
+     "scaled": 0.4635
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0079",
+   "classical_anomaly": 0.9667,
+   "quantum_anomaly": 0.7083,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 22.0,
+     "scaled": 0.5842
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 28.0,
+     "scaled": 0.553
+    },
+    "submission_hour": {
+     "raw": 19.0,
+     "scaled": 0.6429
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0080",
+   "classical_anomaly": 0.3833,
+   "quantum_anomaly": 0.2833,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 31.0,
+     "scaled": 0.5995
+    },
+    "submission_hour": {
+     "raw": 15.0,
+     "scaled": 0.4286
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0081",
+   "classical_anomaly": 0.0167,
+   "quantum_anomaly": 0.0167,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 8.0,
+     "scaled": 0.3598
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 23.0,
+     "scaled": 0.4635
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0082",
+   "classical_anomaly": 0.8167,
+   "quantum_anomaly": 0.7833,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 31.0,
+     "scaled": 0.5995
+    },
+    "submission_hour": {
+     "raw": 21.0,
+     "scaled": 0.75
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0083",
+   "classical_anomaly": 0.35,
+   "quantum_anomaly": 0.5333,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 7.0,
+     "scaled": 0.3316
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 24.0,
+     "scaled": 0.4828
+    },
+    "submission_hour": {
+     "raw": 9.0,
+     "scaled": 0.1071
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0084",
+   "classical_anomaly": 0.8667,
+   "quantum_anomaly": 0.6333,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 1.0,
+     "scaled": 0.0
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 19.0,
+     "scaled": 0.3774
+    },
+    "submission_hour": {
+     "raw": 10.0,
+     "scaled": 0.1607
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0085",
+   "classical_anomaly": 0.25,
+   "quantum_anomaly": 0.3083,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 13.0,
+     "scaled": 0.4655
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 26.0,
+     "scaled": 0.5192
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0086",
+   "classical_anomaly": 0.5833,
+   "quantum_anomaly": 0.9667,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 7.0,
+     "scaled": 0.3316
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 17.0,
+     "scaled": 0.3276
+    },
+    "submission_hour": {
+     "raw": 8.0,
+     "scaled": 0.0536
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0087",
+   "classical_anomaly": 0.85,
+   "quantum_anomaly": 0.9083,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 3.0,
+     "scaled": 0.1658
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 28.0,
+     "scaled": 0.553
+    },
+    "submission_hour": {
+     "raw": 20.0,
+     "scaled": 0.6964
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0088",
+   "classical_anomaly": 0.475,
+   "quantum_anomaly": 0.2917,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 27.0,
+     "scaled": 0.5364
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0089",
+   "classical_anomaly": 0.65,
+   "quantum_anomaly": 0.85,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 7.0,
+     "scaled": 0.3316
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 39.0,
+     "scaled": 0.705
+    },
+    "submission_hour": {
+     "raw": 14.0,
+     "scaled": 0.375
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0090",
+   "classical_anomaly": 0.1083,
+   "quantum_anomaly": 0.075,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 9.0,
+     "scaled": 0.385
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 22.0,
+     "scaled": 0.4434
+    },
+    "submission_hour": {
+     "raw": 9.0,
+     "scaled": 0.1071
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0091",
+   "classical_anomaly": 0.375,
+   "quantum_anomaly": 0.6667,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 3.0,
+     "scaled": 0.1658
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 23.0,
+     "scaled": 0.4635
+    },
+    "submission_hour": {
+     "raw": 18.0,
+     "scaled": 0.5893
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0092",
+   "classical_anomaly": 0.75,
+   "quantum_anomaly": 0.4167,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 14.0,
+     "scaled": 0.482
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 26.0,
+     "scaled": 0.5192
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0093",
+   "classical_anomaly": 0.2417,
+   "quantum_anomaly": 0.425,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 24.0,
+     "scaled": 0.4828
+    },
+    "submission_hour": {
+     "raw": 14.0,
+     "scaled": 0.375
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0094",
+   "classical_anomaly": 0.9167,
+   "quantum_anomaly": 0.95,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 27.0,
+     "scaled": 0.5364
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0095",
+   "classical_anomaly": 0.2667,
+   "quantum_anomaly": 0.2167,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 10.0,
+     "scaled": 0.4078
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 27.0,
+     "scaled": 0.5364
+    },
+    "submission_hour": {
+     "raw": 14.0,
+     "scaled": 0.375
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0096",
+   "classical_anomaly": 0.8333,
+   "quantum_anomaly": 0.8667,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 2.0,
+     "scaled": 0.097
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 13.0,
+     "scaled": 0.2088
+    },
+    "submission_hour": {
+     "raw": 15.0,
+     "scaled": 0.4286
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0097",
+   "classical_anomaly": 0.2333,
+   "quantum_anomaly": 0.1333,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 3.0,
+     "scaled": 0.1658
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 27.0,
+     "scaled": 0.5364
+    },
+    "submission_hour": {
+     "raw": 14.0,
+     "scaled": 0.375
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0098",
+   "classical_anomaly": 0.0583,
+   "quantum_anomaly": 0.0583,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 11.0,
+     "scaled": 0.4286
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 21.0,
+     "scaled": 0.4224
+    },
+    "submission_hour": {
+     "raw": 10.0,
+     "scaled": 0.1607
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0099",
+   "classical_anomaly": 0.95,
+   "quantum_anomaly": 0.9583,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 17.0,
+     "scaled": 0.5256
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 12.0,
+     "scaled": 0.1738
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0100",
+   "classical_anomaly": 0.3,
+   "quantum_anomaly": 0.375,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 10.0,
+     "scaled": 0.4078
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 29.0,
+     "scaled": 0.569
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0101",
+   "classical_anomaly": 0.3667,
+   "quantum_anomaly": 0.5917,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 6.0,
+     "scaled": 0.2997
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 21.0,
+     "scaled": 0.4224
+    },
+    "submission_hour": {
+     "raw": 9.0,
+     "scaled": 0.1071
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0102",
+   "classical_anomaly": 0.1583,
+   "quantum_anomaly": 0.1,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 16.0,
+     "scaled": 0.5119
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 18.0,
+     "scaled": 0.3531
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0103",
+   "classical_anomaly": 0.525,
+   "quantum_anomaly": 0.6,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 35.0,
+     "scaled": 0.6552
+    },
+    "submission_hour": {
+     "raw": 8.0,
+     "scaled": 0.0536
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0104",
+   "classical_anomaly": 0.5083,
+   "quantum_anomaly": 0.9917,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 40.0,
+     "scaled": 0.7166
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0105",
+   "classical_anomaly": 0.15,
+   "quantum_anomaly": 0.3667,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 29.0,
+     "scaled": 0.569
+    },
+    "submission_hour": {
+     "raw": 10.0,
+     "scaled": 0.1607
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0106",
+   "classical_anomaly": 0.4667,
+   "quantum_anomaly": 0.4333,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 18.0,
+     "scaled": 0.5385
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 30.0,
+     "scaled": 0.5845
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0107",
+   "classical_anomaly": 0.3583,
+   "quantum_anomaly": 0.4,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 16.0,
+     "scaled": 0.3006
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0108",
+   "classical_anomaly": 0.6,
+   "quantum_anomaly": 0.6917,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 2.0,
+     "scaled": 0.097
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 26.0,
+     "scaled": 0.5192
+    },
+    "submission_hour": {
+     "raw": 15.0,
+     "scaled": 0.4286
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0109",
+   "classical_anomaly": 0.325,
+   "quantum_anomaly": 0.3167,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 11.0,
+     "scaled": 0.4286
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 13.0,
+     "scaled": 0.2088
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0110",
+   "classical_anomaly": 0.9833,
+   "quantum_anomaly": 0.25,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 3.0,
+     "scaled": 0.1658
+    },
+    "category_index": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 18.0,
+     "scaled": 0.3531
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0111",
+   "classical_anomaly": 0.575,
+   "quantum_anomaly": 0.5083,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 21.0,
+     "scaled": 0.4224
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0112",
+   "classical_anomaly": 0.8583,
+   "quantum_anomaly": 0.9417,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 42.0,
+     "scaled": 0.7391
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0113",
+   "classical_anomaly": 0.9417,
+   "quantum_anomaly": 0.675,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 1.0,
+     "scaled": 0.0
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 39.0,
+     "scaled": 0.705
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0114",
+   "classical_anomaly": 0.5583,
+   "quantum_anomaly": 0.4583,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 6.0,
+     "scaled": 0.2997
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 26.0,
+     "scaled": 0.5192
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0115",
+   "classical_anomaly": 0.925,
+   "quantum_anomaly": 0.8083,
+   "interpretation": "UNUSUAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 20.0,
+     "scaled": 0.5624
+    },
+    "category_index": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 26.0,
+     "scaled": 0.5192
+    },
+    "submission_hour": {
+     "raw": 17.0,
+     "scaled": 0.5357
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0116",
+   "classical_anomaly": 0.0667,
+   "quantum_anomaly": 0.125,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 8.0,
+     "scaled": 0.3598
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 31.0,
+     "scaled": 0.5995
+    },
+    "submission_hour": {
+     "raw": 13.0,
+     "scaled": 0.3214
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0117",
+   "classical_anomaly": 0.275,
+   "quantum_anomaly": 0.175,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 8.0,
+     "scaled": 0.3598
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 29.0,
+     "scaled": 0.569
+    },
+    "submission_hour": {
+     "raw": 14.0,
+     "scaled": 0.375
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0118",
+   "classical_anomaly": 0.9083,
+   "quantum_anomaly": 0.5167,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 11.0,
+     "scaled": 0.4286
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 36.0,
+     "scaled": 0.6681
+    },
+    "submission_hour": {
+     "raw": 18.0,
+     "scaled": 0.5893
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0119",
+   "classical_anomaly": 0.45,
+   "quantum_anomaly": 0.5333,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 4.0,
+     "scaled": 0.2192
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 27.0,
+     "scaled": 0.5364
+    },
+    "submission_hour": {
+     "raw": 7.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": false
+  },
+  {
+   "claim_id": "dev_claim_0120",
+   "classical_anomaly": 1.0,
+   "quantum_anomaly": 1.0,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 323.0,
+     "scaled": 0.8659
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 34.0,
+     "scaled": 0.6418
+    },
+    "submission_hour": {
+     "raw": 10.0,
+     "scaled": 0.1607
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0121",
+   "classical_anomaly": 1.0,
+   "quantum_anomaly": 1.0,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 376.0,
+     "scaled": 0.8722
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 30.0,
+     "scaled": 0.5845
+    },
+    "submission_hour": {
+     "raw": 17.0,
+     "scaled": 0.5357
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0122",
+   "classical_anomaly": 1.0,
+   "quantum_anomaly": 1.0,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 212.0,
+     "scaled": 0.8467
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 31.0,
+     "scaled": 0.5995
+    },
+    "submission_hour": {
+     "raw": 17.0,
+     "scaled": 0.5357
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0123",
+   "classical_anomaly": 1.0,
+   "quantum_anomaly": 1.0,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 207.0,
+     "scaled": 0.8455
+    },
+    "category_index": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 31.0,
+     "scaled": 0.5995
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0124",
+   "classical_anomaly": 1.0,
+   "quantum_anomaly": 1.0,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 7.0,
+     "scaled": 0.3316
+    },
+    "category_index": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "prior_claim_count": {
+     "raw": 7.0,
+     "scaled": 0.8133
+    },
+    "narrative_word_count": {
+     "raw": 16.0,
+     "scaled": 0.3006
+    },
+    "submission_hour": {
+     "raw": 18.0,
+     "scaled": 0.5893
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0125",
+   "classical_anomaly": 0.8083,
+   "quantum_anomaly": 0.9917,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 8.0,
+     "scaled": 0.3598
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 7.0,
+     "scaled": 0.8133
+    },
+    "narrative_word_count": {
+     "raw": 33.0,
+     "scaled": 0.6281
+    },
+    "submission_hour": {
+     "raw": 16.0,
+     "scaled": 0.4821
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0126",
+   "classical_anomaly": 0.5333,
+   "quantum_anomaly": 0.575,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 3.0,
+     "scaled": 0.1658
+    },
+    "category_index": {
+     "raw": 2.0,
+     "scaled": 0.375
+    },
+    "prior_claim_count": {
+     "raw": 7.0,
+     "scaled": 0.8133
+    },
+    "narrative_word_count": {
+     "raw": 32.0,
+     "scaled": 0.614
+    },
+    "submission_hour": {
+     "raw": 11.0,
+     "scaled": 0.2143
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0127",
+   "classical_anomaly": 0.7833,
+   "quantum_anomaly": 0.9917,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 7.0,
+     "scaled": 0.8133
+    },
+    "narrative_word_count": {
+     "raw": 25.0,
+     "scaled": 0.5014
+    },
+    "submission_hour": {
+     "raw": 8.0,
+     "scaled": 0.0536
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0128",
+   "classical_anomaly": 0.3833,
+   "quantum_anomaly": 0.5167,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 7.0,
+     "scaled": 0.8133
+    },
+    "narrative_word_count": {
+     "raw": 25.0,
+     "scaled": 0.5014
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0129",
+   "classical_anomaly": 0.3833,
+   "quantum_anomaly": 0.5167,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 7.0,
+     "scaled": 0.8133
+    },
+    "narrative_word_count": {
+     "raw": 25.0,
+     "scaled": 0.5014
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0130",
+   "classical_anomaly": 0.5333,
+   "quantum_anomaly": 0.45,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 3.0,
+     "scaled": 0.5625
+    },
+    "prior_claim_count": {
+     "raw": 7.0,
+     "scaled": 0.8133
+    },
+    "narrative_word_count": {
+     "raw": 25.0,
+     "scaled": 0.5014
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0131",
+   "classical_anomaly": 0.5917,
+   "quantum_anomaly": 0.6417,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 5.0,
+     "scaled": 0.2628
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 7.0,
+     "scaled": 0.8133
+    },
+    "narrative_word_count": {
+     "raw": 25.0,
+     "scaled": 0.5014
+    },
+    "submission_hour": {
+     "raw": 12.0,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0132",
+   "classical_anomaly": 1.0,
+   "quantum_anomaly": 0.675,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 8.0,
+     "scaled": 0.3598
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 3.0,
+     "scaled": 0.646
+    },
+    "narrative_word_count": {
+     "raw": 2.0,
+     "scaled": 0.0
+    },
+    "submission_hour": {
+     "raw": 2.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0133",
+   "classical_anomaly": 1.0,
+   "quantum_anomaly": 1.0,
+   "interpretation": "HIGH_ANOMALY",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 6.0,
+     "scaled": 0.2997
+    },
+    "category_index": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "prior_claim_count": {
+     "raw": 4.0,
+     "scaled": 0.75
+    },
+    "narrative_word_count": {
+     "raw": 2.0,
+     "scaled": 0.0
+    },
+    "submission_hour": {
+     "raw": 3.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0134",
+   "classical_anomaly": 1.0,
+   "quantum_anomaly": 0.7417,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "category_index": {
+     "raw": 1.0,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 2.0,
+     "scaled": 0.512
+    },
+    "narrative_word_count": {
+     "raw": 3.0,
+     "scaled": 0.0
+    },
+    "submission_hour": {
+     "raw": 2.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "dev_claim_0135",
+   "classical_anomaly": 1.0,
+   "quantum_anomaly": 0.675,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": 8.0,
+     "scaled": 0.3598
+    },
+    "category_index": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 1.0,
+     "scaled": 0.0
+    },
+    "submission_hour": {
+     "raw": 2.0,
+     "scaled": 0.0
+    }
+   },
+   "synthetic": true,
+   "synthetic_anomaly": true
+  },
+  {
+   "claim_id": "claim_disc_101",
+   "classical_anomaly": 0.7667,
+   "quantum_anomaly": 0.5417,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": null,
+     "scaled": 0.2997
+    },
+    "category_index": {
+     "raw": null,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "submission_hour": {
+     "raw": null,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": false,
+   "synthetic_anomaly": null
+  },
+  {
+   "claim_id": "claim_sanlam_102",
+   "classical_anomaly": 0.7667,
+   "quantum_anomaly": 0.5417,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": null,
+     "scaled": 0.2997
+    },
+    "category_index": {
+     "raw": null,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 1.0,
+     "scaled": 0.323
+    },
+    "narrative_word_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "submission_hour": {
+     "raw": null,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": false,
+   "synthetic_anomaly": null
+  },
+  {
+   "claim_id": "claim_mom_103",
+   "classical_anomaly": 1.0,
+   "quantum_anomaly": 0.7,
+   "interpretation": "NORMAL",
+   "model_version": "phase4-qk1c-v1",
+   "execution": "simulator",
+   "features": {
+    "days_to_report": {
+     "raw": null,
+     "scaled": 0.2997
+    },
+    "category_index": {
+     "raw": null,
+     "scaled": 0.1875
+    },
+    "prior_claim_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "narrative_word_count": {
+     "raw": 0.0,
+     "scaled": 0.0
+    },
+    "submission_hour": {
+     "raw": null,
+     "scaled": 0.2679
+    }
+   },
+   "synthetic": false,
+   "synthetic_anomaly": null
+  }
+ ]
+}

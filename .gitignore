@@ -7,6 +7,11 @@ dist/
 !.dev.vars.example
 *.postman_environment.json
 
+# Quantum track (Phase 4): local Python environment and caches
+quantum/.venv/
+quantum/**/__pycache__/
+quantum/.pytest_cache/
+
 # Miscellaneous
 *.class
 *.log

@@ -1,0 +1,4 @@
+pennylane>=0.38
+scikit-learn>=1.5
+numpy>=1.26
+pytest>=8
