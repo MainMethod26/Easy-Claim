@@ -8,7 +8,7 @@ different machines and in different Claude sessions. These rules keep the securi
 | Phase | Branch | Who | Worktree (this PC) |
 |---|---|---|---|
 | 2 Evidence + OCR | `phase-2` | teammate, pushes to origin | none |
-| 3 Decision + payout | `phase-3` | Claude session A | `../ec-phase3` |
+| 3 Decision + payout | `phase-3-decision-payout` | Claude session A | `../ec-merged` (started from `0e75d6a`; must rebase onto `main` before PR) |
 | 4 Quantum screening signal | `phase-4` | Claude session B | `../ec-phase4` |
 
 - Branch from `main`, never from `cyber`. `cyber` is fully merged and frozen; do not commit to it.
