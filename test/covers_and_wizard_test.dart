@@ -63,7 +63,7 @@ void main() {
       final plan = provider.availablePlans.first;
       provider.submitSignupRequest(
         plan: plan,
-        applicantName: 'Thabo Bester',
+        applicantName: 'Thabo Mokoena',
         applicantEmail: 'thabo@easyclaim.co.za',
         applicantPhone: '+27 82 491 0021',
         idNumber: '9402185249081',
@@ -71,7 +71,7 @@ void main() {
 
       expect(provider.pendingRequests.length, equals(1));
       expect(provider.pendingRequests.first.planId, equals(plan.id));
-      expect(provider.pendingRequests.first.applicantName, equals('Thabo Bester'));
+      expect(provider.pendingRequests.first.applicantName, equals('Thabo Mokoena'));
     });
 
     test('ClaimsWizardProvider walks through the complete 6-stage lifecycle', () async {

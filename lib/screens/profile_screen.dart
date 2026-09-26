@@ -90,7 +90,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Row(
                             children: [
                               Text(
-                                'Thabo Bester',
+                                'Thabo Mokoena',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 18,

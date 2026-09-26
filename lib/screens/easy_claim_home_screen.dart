@@ -1087,7 +1087,7 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
           ),
           const SizedBox(height: 20.0),
           const Text(
-            'Thabo Bester',
+            'Thabo Mokoena',
             style: TextStyle(fontSize: 22.0, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
           ),
           const Text('ID: 940218 ··· 081', style: TextStyle(color: Color(0xFF64748B), fontSize: 14)),

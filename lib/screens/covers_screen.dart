@@ -1130,7 +1130,7 @@ class _CoversScreenState extends State<CoversScreen> {
 
   // BOTTOM SHEET: Instant Plan Activation ("Request to Join Plan")
   Widget _buildJoinPlanSheet(Plan plan) {
-    final nameCtrl = TextEditingController(text: 'Thabo Bester');
+    final nameCtrl = TextEditingController(text: 'Thabo Mokoena');
     final idCtrl = TextEditingController(text: '9402185249081');
     final emailCtrl = TextEditingController(text: 'thabo@easyclaim.co.za');
     final phoneCtrl = TextEditingController(text: '+27 82 491 0021');

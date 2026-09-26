@@ -179,7 +179,7 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
         isWithinWaitingPeriod: true,
         isWithinFilingWindow: true,
         verificationMessage:
-            'Identity verified (Thabo Bester ···081). $planName active ($policyNum) covering $assetName underwritten by $underwriter. Waiting period passed. Incident within 30-day window.',
+            'Identity verified (Thabo Mokoena ···081). $planName active ($policyNum) covering $assetName underwritten by $underwriter. Waiting period passed. Incident within 30-day window.',
         verificationErrors: const [],
       ),
     );
