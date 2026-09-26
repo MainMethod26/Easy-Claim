@@ -79,4 +79,12 @@ npm run token -- --postman     # tokens for Postman; import postman/EasyClaim.lo
 ```
 Postman folders 1 → 2 → 3 walk the legitimate flow (initiate → payout details → screening → submit → verify → screen → review → decide → pay); folder **8 "Phase 3 decision & payout attacks"** holds DEMO 1–5. Or run everything at once: `bash docs/phase-reports/evidence/live-demos-p3.sh` against a running dev server on port 8788.
 
-Git: this branch is **not committed, not pushed, not merged**. Recommended commit message: `feat(security): decision records and simulated payout protection (phase 3)`.
+## 13. Post-rebase note: security regression found on `main` and restored here
+Rebasing onto `main` (`d76a0c6`, backend team) showed that its rewritten `src/index.ts` mounted the unsecured MVC `routes/*`
+instead of `endpoints/*`, dropped `requireActor`, both rate limits, security headers, CORS, the body limit, the error handler and
+the queue consumer, and imported an undeclared `@hono/swagger-ui` — so on `main` the API was unauthenticated and no test file
+could load. With the user's approval this branch **restores the Phase 0–3 pipeline in `src/index.ts`**, keeps the team's
+`/swagger` and `/openapi.json` routes (adds `@hono/swagger-ui`, `resolveJsonModule`), and leaves the MVC layer in the repo but
+unmounted, as `docs/PARALLEL_WORK.md` requires. Commit: `fix(security): restore authentication pipeline in index.ts`.
+
+Git: committed on `phase-3-decision-payout` (rebased on `main`) and pushed for a PR to `main`; not merged.

@@ -4,13 +4,9 @@ import { requireRole } from '../security/rbac'
 import { writeAuditEvent } from '../security/audit'
 import { loadAuthorizedClaim, transitionClaim } from '../security/claimAccess'
 import { checkTransition, type ClaimStage } from '../security/claimStateMachine'
-<<<<<<< HEAD
-import { claimIdParam, decideSchema, validate } from '../security/validation'
-import { readRiskSignals } from '../screening/quantumSignal'
-=======
 import { DECISION_RULES_VERSION, gatedInsert, latestDecision, payoutFor } from '../security/ledger'
 import { claimIdParam, decideSchema, emptyBodySchema, validate } from '../security/validation'
->>>>>>> fc57f72 (feat(security): decision records and simulated payout protection (phase 3))
+import { readRiskSignals } from '../screening/quantumSignal'
 
 /**
  * Insurer-side claim operations. Each route is a thin wrapper: the state machine
