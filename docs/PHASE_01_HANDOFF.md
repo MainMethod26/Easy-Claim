@@ -2,9 +2,9 @@
 
 ## Starting point
 
-Continue from local `main` commit `94cb459` (`merge: bring phase 1 security and claims flow into main`). It merges the latest fetched `origin/main` (`604bf9a`) with the Phase 1 branch commit `cb2588a`.
+Continue from `main` commit `da07e7c` (the GitHub merge commit for PR #1). It contains the Phase 1 branch commit `cb2588a` and the root-level project restructure.
 
-The merge has **not** been pushed to GitHub. The receiving machine should import the supplied Git bundle, check out `main`, and create or configure its own `.dev.vars`; never copy a JWT secret between machines.
+PR #1 is merged into GitHub `main`. The receiving machine should clone or pull `main`, then create or configure its own `.dev.vars`; never copy a JWT secret between machines.
 
 ## What Phase 1 completed
 
@@ -55,5 +55,5 @@ Some inherited README and security-document path references still say `backend/.
 ## Prompt for the next agent
 
 ```text
-Open docs/PHASE_01_HANDOFF.md first. Continue EasyClaim from commit 94cb459 on main. Preserve the active Phase 1 Worker security model in src/index.ts and src/security/. First fix stale backend/ path references in the documentation and assess how to integrate the retained MVC/OpenAPI modules without exposing unauthenticated stub endpoints. Run npm.cmd run typecheck and npm.cmd test after every meaningful change. Do not add real secrets to the repository.
+Open docs/PHASE_01_HANDOFF.md first. Continue EasyClaim from commit da07e7c on main. Preserve the active Phase 1 Worker security model in src/index.ts and src/security/. First fix stale backend/ path references in the documentation and assess how to integrate the retained MVC/OpenAPI modules without exposing unauthenticated stub endpoints. Run npm.cmd run typecheck and npm.cmd test after every meaningful change. Do not add real secrets to the repository.
 ```
