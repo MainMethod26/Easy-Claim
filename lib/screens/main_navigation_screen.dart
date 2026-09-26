@@ -4,6 +4,7 @@ import 'easy_claim_home_screen.dart';
 import 'covers_screen.dart';
 import 'claim_activity_screen.dart';
 import 'profile_screen.dart';
+import 'support_screen.dart';
 import '../widgets/easy_claim_nav_bar.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -29,7 +30,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           key: const ValueKey<int>(0),
           child: EasyClaimHomeScreen(
             showStatusBar: true,
-            onTalkToPersonTapped: () => _onTabSelected(3),
+            onTalkToPersonTapped: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SupportScreen()),
+              );
+            },
             onViewStagesTapped: () => _onTabSelected(2),
             onNavigateToCovers: () => _onTabSelected(1),
             onNavigateToProfile: () => _onTabSelected(3),

@@ -9,6 +9,7 @@ import 'package:easyclaim/widgets/neumorphic_button.dart';
 import 'package:easyclaim/widgets/notification_bell_button.dart';
 import 'package:easyclaim/widgets/notifications_sheet.dart';
 import 'package:easyclaim/widgets/easy_claim_nav_bar.dart';
+import 'package:easyclaim/screens/support_screen.dart';
 
 void main() {
   testWidgets('Splash Screen (Flash Screen) renders branding and buttons', (WidgetTester tester) async {
@@ -188,5 +189,45 @@ void main() {
       }
     }
     expect(roundButtonCount, equals(4));
+  });
+
+  testWidgets('Support Screen displays active covers and number of available agents upon clicking insurance', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(const MaterialApp(
+      home: SupportScreen(),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // 1. Verify header and active covers are visible
+    expect(find.text('Talk to an Agent'), findsOneWidget);
+    expect(find.text('YOUR ACTIVE COVERS'), findsOneWidget);
+    expect(find.text('Vodacom Insurance Co.'), findsOneWidget);
+    expect(find.text('King Price Assurance'), findsOneWidget);
+    expect(find.text('Discovery Insure'), findsOneWidget);
+
+    // 2. Verify number of available agents shown on each insurance
+    expect(find.text('4 Agents Available to Talk To'), findsOneWidget);
+    expect(find.text('5 Agents Available to Talk To'), findsOneWidget);
+    expect(find.text('3 Agents Available to Talk To'), findsOneWidget);
+
+    // 3. Initially, first cover (Vodacom) is selected showing its agents
+    expect(find.text('4 Available Agents for Vodacom Insurance Co.'), findsOneWidget);
+    expect(find.text('Sarah Dlamini'), findsOneWidget);
+
+    // 4. Click on King Price Assurance insurance cover
+    await tester.tap(find.text('King Price Assurance'));
+    await tester.pump(const Duration(milliseconds: 350));
+
+    // 5. Verify the number of available agents updates for King Price
+    expect(find.text('5 Available Agents for King Price Assurance'), findsOneWidget);
+    expect(find.text('Johan van der Merwe'), findsOneWidget);
+    expect(find.text('Chat with Agent'), findsWidgets);
+    expect(find.text('Direct Call'), findsWidgets);
   });
 }
