@@ -1,0 +1,40 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply easy-claim-db --local",
+    "db:seed:local": "wrangler d1 execute easy-claim-db --local --file=seed_sa_data.sql",
+    "quantum:experiment": "python quantum/experiment.py",
+    "signals:import:local": "wrangler d1 execute easy-claim-db --local --file=quantum/results/screening_signals.sql",
+    "demo:quantum:local": "wrangler d1 execute easy-claim-db --local --file=quantum/results/demo_claims.sql",
+    "setup:local": "node scripts/setup-dev-vars.mjs",
+    "secret": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
+    "token": "node scripts/mint-token.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@hono/swagger-ui": "^0.6.1",
+    "@hono/zod-validator": "^0.9.1",
+    "hono": "^4.13.9",
+    "postman-to-openapi": "^1.2.0",
+    "swagger-ui-dist": "^5.33.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.2.8",
+    "@cloudflare/workers-types": "^5.20260925.2",
+    "@types/swagger-ui-dist": "^3.30.6",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.141.0"
+  },
+  "private": true
+}
