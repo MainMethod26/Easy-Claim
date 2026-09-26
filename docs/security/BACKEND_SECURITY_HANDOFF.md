@@ -108,3 +108,16 @@
 
 ### BACKEND-SEC-020 — ADMIN scope (DECISION REQUIRED)
 - **Question:** is ADMIN platform-wide or per tenant? Tokens may carry `tenant_id` for ADMIN but it is ignored; ADMIN has no claim access at all today. Decide before building admin/configuration endpoints (009).
+
+## BACKEND-SEC-020 — Unmounted MVC layer must stay unmounted until it is guarded (added 2026-09-26, Phase 4 merge)
+
+`src/controllers/*`, `src/routes/*`, `src/services/*` are present in the repository but are **not** mounted by `src/index.ts`. Upstream commit `d76a0c6` mounted them in place of the secured entry point; the Phase 4 rebase restored the secured entry point (see `docs/quantum/PHASE_04_REPORT.md` §18a). An automated security review of those unmounted files found, in addition to the missing `requireActor`:
+
+| # | File | Finding | Severity if mounted |
+|---|---|---|---|
+| 1 | `src/controllers/claimsController.ts` | `verify`, `screening`, `pay` and the other stage handlers call `ClaimsService.updateStage` with no actor, no ownership/tenant check, no state-machine check, and are reachable by GET | CRITICAL |
+| 2 | `src/controllers/claimsController.ts` | `initiate` takes `policyId` from the body without verifying the policy belongs to the caller | HIGH |
+| 3 | `src/controllers/identityController.ts` | identity is read from the client header `x-user-id` with a default of `user123` | HIGH |
+| 4 | `src/controllers/policyController.ts` | `saveRequirements` inserts against a client-supplied `policyId` with no ownership check | HIGH |
+
+Status: NOT EXPLOITABLE today (not mounted). Required before any of these routes are mounted: go through `requireActor`, `requireRole`, `loadAuthorizedClaim` and `transitionClaim` exactly like `src/endpoints/*`, or delete the layer. Owner: backend team. Rule recorded in `docs/PARALLEL_WORK.md` (`src/index.ts`: append mounts only, keep `requireActor` on `/api/v1/*`).
