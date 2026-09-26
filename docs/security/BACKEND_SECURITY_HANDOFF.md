@@ -23,7 +23,7 @@
 | `src/endpoints/claims.ts` | `GET /claims` (owner / tenant scoped, no drafts and no `user_id` for insurers) |
 | `migrations/0002_security.sql`, `0003_tenants.sql` | claim columns, `audit_events` (append-only), `evidence` table (unused), `tenants`, `policies.tenant_id`, `claims.tenant_id`, `audit_events.actor_tenant_id` |
 | `scripts/mint-token.mjs`, `setup-dev-vars.mjs` | local tokens (`npm run token -- --demo \| --postman`), local secret setup (`npm run setup:local`) |
-| `test/*.test.ts` | 183 tests + 1 todo, 12 files (`npm test`) |
+| `test/*.test.ts` | 232 tests, 15 files after Phases 2–4 and the evidence-binding follow-up (`npm test`) |
 
 ## Requirements
 
@@ -87,7 +87,7 @@
 
 ### BACKEND-SEC-014 — Keep the tests green
 - **Requirement:** `npm test`, `npm run typecheck`, `npm audit` pass on every PR; new sensitive routes ship with BOLA, RBAC, tenant and mass-assignment tests.
-- **Status:** IMPLEMENTED locally (183 tests); CI NOT IMPLEMENTED.
+- **Status:** IMPLEMENTED locally (232 tests, 15 files); CI NOT IMPLEMENTED.
 
 ### BACKEND-SEC-015 — Separation of duties (DECISION REQUIRED)
 - **Question:** may the MANAGER who recorded the decision also perform `/pay`, and may the original decider re-review an appeal? Today nothing prevents it.

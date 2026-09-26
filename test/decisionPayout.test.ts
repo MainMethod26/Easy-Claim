@@ -1,16 +1,20 @@
 import { env } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
+import { sha256Hex } from '../src/security/ledger'
 import {
   DEMO_PAYOUT,
+  VALID_PDF_BYTES,
   assessorA,
   auditRows,
   call,
   claimStage,
+  createReadyDraft,
   createReviewedClaim,
   createSubmittedClaim,
   customerA,
   customerB,
   decisionRows,
+  evidenceFile,
   managerA,
   managerB,
   payoutRows,
@@ -287,6 +291,52 @@ describe('payout protection', () => {
     const view = await (await call(`/claims/${id}/payout`, { as: managerA })).text()
     expect(view).not.toContain(DEMO_PAYOUT.accountNumber)
     expect(view).toContain('7890')
+  })
+})
+
+describe('decision is bound to the evidence set (Phase 2 → Phase 3)', () => {
+  const pdf = (bytes: Uint8Array) => {
+    const form = new FormData()
+    form.append('file', evidenceFile(bytes))
+    return form
+  }
+
+  it('records the SHA-256 over the claim\'s evidence hashes at decision time, re-computable from the evidence table', async () => {
+    const id = await createReadyDraft()
+    const bytesA = new Uint8Array([...VALID_PDF_BYTES, 1, 2, 3])
+    const bytesB = new Uint8Array([...VALID_PDF_BYTES, 9, 9, 9])
+    for (const b of [bytesA, bytesB]) {
+      const up = await call(`/claims/${id}/evidence`, { method: 'POST', as: customerA, formData: pdf(b) })
+      expect(up.status).toBe(201)
+    }
+    await call(`/claims/${id}/submit`, { method: 'POST', as: customerA })
+    for (const step of ['verify', 'screen', 'review']) await call(`/claims/${id}/${step}`, { method: 'POST', as: assessorA })
+
+    const res = await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: APPROVE })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { evidenceCount: number; evidenceDigest: string }
+    expect(body.evidenceCount).toBe(2)
+
+    const hashes = (await env.DB.prepare('SELECT sha256 FROM evidence WHERE claim_id = ? ORDER BY sha256').bind(id).all<{ sha256: string }>()).results.map((r) => r.sha256)
+    const expected = await sha256Hex(hashes.join('\n'))
+    expect(body.evidenceDigest).toBe(expected)
+    expect((await decisionRows(id))[0]).toMatchObject({ evidence_digest: expected })
+
+    const view = (await (await call(`/claims/${id}/decision`, { as: customerA })).json()) as { record: { evidenceDigest: string } }
+    expect(view.record.evidenceDigest).toBe(expected)
+  })
+
+  it('a claim decided without evidence records a null digest and count 0', async () => {
+    const id = await createReviewedClaim()
+    const res = await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: APPROVE })
+    expect(await res.json()).toMatchObject({ evidenceCount: 0, evidenceDigest: null })
+    expect((await decisionRows(id))[0]).toMatchObject({ evidence_digest: null })
+  })
+
+  it('evidence cannot be added or changed after submission, so the digest stays meaningful', async () => {
+    const id = await createSubmittedClaim()
+    const late = await call(`/claims/${id}/evidence`, { method: 'POST', as: customerA, formData: pdf(VALID_PDF_BYTES) })
+    expect(late.status).toBe(409)
   })
 })
 

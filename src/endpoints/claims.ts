@@ -254,6 +254,7 @@ router.get('/:claimId/decision', validate('param', claimIdParam), async (c) => {
         reason: record.reason,
         approvedAmountCents: record.approved_amount_cents,
         rulesVersion: record.rules_version,
+        evidenceDigest: record.evidence_digest,
       },
     })
   }

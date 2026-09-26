@@ -79,7 +79,11 @@ describe('tenant isolation', () => {
     expect(await cross.json()).toEqual(await missing.json())
   })
 
-  it.todo('TENANT-004 evidence resource isolation — BLOCKED: no evidence endpoint or stored evidence exists yet')
+  it('TENANT-004 evidence resource isolation: tenant B staff cannot list a tenant A claim\'s evidence (404)', async () => {
+    // Phase 2 added the evidence routes; full upload/download/verify isolation is in test/evidence.test.ts.
+    expect((await call('/claims/claim_disc_101/evidence', { as: assessorB })).status).toBe(404)
+    expect((await call('/claims/claim_disc_101/evidence', { as: assessorA })).status).toBe(200)
+  })
 
   it('TENANT-005 a claim with no tenant is visible to no insurer (fail closed)', async () => {
     await env.DB.prepare(

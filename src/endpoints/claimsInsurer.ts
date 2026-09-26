@@ -4,7 +4,7 @@ import { requireRole } from '../security/rbac'
 import { writeAuditEvent } from '../security/audit'
 import { loadAuthorizedClaim, transitionClaim } from '../security/claimAccess'
 import { checkTransition, type ClaimStage } from '../security/claimStateMachine'
-import { DECISION_RULES_VERSION, gatedInsert, latestDecision, payoutFor } from '../security/ledger'
+import { DECISION_RULES_VERSION, evidenceDigest, gatedInsert, latestDecision, payoutFor } from '../security/ledger'
 import { claimIdParam, decideSchema, emptyBodySchema, validate } from '../security/validation'
 import { readRiskSignals } from '../screening/quantumSignal'
 
@@ -109,6 +109,9 @@ router.post('/:claimId/decide', insurerOnly, validate('param', claimIdParam), va
     return reject('amount_not_allowed_for_rejection', 422)
   }
 
+  // Snapshot of the evidence set (Phase 2) the decision is taken on; null when there is none.
+  const evidence = await evidenceDigest(c.env.DB, claim.id)
+
   const decisionId = `dec_${crypto.randomUUID()}`
   const record = gatedInsert(c.env.DB, 'claim_decisions', {
     id: decisionId,
@@ -125,10 +128,11 @@ router.post('/:claimId/decide', insurerOnly, validate('param', claimIdParam), va
     decided_at: new Date().toISOString(),
     request_id: c.get('requestId') ?? null,
     rules_version: DECISION_RULES_VERSION,
+    evidence_digest: evidence.digest,
   })
   const t = await transitionClaim(c, claim, 'Decision', {
     status: outcome,
-    details: { outcome, decisionId, approvedAmountCents: approved },
+    details: { outcome, decisionId, approvedAmountCents: approved, evidenceCount: evidence.count },
     extra: [record],
   })
   if (!t.ok) return c.json({ error: t.error }, t.status)
@@ -137,9 +141,19 @@ router.post('/:claimId/decide', insurerOnly, validate('param', claimIdParam), va
     resourceType: 'claim_decision',
     resourceId: decisionId,
     outcome: 'success',
-    details: { claimId: claim.id, outcome, approvedAmountCents: approved, previousStage: claim.stage },
+    details: { claimId: claim.id, outcome, approvedAmountCents: approved, previousStage: claim.stage, evidenceCount: evidence.count, evidenceDigest: evidence.digest },
   })
-  return c.json({ status: 'transitioned', claimId: claim.id, from: claim.stage, to: 'Decision', outcome, decisionId, approvedAmountCents: approved })
+  return c.json({
+    status: 'transitioned',
+    claimId: claim.id,
+    from: claim.stage,
+    to: 'Decision',
+    outcome,
+    decisionId,
+    approvedAmountCents: approved,
+    evidenceCount: evidence.count,
+    evidenceDigest: evidence.digest,
+  })
 })
 
 /**

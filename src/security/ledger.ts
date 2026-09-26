@@ -32,6 +32,18 @@ export function destinationHash(bankName: string, accountNumber: string): Promis
 /** Version tag recorded on every decision so a later rules/model change is distinguishable. */
 export const DECISION_RULES_VERSION = 'phase3-manual-v1'
 
+/**
+ * Digest of the evidence set a decision was taken on: SHA-256 over the sorted SHA-256 hashes
+ * of every evidence item on the claim (Phase 2 stores one per upload). Null when the claim has
+ * no evidence. Re-computable later from the `evidence` table, so a decision can be checked
+ * against the evidence that existed at decision time.
+ */
+export async function evidenceDigest(db: D1Database, claimId: string): Promise<{ digest: string | null; count: number }> {
+  const { results } = await db.prepare('SELECT sha256 FROM evidence WHERE claim_id = ? ORDER BY sha256').bind(claimId).all<{ sha256: string }>()
+  if (results.length === 0) return { digest: null, count: 0 }
+  return { digest: await sha256Hex(results.map((r) => r.sha256).join('\n')), count: results.length }
+}
+
 export interface DecisionRow {
   id: string
   claim_id: string
@@ -47,6 +59,9 @@ export interface DecisionRow {
   decided_at: string
   request_id: string | null
   rules_version: string
+  evidence_digest: string | null
+  risk_signal: string | null
+  integrity_signature: string | null
 }
 
 export interface PayoutRow {
