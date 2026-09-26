@@ -230,7 +230,7 @@ class HomeScreenProvider with ChangeNotifier {
   }
 
   // Update claim stage
-  void setClaimStage(ClaimStage stage) {
+  void setClaimStage(ClaimStage stage, {bool recordActivity = false}) {
     if (_data.activeClaims.isEmpty) return;
 
     final updatedClaim = _data.activeClaims.first.copyWith(
@@ -239,27 +239,73 @@ class HomeScreenProvider with ChangeNotifier {
       lastUpdated: DateTime.now(),
     );
 
+    // Contextual description matching each of the 6 stages
+    String stageDesc;
+    switch (stage) {
+      case ClaimStage.submitted:
+        stageDesc =
+            'Police case number: CAS 482/09/2026 recorded. Time and place confirmed.';
+        break;
+      case ClaimStage.verified:
+        stageDesc =
+            'Identity and underwriter policy active. Waiting period cleared.';
+        break;
+      case ClaimStage.screening:
+        stageDesc =
+            'IMEI blacklist check clean. Fraud risk score: 14 (low risk route chosen).';
+        break;
+      case ClaimStage.review:
+        stageDesc =
+            'R4,200 under R5,000 threshold. Policy age: 210 days. Fast lane auto-approval in progress.';
+        break;
+      case ClaimStage.decision:
+        stageDesc =
+            'Claim approved. Payout authorization confirmed to verified banking details.';
+        break;
+      case ClaimStage.paid:
+        stageDesc =
+            'Payout of R4,200 triggered to verified Standard Bank account.';
+        break;
+    }
+
+    final currentStageIdx = stage.stepIndex;
+    final updatedMilestones = _data.summaryStages.isNotEmpty
+        ? _data.summaryStages.first.milestones.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final milestone = entry.value;
+            return milestone.copyWith(
+              isCompleted: idx <= currentStageIdx,
+            );
+          }).toList()
+        : null;
+
     final updatedSummary = _data.summaryStages.isNotEmpty
         ? _data.summaryStages.first.copyWith(
             currentStage: stage,
             sideState: null,
+            stageDescription: stageDesc,
             stageEnteredAt: DateTime.now(),
+            milestones: updatedMilestones,
           )
         : null;
 
-    final newActivity = RecentActivity(
-      id: 'act_${DateTime.now().millisecondsSinceEpoch}',
-      type: ActivityType.claimStageUpdated,
-      title: 'Claim Advanced to ${stage.displayName}',
-      description: 'Progress updated on EasyClaim network.',
-      timestamp: DateTime.now(),
-      relatedClaimId: updatedClaim.claimId,
-    );
+    List<RecentActivity> activities = _data.recentActivities;
+    if (recordActivity) {
+      final newActivity = RecentActivity(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        type: ActivityType.claimStageUpdated,
+        title: 'Claim Advanced to ${stage.displayName}',
+        description: 'Progress updated on EasyClaim network.',
+        timestamp: DateTime.now(),
+        relatedClaimId: updatedClaim.claimId,
+      );
+      activities = [newActivity, ..._data.recentActivities.take(6)];
+    }
 
     _data = _data.copyWith(
       activeClaims: [updatedClaim],
       summaryStages: updatedSummary != null ? [updatedSummary] : null,
-      recentActivities: [newActivity, ..._data.recentActivities],
+      recentActivities: activities,
       lastRefreshed: DateTime.now(),
     );
     notifyListeners();

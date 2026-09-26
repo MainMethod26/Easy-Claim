@@ -44,7 +44,9 @@ class ClaimStepper extends StatelessWidget {
                         // The line is orange if this segment is before the active node or leading into it
                         final isCompletedLine = index < activeIndex;
                         return Expanded(
-                          child: Container(
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 400),
+                            curve: Curves.easeInOut,
                             height: 3.0,
                             color: isCompletedLine
                                 ? const Color(0xFFFF5500)
@@ -59,15 +61,16 @@ class ClaimStepper extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: List.generate(totalSteps, (index) {
+                      final nodeWidget = _buildNode(index, nodeSize);
                       return SizedBox(
                         width: stepWidth,
                         child: Center(
-                          child: GestureDetector(
-                            onTap: onStepTapped != null
-                                ? () => onStepTapped!(index)
-                                : null,
-                            child: _buildNode(index, nodeSize),
-                          ),
+                          child: onStepTapped != null
+                              ? GestureDetector(
+                                  onTap: () => onStepTapped!(index),
+                                  child: nodeWidget,
+                                )
+                              : nodeWidget,
                         ),
                       );
                     }),
@@ -82,19 +85,30 @@ class ClaimStepper extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: List.generate(totalSteps, (index) {
+                final isCurrent = index == activeIndex;
+                final isPast = index < activeIndex;
                 return SizedBox(
                   width: stepWidth,
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: Text(
-                      steps[index],
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      style: const TextStyle(
-                        color: Color(0xFF0F172A),
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 300),
+                      style: TextStyle(
+                        color: isCurrent
+                            ? const Color(0xFFFF5500)
+                            : (isPast
+                                ? const Color(0xFF0F172A)
+                                : const Color(0xFF94A3B8)),
                         fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: isCurrent
+                            ? FontWeight.w800
+                            : (isPast ? FontWeight.w700 : FontWeight.w500),
                         letterSpacing: -0.2,
+                      ),
+                      child: Text(
+                        steps[index],
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
                       ),
                     ),
                   ),
@@ -110,7 +124,9 @@ class ClaimStepper extends StatelessWidget {
   Widget _buildNode(int index, double size) {
     if (index < activeIndex) {
       // Completed step: Orange circle with white checkmark
-      return Container(
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
         width: size,
         height: size,
         decoration: const BoxDecoration(
@@ -127,8 +143,10 @@ class ClaimStepper extends StatelessWidget {
         ),
       );
     } else if (index == activeIndex) {
-      // Active step: Orange ring with center orange filled dot
-      return Container(
+      // Active step: Orange ring with center orange filled dot & subtle glow
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
         width: size,
         height: size,
         decoration: BoxDecoration(
@@ -138,6 +156,13 @@ class ClaimStepper extends StatelessWidget {
             color: const Color(0xFFFF5500),
             width: 2.4,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFF5500).withValues(alpha: 0.35),
+              blurRadius: 6,
+              spreadRadius: 1,
+            ),
+          ],
         ),
         child: Center(
           child: Container(
@@ -152,7 +177,9 @@ class ClaimStepper extends StatelessWidget {
       );
     } else {
       // Upcoming step: Solid light grey circle
-      return Container(
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
         width: size,
         height: size,
         decoration: const BoxDecoration(

@@ -119,7 +119,7 @@ void main() {
     await tester.tap(find.text('Activities'));
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Standard Model'), findsOneWidget);
-    expect(find.text('Fast-Lane Qualified (Review: Auto)'), findsOneWidget);
+    expect(find.text('Apple iPhone 14 Pro Max • POL-EC-98421'), findsOneWidget);
 
     // Switch to Profile tab
     await tester.tap(find.text('Profile'));

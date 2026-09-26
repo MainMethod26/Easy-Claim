@@ -26,22 +26,6 @@ class ActiveClaimCard extends StatefulWidget {
 }
 
 class _ActiveClaimCardState extends State<ActiveClaimCard> {
-  late int _step;
-
-  @override
-  void initState() {
-    super.initState();
-    _step = widget.currentStep;
-  }
-
-  @override
-  void didUpdateWidget(covariant ActiveClaimCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.currentStep != widget.currentStep) {
-      _step = widget.currentStep;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -201,15 +185,10 @@ class _ActiveClaimCardState extends State<ActiveClaimCard> {
           ),
           const SizedBox(height: 28.0),
 
-          // Horizontal 6-step progress stepper
+          // Horizontal 6-step progress stepper (read-only, moves automatically)
           ClaimStepper(
-            activeIndex: _step,
-            onStepTapped: (index) {
-              setState(() {
-                _step = index;
-              });
-              widget.onStepChanged?.call(index);
-            },
+            activeIndex: widget.currentStep,
+            onStepTapped: null, // Manual user tap is not allowed
           ),
           const SizedBox(height: 4.0),
         ],

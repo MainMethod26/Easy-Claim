@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'package:flutter/material.dart' hide Notification;
-import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
 import '../models/home_models.dart';
 import '../providers/home_screen_provider.dart';
 import '../widgets/easy_claim_logo.dart';
@@ -24,6 +24,7 @@ import 'support_screen.dart';
 /// 6. Recent Activity: Chronological log of recent policy updates and movements.
 class EasyClaimHomeScreen extends StatefulWidget {
   final bool showStatusBar;
+  final bool autoAdvanceStep;
   final VoidCallback? onTalkToPersonTapped;
   final VoidCallback? onViewStagesTapped;
   final VoidCallback? onNavigateToCovers;
@@ -32,6 +33,7 @@ class EasyClaimHomeScreen extends StatefulWidget {
   const EasyClaimHomeScreen({
     super.key,
     this.showStatusBar = true,
+    this.autoAdvanceStep = true,
     this.onTalkToPersonTapped,
     this.onViewStagesTapped,
     this.onNavigateToCovers,
@@ -44,12 +46,29 @@ class EasyClaimHomeScreen extends StatefulWidget {
 
 class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
   late HomeScreenProvider _homeProvider;
+  Timer? _stepAutoTimer;
 
   @override
   void initState() {
     super.initState();
     _homeProvider = HomeScreenProvider();
     _homeProvider.addListener(_onProviderUpdate);
+    if (widget.autoAdvanceStep) {
+      _startStepAutoAdvance();
+    }
+  }
+
+  void _startStepAutoAdvance() {
+    _stepAutoTimer?.cancel();
+    _stepAutoTimer =
+        Timer.periodic(const Duration(milliseconds: 3500), (timer) {
+      if (!mounted) return;
+      final currentStep =
+          _homeProvider.primaryClaim?.currentStage.stepIndex ?? 0;
+      final nextStep = (currentStep + 1) % ClaimStage.values.length;
+      _homeProvider.setClaimStage(ClaimStage.values[nextStep],
+          recordActivity: false);
+    });
   }
 
   void _onProviderUpdate() {
@@ -58,31 +77,9 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
 
   @override
   void dispose() {
+    _stepAutoTimer?.cancel();
     _homeProvider.removeListener(_onProviderUpdate);
     super.dispose();
-  }
-
-  void _onStepChanged(int newStep) {
-    final stages = ClaimStage.values;
-    if (newStep >= 0 && newStep < stages.length) {
-      final selectedStage = stages[newStep];
-      _homeProvider.setClaimStage(selectedStage);
-
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          elevation: 0,
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.transparent,
-          duration: const Duration(seconds: 2),
-          content: AwesomeSnackbarContent(
-            title: 'Stage: ${selectedStage.displayName}',
-            message: 'Claim #EC-482 progress updated on EasyClaim network.',
-            contentType: ContentType.success,
-          ),
-        ),
-      );
-    }
   }
 
   void _showNotificationsModal() {
@@ -457,14 +454,13 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
                       _buildSectionTitle('Claim Status & Summary Stage'),
                       const SizedBox(height: 10.0),
 
-                      // Active Claim Card with 6-step progress stepper
+                      // Active Claim Card with 6-step progress stepper (advances automatically)
                       ActiveClaimCard(
                         title: primaryClaim?.title ?? 'Phone stolen',
                         claimant: primaryClaim?.claimant ?? 'Thabo',
                         amount: primaryClaim?.amount ?? 'R4,200',
                         status: primaryClaim?.statusDisplay ?? 'Under review',
                         currentStep: primaryClaim?.currentStage.stepIndex ?? 3,
-                        onStepChanged: _onStepChanged,
                       ),
                       const SizedBox(height: 14.0),
 
