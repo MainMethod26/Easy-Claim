@@ -37,6 +37,9 @@ export type Bindings = {
   // Expected `iss` and `aud` claims (plain vars in wrangler.toml).
   JWT_ISSUER?: string
   JWT_AUDIENCE?: string
+  // Phase 5: 32-byte hex seed for the ML-DSA-65 decision-signing key. Secret binding only
+  // (`wrangler secret put MLDSA_SEED` deployed, `.dev.vars` locally). Missing -> decisions refused (fail closed).
+  MLDSA_SEED?: string
 }
 
 export type AppEnv = {

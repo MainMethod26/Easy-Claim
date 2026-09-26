@@ -10,3 +10,7 @@ JWT_SECRET=CHANGE_ME
 ALLOWED_ORIGINS=http://localhost:5173
 
 # JWT_ISSUER / JWT_AUDIENCE come from wrangler.toml [vars]; override here only if needed.
+
+# Phase 5: 32-byte hex seed for the ML-DSA-65 decision-signing key (npm run setup:local fills it).
+# Deployed: `wrangler secret put MLDSA_SEED`. Without it, /decide refuses to record decisions (fail closed).
+MLDSA_SEED=CHANGE_ME

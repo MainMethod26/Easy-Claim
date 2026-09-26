@@ -1837,6 +1837,149 @@
           }
         }
       ]
+    },
+    {
+      "name": "10 - Phase 5 post-quantum decision integrity (ML-DSA-65)",
+      "description": "Needs MLDSA_SEED in .dev.vars (npm run setup:local). Decide a claim first (folder 3), then verify it. To demo tampering, stop the server, edit claim_decisions in D1, restart (docs/security/evidence/live-demo-p5.sh).",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token_manager_a}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Public key (ML-DSA-65, FIPS 204)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/integrity/public-key",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "integrity",
+                "public-key"
+              ]
+            },
+            "description": "Expected: 200 { alg: ML-DSA-65, keyId, publicKey (1952 bytes base64) }"
+          }
+        },
+        {
+          "name": "Verify decision signature",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/decision/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "decision",
+                "verify"
+              ]
+            },
+            "description": "Expected: 200 integrity.status VALID (TAMPERED after a direct DB edit)"
+          }
+        },
+        {
+          "name": "Verify as the owning customer",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/decision/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "decision",
+                "verify"
+              ]
+            },
+            "description": "Expected: 200 VALID",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_customer_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify as another tenant",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/decision/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "decision",
+                "verify"
+              ]
+            },
+            "description": "Expected: 404",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_assessor_b}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Pay a tampered decision",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/pay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "pay"
+              ]
+            },
+            "description": "Expected: 409 decision_integrity_failed when the signature does not verify"
+          }
+        }
+      ]
     }
   ]
 }

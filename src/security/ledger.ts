@@ -62,6 +62,9 @@ export interface DecisionRow {
   evidence_digest: string | null
   risk_signal: string | null
   integrity_signature: string | null
+  integrity_alg: string | null
+  integrity_key_id: string | null
+  integrity_bundle_digest: string | null
 }
 
 export interface PayoutRow {

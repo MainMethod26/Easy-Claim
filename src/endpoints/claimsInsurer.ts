@@ -7,6 +7,7 @@ import { checkTransition, type ClaimStage } from '../security/claimStateMachine'
 import { DECISION_RULES_VERSION, evidenceDigest, gatedInsert, latestDecision, payoutFor } from '../security/ledger'
 import { claimIdParam, decideSchema, emptyBodySchema, validate } from '../security/validation'
 import { readRiskSignals, signalSummary } from '../screening/quantumSignal'
+import { getSigner, signDecision, verifyDecision } from '../security/integrity'
 
 /**
  * Insurer-side claim operations. Each route is a thin wrapper: the state machine
@@ -122,8 +123,21 @@ router.post('/:claimId/decide', insurerOnly, validate('param', claimIdParam), va
   // never an input to any rule here). Null when no signal was computed.
   const screening = await readRiskSignals(c.env.DB, claim.id)
 
+  // Phase 5: no decision is recorded unsigned. Missing/invalid MLDSA_SEED fails closed.
+  const signer = await getSigner(c.env.MLDSA_SEED)
+  if (!signer) {
+    await writeAuditEvent(c, {
+      action: 'claim.decision_rejected',
+      resourceType: 'claim',
+      resourceId: claim.id,
+      outcome: 'failure',
+      details: { outcome, reason: 'integrity_unavailable' },
+    })
+    return c.json({ error: 'integrity_unavailable' }, 503)
+  }
+
   const decisionId = `dec_${crypto.randomUUID()}`
-  const record = gatedInsert(c.env.DB, 'claim_decisions', {
+  const fields = {
     id: decisionId,
     claim_id: claim.id,
     tenant_id: claim.tenant_id,
@@ -136,10 +150,16 @@ router.post('/:claimId/decide', insurerOnly, validate('param', claimIdParam), va
     actor_id: actor.id,
     actor_role: actor.role,
     decided_at: new Date().toISOString(),
-    request_id: c.get('requestId') ?? null,
     rules_version: DECISION_RULES_VERSION,
     evidence_digest: evidence.digest,
     risk_signal: screening ? JSON.stringify(signalSummary(screening)) : null,
+  }
+  // ML-DSA-65 signature over the canonical decision bundle, stored with the row in the same batch.
+  const signature = await signDecision(signer, fields)
+  const record = gatedInsert(c.env.DB, 'claim_decisions', {
+    ...fields,
+    request_id: c.get('requestId') ?? null,
+    ...signature,
   })
   const t = await transitionClaim(c, claim, 'Decision', {
     status: outcome,
@@ -152,7 +172,7 @@ router.post('/:claimId/decide', insurerOnly, validate('param', claimIdParam), va
     resourceType: 'claim_decision',
     resourceId: decisionId,
     outcome: 'success',
-    details: { claimId: claim.id, outcome, approvedAmountCents: approved, previousStage: claim.stage, evidenceCount: evidence.count, evidenceDigest: evidence.digest },
+    details: { claimId: claim.id, outcome, approvedAmountCents: approved, previousStage: claim.stage, evidenceCount: evidence.count, evidenceDigest: evidence.digest, integrityAlg: signature.integrity_alg, integrityKeyId: signature.integrity_key_id, bundleDigest: signature.integrity_bundle_digest },
   })
   return c.json({
     status: 'transitioned',
@@ -164,6 +184,7 @@ router.post('/:claimId/decide', insurerOnly, validate('param', claimIdParam), va
     approvedAmountCents: approved,
     evidenceCount: evidence.count,
     evidenceDigest: evidence.digest,
+    integrity: { alg: signature.integrity_alg, keyId: signature.integrity_key_id, bundleDigest: signature.integrity_bundle_digest },
   })
 })
 
@@ -237,7 +258,14 @@ router.post('/:claimId/pay', insurerOnly, validate('param', claimIdParam), async
   // Business validation: an approved, recorded decision whose destination snapshot still matches.
   if (claim.status !== 'Approved') return blocked('not_approved', 409)
   const decision = await latestDecision(c.env.DB, claim.id)
-  if (!decision || decision.outcome !== 'Approved') return blocked('decision_record_missing', 409)
+  if (!decision) return blocked('decision_record_missing', 409)
+  // Phase 5: pay only a decision whose ML-DSA signature still verifies over the stored bundle.
+  // Checked before reading any field of the decision, so tampering is reported as tampering.
+  const integrity = await verifyDecision(c.env.MLDSA_SEED, decision)
+  if (integrity.status !== 'VALID') {
+    return blocked('decision_integrity_failed', 409, { decisionId: decision.id, integrity: integrity.status })
+  }
+  if (decision.outcome !== 'Approved') return blocked('decision_record_missing', 409)
   if (decision.approved_amount_cents === null || decision.approved_amount_cents <= 0) return blocked('amount_missing', 409)
   if (!decision.destination_hash || decision.destination_hash !== claim.payout_destination_hash || !claim.payout_account_last4) {
     return blocked('destination_mismatch', 409, { decisionId: decision.id })

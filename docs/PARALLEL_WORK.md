@@ -24,6 +24,7 @@ different machines and in different Claude sessions. These rules keep the securi
 | `0005_*.sql` | Phase 3 (decision records, rules version, payout approvals) |
 | `0006_*.sql` | Phase 4 (screening signals) |
 | `0007_*.sql` | Phase 4 completion (screening signal integrity) |
+| `0008_*.sql` | Phase 5 (ML-DSA decision integrity) |
 
 Never renumber another phase's migration. Existing 0001 to 0003 are frozen.
 
