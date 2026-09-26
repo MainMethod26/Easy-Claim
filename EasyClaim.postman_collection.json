@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "b3e34b5c-43f5-46b5-827c-473d092d603a",
     "name": "EasyClaim API (Phase 1: bearer tokens + tenants)",
-    "description": "Local demo collection. Setup:\n1. cd backend && npm run setup:local && npm run db:migrate:local && npm run db:seed:local && npm run dev\n2. npm run token -- --postman   (writes backend/postman/EasyClaim.local.postman_environment.json, gitignored)\n3. Import that file in Postman as an environment and select it. It holds baseUrl and one token per demo actor.\nTokens are signed locally with the JWT_SECRET from backend/.dev.vars; the secret itself never enters Postman.\nFolders 0, 5, 6 and 7 are attack demonstrations; each request description states the expected response.",
+    "description": "Local demo collection. Setup:\n1. cd backend && npm run setup:local && npm run db:migrate:local && npm run db:seed:local && npm run dev\n2. npm run token -- --postman   (writes backend/postman/EasyClaim.local.postman_environment.json, gitignored)\n3. Import that file in Postman as an environment and select it. It holds baseUrl and one token per demo actor.\nTokens are signed locally with the JWT_SECRET from backend/.dev.vars; the secret itself never enters Postman.\nFolders 0, 5, 6, 7 and 8 are attack demonstrations; each request description states the expected response.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -289,6 +289,57 @@
               "mode": "raw",
               "raw": "{\n  \"causeOfLoss\": \"Hospital admission after a fall\",\n  \"incidentDate\": \"2026-01-10\"\n}"
             }
+          }
+        },
+        {
+          "name": "PUT payout details (Phase 3)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/payout-details",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "payout-details"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"claimedAmountCents\": 420000,\n  \"bankName\": \"Demo Bank\",\n  \"accountHolder\": \"Customer A\",\n  \"accountNumber\": \"62001234567890\"\n}"
+            },
+            "description": "Expected: 200 while Draft / Info Needed; 409 payout_details_locked after submission. R4 200 claimed; account number is hashed, only last 4 stored"
+          }
+        },
+        {
+          "name": "GET payout view (Phase 3)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/payout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "payout"
+              ]
+            },
+            "description": "Expected: masked destination, latest decision, payout (if any)"
           }
         },
         {
@@ -643,7 +694,7 @@
     },
     {
       "name": "3 - Manager, tenant A (ins_discovery)",
-      "description": "Manager of Discovery: decides and pays. Token: {{token_manager_a}}.",
+      "description": "Manager of Discovery: decides (with a reason) and pays (simulated). Assessors can no longer decide (Phase 3). Token: {{token_manager_a}}.",
       "auth": {
         "type": "bearer",
         "bearer": [
@@ -656,7 +707,7 @@
       },
       "item": [
         {
-          "name": "POST decide Approved (Review -> Decision)",
+          "name": "POST decide Approved (Review -> Decision, MANAGER only)",
           "request": {
             "method": "POST",
             "header": [
@@ -680,15 +731,50 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"outcome\": \"Approved\"\n}"
+              "raw": "{\n  \"outcome\": \"Approved\",\n  \"reason\": \"Documents verified, within cover\"\n}"
+            },
+            "description": "Expected: 200 with decisionId; approved amount defaults to the claimed amount (R4 200). Add \"approvedAmountCents\" for a partial approval"
+          }
+        },
+        {
+          "name": "POST decide Rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/decide",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "decide"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"Rejected\",\n  \"reason\": \"Incident outside cover period\"\n}"
             }
           }
         },
         {
-          "name": "POST pay (Decision -> Paid, MANAGER only)",
+          "name": "POST pay (Decision -> Paid, MANAGER only, simulated)",
           "request": {
             "method": "POST",
-            "header": [],
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "demo-pay-1"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/pay",
               "host": [
@@ -702,7 +788,7 @@
                 "pay"
               ]
             },
-            "description": "Expected: 200 when Approved; 409 not_approved when Rejected"
+            "description": "Expected: 200 {status:\"paid\", simulated:true, amountCents:420000}; repeat with the same Idempotency-Key -> 200 already_paid; without it -> 409"
           }
         }
       ]
@@ -1146,6 +1232,305 @@
               "type": "noauth"
             },
             "description": "Expected: 401"
+          }
+        }
+      ]
+    },
+    {
+      "name": "8 - Phase 3 decision & payout attacks",
+      "description": "Run after folder 1 initiate -> payout details -> screening -> submit and folder 2 verify -> screen -> review, with claimId set. Each request states the expected response.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token_manager_a}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "DEMO 1: customer approves the claim",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/decide",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "decide"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"Approved\",\n  \"reason\": \"I approve myself\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_customer_a}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 403 forbidden + audit authz.role_denied"
+          }
+        },
+        {
+          "name": "DEMO 1b: assessor decides",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/decide",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "decide"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"Approved\",\n  \"reason\": \"assessor try\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_assessor_a}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 403 forbidden + audit claim.transition_rejected (role_not_permitted)"
+          }
+        },
+        {
+          "name": "DEMO 2: Submitted -> Paid (pay before decision)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/pay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "pay"
+              ]
+            },
+            "description": "Expected: 409 illegal_transition (run while the claim is Submitted/Review)"
+          }
+        },
+        {
+          "name": "DEMO 2b: client-chosen state on decide",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/decide",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "decide"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"Approved\",\n  \"reason\": \"x\",\n  \"state\": \"Paid\"\n}"
+            },
+            "description": "Expected: 400 unrecognized_keys"
+          }
+        },
+        {
+          "name": "DEMO 3: approve R420 000 on a R4 200 claim",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/decide",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "decide"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"Approved\",\n  \"reason\": \"inflated\",\n  \"approvedAmountCents\": 42000000\n}"
+            },
+            "description": "Expected: 422 amount_exceeds_claimed + audit claim.decision_rejected"
+          }
+        },
+        {
+          "name": "DEMO 3b: pay with a client-supplied amount",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/pay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "pay"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 42000000\n}"
+            },
+            "description": "Expected: 400 client_supplied_fields + audit payout.blocked"
+          }
+        },
+        {
+          "name": "DEMO 4: change payout destination after approval",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/payout-details",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "payout-details"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"claimedAmountCents\": 420000,\n  \"bankName\": \"Attacker Bank\",\n  \"accountHolder\": \"Someone Else\",\n  \"accountNumber\": \"99990000111122\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_customer_a}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 409 payout_details_locked + audit payout.destination_change_blocked"
+          }
+        },
+        {
+          "name": "DEMO 5c: cross-tenant manager pays",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/pay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "pay"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_manager_b}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 404 not_found (identical to a non-existent claim)"
+          }
+        },
+        {
+          "name": "DEMO 5d: replay the payout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/pay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "pay"
+              ]
+            },
+            "description": "Expected: 409 already_paid after a successful payout; same Idempotency-Key -> 200 already_paid, no second payout"
           }
         }
       ]

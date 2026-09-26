@@ -31,8 +31,34 @@ export const appealSchema = z.object({ reason: z.string().trim().min(1).max(2000
 
 export const joinRequestSchema = z.object({ planId: id }).strict()
 
-/** Insurer decision. Only the outcome is recorded (as claims.status); see DECISION_SECURITY.md. */
-export const decideSchema = z.object({ outcome: z.enum(['Approved', 'Rejected']) }).strict()
+/** Amounts are integer cents; R1 000 000 cap keeps a typo from becoming a claim. */
+const amountCents = z.number().int().min(1).max(100_000_000)
+
+/**
+ * Insurer decision (Phase 3). `approvedAmountCents` is only meaningful for Approved and may
+ * never exceed the claimed amount (checked server-side); omitted = approve the full claimed
+ * amount. Any other field (state, status, actor, payout data) is rejected.
+ */
+export const decideSchema = z
+  .object({
+    outcome: z.enum(['Approved', 'Rejected']),
+    reason: z.string().trim().min(1).max(2000),
+    approvedAmountCents: amountCents.optional(),
+  })
+  .strict()
+
+/** Customer-supplied payout inputs, accepted only while the claim is still editable by its owner. */
+export const payoutDetailsSchema = z
+  .object({
+    claimedAmountCents: amountCents,
+    bankName: z.string().trim().min(2).max(100),
+    accountHolder: z.string().trim().min(2).max(100),
+    accountNumber: z.string().regex(/^[0-9]{6,20}$/),
+  })
+  .strict()
+
+/** POST /pay takes no body: amount and destination are server-determined. */
+export const emptyBodySchema = z.object({}).strict()
 
 /** Pagination for list endpoints: bounded so a single request cannot dump a whole tenant. */
 export const listQuerySchema = z.object({

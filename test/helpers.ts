@@ -64,7 +64,9 @@ export async function call(path: string, opts: CallOptions = {}): Promise<Respon
   }
   const request = new Request(`${BASE}${path}`, { method: opts.method ?? 'GET', headers, body })
   const ctx = createExecutionContext()
-  const response = await worker.fetch(request, { ...env, ...opts.env }, ctx)
+  // The real per-IP/per-actor limiter (100 req/60 s) is bypassed for functional tests, which
+  // issue hundreds of requests as the same actor; hardening.test.ts injects its own limiter.
+  const response = await worker.fetch(request, { ...env, RATE_LIMITER: undefined, ...opts.env }, ctx)
   await waitOnExecutionContext(ctx)
   return response
 }
@@ -99,7 +101,22 @@ export async function claimStage(claimId: string) {
   }>()
 }
 
-/** Creates a Draft claim for user123 on a Discovery (tenant A) policy with completed screening. */
+/** The legitimate demo payout: R4 200 to a masked demo account. */
+export const DEMO_PAYOUT = {
+  claimedAmountCents: 420_000,
+  bankName: 'Demo Bank',
+  accountHolder: 'Customer A',
+  accountNumber: '62001234567890',
+} as const
+
+export async function setPayoutDetails(
+  claimId: string,
+  overrides: Partial<{ claimedAmountCents: number; bankName: string; accountHolder: string; accountNumber: string }> = {}
+) {
+  return call(`/claims/${claimId}/payout-details`, { method: 'PUT', as: customerA, json: { ...DEMO_PAYOUT, ...overrides } })
+}
+
+/** Creates a Draft claim for user123 on a Discovery (tenant A) policy with completed screening and payout details. */
 export async function createReadyDraft(): Promise<string> {
   const res = await call('/claims/initiate', { method: 'POST', as: customerA, json: { policyId: 'pol_disc_001' } })
   const { claimId } = (await res.json()) as { claimId: string }
@@ -108,7 +125,27 @@ export async function createReadyDraft(): Promise<string> {
     as: customerA,
     json: { causeOfLoss: 'Hospital admission', incidentDate: '2026-01-10' },
   })
+  const details = await setPayoutDetails(claimId)
+  if (details.status !== 200) throw new Error(`payout details failed: ${details.status} ${await details.text()}`)
   return claimId
+}
+
+/** Drives a tenant-A claim to Review (customer submits, assessor verifies/screens/reviews). */
+export async function createReviewedClaim(): Promise<string> {
+  const claimId = await createSubmittedClaim()
+  for (const step of ['verify', 'screen', 'review']) {
+    const res = await call(`/claims/${claimId}/${step}`, { method: 'POST', as: assessorA })
+    if (res.status !== 200) throw new Error(`${step} failed: ${res.status}`)
+  }
+  return claimId
+}
+
+export async function decisionRows(claimId: string) {
+  return (await env.DB.prepare('SELECT * FROM claim_decisions WHERE claim_id = ? ORDER BY decided_at').bind(claimId).all()).results as Record<string, unknown>[]
+}
+
+export async function payoutRows(claimId: string) {
+  return (await env.DB.prepare('SELECT * FROM payouts WHERE claim_id = ?').bind(claimId).all()).results as Record<string, unknown>[]
 }
 
 /** Creates a tenant-A claim and submits it (stage Submitted). */

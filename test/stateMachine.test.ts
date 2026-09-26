@@ -34,6 +34,7 @@ describe('claim state machine (unit)', () => {
 
   it.each([
     ['Review', 'Decision', 'CUSTOMER'], // customer cannot decide
+    ['Review', 'Decision', 'ASSESSOR'], // Phase 3: decision is manager-only
     ['Decision', 'Paid', 'CUSTOMER'], // customer cannot pay out
     ['Decision', 'Paid', 'ASSESSOR'], // payout is manager-only
     ['Submitted', 'Verified', 'CUSTOMER'],
@@ -55,10 +56,12 @@ describe('claim state machine (unit)', () => {
     }
   })
 
-  it('only MANAGER can move a claim to Paid', () => {
+  it('only MANAGER can move a claim to Decision or Paid', () => {
     for (const from of CLAIM_STAGES) {
-      const roles = TRANSITIONS[from].Paid
-      if (roles) expect(roles).toEqual(['MANAGER'])
+      for (const to of ['Decision', 'Paid'] as const) {
+        const roles = TRANSITIONS[from][to]
+        if (roles) expect(roles).toEqual(['MANAGER'])
+      }
     }
   })
 })

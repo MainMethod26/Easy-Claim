@@ -1,5 +1,15 @@
 # Decision Security
 
+> **Phase 3 update (2026-09-26).** Decisions are now MANAGER-only and recorded in the insert-only
+> `claim_decisions` table (who, what, when, why, previous stage, claimed/approved amounts, destination
+> snapshot, request id, `rules_version = phase3-manual-v1`), written in the same D1 batch as the
+> `Review → Decision` transition. `POST /decide` takes `{ outcome, reason, approvedAmountCents? }`;
+> an approval requires payout details and may not exceed the claimed amount. `GET /decision` returns
+> the record. Reserved for later phases: `evidence_digest` (Phase 2), `risk_signal` (advisory
+> screening, never a transition), `integrity_signature` (ML-DSA). Full detail, attack results and
+> limitations: `docs/phase-reports/PHASE_03_REPORT.md`. The sections below describe the state before
+> Phase 3 and remain as history.
+
 ## Actual state
 
 Phase 0 (kept for history): no endpoint recorded a decision; outcomes existed only in seed data.

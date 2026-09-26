@@ -1,5 +1,17 @@
 # Payout Security
 
+> **Phase 3 update (2026-09-26).** A **simulated** payout now exists (`payouts` insert-only table,
+> `status = 'simulated'`, no money moves). The customer supplies the claimed amount and destination
+> only while the claim is Draft / Info Needed (`PUT /payout-details`; account number stored as
+> SHA-256 + last 4); after submission changes are refused and audited. `POST /pay` (MANAGER of the
+> tenant) accepts no body — any client field is refused (400) and audited — pays exactly the recorded
+> approved amount, refuses if the destination no longer matches the decision-time snapshot
+> (409 `destination_mismatch`), and allows one payout per claim (`UNIQUE`, 409 `already_paid`; an
+> identical `Idempotency-Key` replays the same payout). Not implemented: payment rail, destination
+> verification / step-up auth for legitimate changes, second approver, separation of duties. Full
+> detail: `docs/phase-reports/PHASE_03_REPORT.md`. The sections below describe the state before
+> Phase 3 and remain as history.
+
 ## Actual state
 
 **Payment execution is NOT IMPLEMENTED.** There is:

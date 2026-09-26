@@ -15,6 +15,13 @@ export interface ClaimRow {
   incident_date: string | null
   created_at: string | null
   updated_at: string | null
+  // Phase 3 payout inputs (migrations/0005)
+  claimed_amount_cents: number | null
+  payout_bank_name: string | null
+  payout_account_holder: string | null
+  payout_account_last4: string | null
+  payout_destination_hash: string | null
+  payout_details_updated_at: string | null
 }
 
 /**
@@ -91,6 +98,13 @@ export interface TransitionOptions {
   status?: string
   /** Extra identifiers/state names for the audit event. Never free text. */
   details?: Record<string, string | number | boolean | null>
+  /**
+   * Additional statements run in the SAME batch after the stage change and its audit row
+   * (e.g. the decision or payout record). Each MUST be written as
+   * `INSERT ... SELECT ... WHERE changes() = 1` so it is skipped when the stage change did
+   * not apply (see gatedInsert in security/ledger.ts).
+   */
+  extra?: D1PreparedStatement[]
 }
 
 /**
@@ -160,7 +174,7 @@ export async function transitionClaim(
     { onlyIfPreviousChanged: true }
   )
 
-  const [updated] = await c.env.DB.batch([update, audit])
+  const [updated] = await c.env.DB.batch([update, audit, ...(opts.extra ?? [])])
   if (updated.meta.changes !== 1) {
     // The row moved on between the read and the write (lost race / replay). Record the attempt.
     await writeAuditEvent(c, {

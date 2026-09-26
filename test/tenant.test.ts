@@ -54,7 +54,7 @@ describe('tenant isolation', () => {
       expect((await call(`/claims/claim_mom_103/${step}`, { method: 'POST', as: assessorA })).status).toBe(404)
       expect((await call(`/claims/claim_mom_103/${step}`, { method: 'POST', as: managerA })).status).toBe(404)
     }
-    expect((await call('/claims/claim_mom_103/decide', { method: 'POST', as: managerA, json: { outcome: 'Approved' } })).status).toBe(404)
+    expect((await call('/claims/claim_mom_103/decide', { method: 'POST', as: managerA, json: { outcome: 'Approved', reason: 'test' } })).status).toBe(404)
     expect(await claimStage('claim_mom_103')).toMatchObject({ stage: 'Submitted', status: 'Pending' })
     expect(await auditRows('claim.stage_changed', 'claim_mom_103')).toHaveLength(0)
     const denials = await auditRows('authz.claim_access_denied', 'claim_mom_103')
@@ -63,7 +63,7 @@ describe('tenant isolation', () => {
   })
 
   it('TENANT-002b tenant B manager cannot decide or pay a tenant A claim', async () => {
-    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: managerB, json: { outcome: 'Approved' } })).status).toBe(404)
+    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: managerB, json: { outcome: 'Approved', reason: 'test' } })).status).toBe(404)
     expect((await call('/claims/claim_disc_101/pay', { method: 'POST', as: managerB })).status).toBe(404)
     expect(await claimStage('claim_disc_101')).toMatchObject({ stage: 'Review', status: 'Processing' })
   })
@@ -139,10 +139,10 @@ describe('insurer transitions (role + tenant + state machine)', () => {
     expect((await call(`/claims/${id}/review`, { method: 'POST', as: assessorA })).status).toBe(200)
     expect(await claimStage(id)).toMatchObject({ stage: 'Review' })
 
-    const decide = await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Approved' } })
+    const decide = await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Approved', reason: 'test' } })
     expect(decide.status).toBe(200)
     expect(await claimStage(id)).toMatchObject({ stage: 'Decision', status: 'Approved' })
-    expect(await (await call(`/claims/${id}/decision`, { as: customerA })).json()).toEqual({ decision: 'Approved' })
+    expect(await (await call(`/claims/${id}/decision`, { as: customerA })).json()).toMatchObject({ decision: 'Approved' })
 
     expect((await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })).status).toBe(200)
     expect(await claimStage(id)).toMatchObject({ stage: 'Paid' })
@@ -170,7 +170,7 @@ describe('insurer transitions (role + tenant + state machine)', () => {
   it('STATE-003 correct tenant, insufficient role → 403 (assessor cannot pay), audited', async () => {
     const id = await createSubmittedClaim()
     for (const step of ['verify', 'screen', 'review']) await call(`/claims/${id}/${step}`, { method: 'POST', as: assessorA })
-    await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Approved' } })
+    await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Approved', reason: 'test' } })
 
     const res = await call(`/claims/${id}/pay`, { method: 'POST', as: assessorA })
     expect(res.status).toBe(403)
@@ -183,7 +183,7 @@ describe('insurer transitions (role + tenant + state machine)', () => {
     const id = await createSubmittedClaim()
     expect((await call(`/claims/${id}/screen`, { method: 'POST', as: assessorA })).status).toBe(409) // Submitted → Screening
     expect((await call(`/claims/${id}/review`, { method: 'POST', as: assessorA })).status).toBe(409)
-    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Approved' } })).status).toBe(409)
+    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Approved', reason: 'test' } })).status).toBe(409)
     expect((await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })).status).toBe(409)
     expect(await claimStage(id)).toMatchObject({ stage: 'Submitted' })
   })
@@ -191,7 +191,7 @@ describe('insurer transitions (role + tenant + state machine)', () => {
   it('STATE-005 a rejected decision cannot be paid, but can be appealed and re-reviewed by a manager', async () => {
     const id = await createSubmittedClaim()
     for (const step of ['verify', 'screen', 'review']) await call(`/claims/${id}/${step}`, { method: 'POST', as: assessorA })
-    await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Rejected' } })
+    await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Rejected', reason: 'test' } })
 
     expect(await (await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })).json()).toEqual({ error: 'not_approved' })
     expect((await call(`/claims/${id}/appeal`, { method: 'POST', as: customerA, json: { reason: 'New evidence' } })).status).toBe(200)
@@ -223,7 +223,7 @@ describe('insurer transitions (role + tenant + state machine)', () => {
       expect(res.status).toBe(403)
       expect(await res.json()).toEqual({ error: 'forbidden' })
     }
-    const decide = await call('/claims/claim_disc_101/decide', { method: 'POST', as: customerA, json: { outcome: 'Approved' } })
+    const decide = await call('/claims/claim_disc_101/decide', { method: 'POST', as: customerA, json: { outcome: 'Approved', reason: 'test' } })
     expect(decide.status).toBe(403)
     expect(await decide.json()).toEqual({ error: 'forbidden' })
     expect(await claimStage('claim_disc_101')).toMatchObject({ stage: 'Review', status: 'Processing' })
@@ -233,12 +233,12 @@ describe('insurer transitions (role + tenant + state machine)', () => {
   })
 
   it('RBAC-002 admin cannot transition claims', async () => {
-    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: admin, json: { outcome: 'Approved' } })).status).toBe(403)
+    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: admin, json: { outcome: 'Approved', reason: 'test' } })).status).toBe(403)
   })
 
   it('decide rejects invalid or extra fields (mass assignment)', async () => {
-    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: managerA, json: { outcome: 'Paid' } })).status).toBe(400)
-    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: managerA, json: { outcome: 'Approved', amount: 1000000 } })).status).toBe(400)
+    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: managerA, json: { outcome: 'Paid', reason: 'test' } })).status).toBe(400)
+    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: managerA, json: { outcome: 'Approved', reason: 'test', amount: 1000000 } })).status).toBe(400)
     expect(await claimStage('claim_disc_101')).toMatchObject({ stage: 'Review' })
   })
 
