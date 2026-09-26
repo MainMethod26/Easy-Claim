@@ -1,0 +1,35 @@
+# Phase 4 live demo against wrangler dev (127.0.0.1:8789), 2026-09-26T04:02:25Z. Tokens minted locally, not printed. SIMULATOR signals. Demo claims reset to Verified (npm run demo:quantum:local) before the server started; audit rows from earlier runs remain, so older timeline dates can appear.
+
+## Stage before: GET timeline as owner
+{"claimId":"claim_demo_unusual","currentStage":"Verified","timeline":[{"stage":"Submitted","date":null,"completed":true},{"stage":"Verified","date":null,"completed":true},{"stage":"Screening","date":"
+
+## DEMO 1: assessor (ins_discovery) screens claim_demo_normal
+{"status":"transitioned","claimId":"claim_demo_normal","from":"Verified","to":"Screening","riskSignals":{"classicalAnomaly":0.0333,"quantumAnomaly":0.0083,"interpretation":"NORMAL","explanation":"The claim is structurally similar to the reference claim population.","modelVersion":"phase4-qk1c-v1","execution":"simulator","computedAt":"2026-09-26T03:26:55+00:00","advisory":true}}
+
+## DEMO 2: assessor (ins_discovery) screens claim_demo_unusual
+{"status":"transitioned","claimId":"claim_demo_unusual","from":"Verified","to":"Screening","riskSignals":{"classicalAnomaly":1,"quantumAnomaly":1,"interpretation":"HIGH_ANOMALY","explanation":"The claim is structurally unusual compared with the reference claim population. Suggest human review. This is a screening signal, not a fraud finding.","modelVersion":"phase4-qk1c-v1","execution":"simulator","computedAt":"2026-09-26T03:26:55+00:00","advisory":true}}
+
+## Assessor re-reads the signal
+{"claimId":"claim_demo_unusual","stage":"Screening","riskSignals":{"classicalAnomaly":1,"quantumAnomaly":1,"interpretation":"HIGH_ANOMALY","explanation":"The claim is structurally unusual compared with the reference claim population. Suggest human review. This is a screening signal, not a fraud finding.","modelVersion":"phase4-qk1c-v1","execution":"simulator","computedAt":"2026-09-26T03:26:55+00:00","advisory":true}}
+
+## ATTACK: client re-posts /screen with its own score in the body (body ignored; claim already in Screening -> 409) then reads back: unchanged
+POST /screen with body -> HTTP 409
+{"claimId":"claim_demo_unusual","stage":"Screening","riskSignals":{"classicalAnomaly":1,"quantumAnomaly":1,"interpretation":"HIGH_ANOMALY","explanation":"The cl
+
+## ATTACK: write methods on /risk-signals
+POST /risk-signals -> HTTP 404
+PUT /risk-signals -> HTTP 404
+PATCH /risk-signals -> HTTP 404
+DELETE /risk-signals -> HTTP 404
+
+## ATTACK: cross-tenant read (assessor of ins_sanlam)
+{"error":"not_found"} -> HTTP 404
+
+## ATTACK: customer reads the internal signal
+{"error":"forbidden"} -> HTTP 403
+
+## ATTACK: no token
+{"error":"unauthenticated"} -> HTTP 401
+
+## Screening -> Review still requires the assessor (signal does not decide)
+{"status":"transitioned","claimId":"claim_demo_unusual","from":"Screening","to":"Review"}
