@@ -20,11 +20,14 @@
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",
     "hono": "^4.13.9",
+    "postman-to-openapi": "^1.7.3",
+    "swagger-ui-dist": "^5.33.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.2.8",
     "@cloudflare/workers-types": "^5.20260925.2",
+    "@types/swagger-ui-dist": "^3.30.6",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11",
     "wrangler": "^4.141.0"
