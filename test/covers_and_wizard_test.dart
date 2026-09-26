@@ -215,5 +215,95 @@ void main() {
       expect(find.textContaining('Toyota Hilux 2.8 GD-6 4x4 (2023)'), findsWidgets);
       expect(find.textContaining('POL-EC-44105'), findsWidgets);
     });
+
+    testWidgets('ClaimsWizardModal vehicle claim enforces 5-photo upload limit for accident scene and damage photos', (WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+          body: ClaimsWizardModal(
+            initialCategory: 'vehicle_transit',
+          ),
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Check header and initial photo counter (2 out of 5)
+      expect(find.text('Accident Scene & Vehicle Damage Photos'), findsOneWidget);
+      expect(find.text('2 / 5 Photos'), findsOneWidget);
+      expect(find.text('Upload Photo (3 remaining of 5 max)'), findsOneWidget);
+
+      // Verify the 2 initial photos are displayed
+      expect(find.text('accident_scene_sandton_view.jpg'), findsOneWidget);
+      expect(find.text('polo_front_bumper_damage.jpg'), findsOneWidget);
+
+      // Tap Upload Photo button
+      await tester.ensureVisible(find.text('Upload Photo (3 remaining of 5 max)'));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.text('Upload Photo (3 remaining of 5 max)'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Check bottom sheet options
+      expect(find.text('Upload Accident & Damage Photos'), findsOneWidget);
+      expect(find.text('3 Slots Left'), findsOneWidget);
+      expect(find.text('Take Photo'), findsOneWidget);
+
+      // Tap Take Photo -> increases to 3 photos
+      await tester.tap(find.text('Take Photo'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('3 / 5 Photos'), findsOneWidget);
+      expect(find.text('Upload Photo (2 remaining of 5 max)'), findsOneWidget);
+
+      // Upload 4th photo
+      final upload4Finder = find.text('Upload Photo (2 remaining of 5 max)');
+      await tester.ensureVisible(upload4Finder);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(upload4Finder);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.tap(find.text('From Gallery'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('4 / 5 Photos'), findsOneWidget);
+      expect(find.text('Upload Photo (1 remaining of 5 max)'), findsOneWidget);
+
+      // Upload 5th photo
+      final upload5Finder = find.text('Upload Photo (1 remaining of 5 max)');
+      await tester.ensureVisible(upload5Finder);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(upload5Finder);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.tap(find.text('Take Photo'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Limit reached: 5 of 5
+      expect(find.text('5 / 5 Photos'), findsOneWidget);
+      expect(find.text('Photo limit reached (5/5). Remove an existing photo to upload another.'), findsOneWidget);
+      // Upload button should no longer be present
+      expect(find.textContaining('Upload Photo'), findsNothing);
+
+      // Delete one photo using the trash can icon
+      final deleteButtons = find.byIcon(Icons.delete_outline_rounded);
+      expect(deleteButtons, findsNWidgets(5));
+      await tester.ensureVisible(deleteButtons.last);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(deleteButtons.last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Count decrements to 4/5, upload button is restored
+      expect(find.text('4 / 5 Photos'), findsOneWidget);
+      expect(find.text('Upload Photo (1 remaining of 5 max)'), findsOneWidget);
+    });
   });
 }

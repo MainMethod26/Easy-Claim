@@ -74,6 +74,7 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
 
   CoveredItem? _selectedCoveredItem;
   bool _isManualEntry = false;
+  final List<EvidenceItem> _policyPhotos = [];
 
   final List<String> _simulatedFiles = [
     'SAPS_Affidavit_CAS482.pdf (1.2 MB)',
@@ -109,6 +110,378 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
 
     // Apply covered items corresponding to the active insurance category
     _applyCategoryCoveredItems(initialCat.categoryId, preferCoveredItemId: widget.initialCoveredItemId);
+
+    // Initialize photo evidence for the category (limit: 5 photos)
+    _initPhotosForCategory(initialCat.categoryId);
+  }
+
+  void _initPhotosForCategory(String categoryId) {
+    _policyPhotos.clear();
+    if (categoryId == 'vehicle_transit') {
+      _policyPhotos.addAll([
+        EvidenceItem(
+          evidenceId: 'photo_veh_scene_1',
+          type: 'photo',
+          title: 'accident_scene_sandton_view.jpg',
+          description: 'Accident Scene',
+          fileSize: 2.4 * 1024 * 1024,
+          uploadedAt: DateTime.now().subtract(const Duration(hours: 2)),
+          isVerified: true,
+        ),
+        EvidenceItem(
+          evidenceId: 'photo_veh_dmg_2',
+          type: 'photo',
+          title: 'polo_front_bumper_damage.jpg',
+          description: 'Damage to Car',
+          fileSize: 1.9 * 1024 * 1024,
+          uploadedAt: DateTime.now().subtract(const Duration(hours: 2)),
+          isVerified: true,
+        ),
+      ]);
+    } else if (categoryId == 'device_electronics') {
+      _policyPhotos.addAll([
+        EvidenceItem(
+          evidenceId: 'photo_dev_screen_1',
+          type: 'photo',
+          title: 'iphone_screen_crack_damage.jpg',
+          description: 'Damaged Screen',
+          fileSize: 1.4 * 1024 * 1024,
+          uploadedAt: DateTime.now().subtract(const Duration(hours: 3)),
+          isVerified: true,
+        ),
+        EvidenceItem(
+          evidenceId: 'photo_dev_chassis_2',
+          type: 'photo',
+          title: 'chassis_corner_impact.jpg',
+          description: 'Frame Damage',
+          fileSize: 1.8 * 1024 * 1024,
+          uploadedAt: DateTime.now().subtract(const Duration(hours: 3)),
+          isVerified: true,
+        ),
+      ]);
+    } else if (categoryId == 'home_property') {
+      _policyPhotos.addAll([
+        EvidenceItem(
+          evidenceId: 'photo_home_surge_1',
+          type: 'photo',
+          title: 'solar_inverter_surge_damage.jpg',
+          description: 'Inverter Damage',
+          fileSize: 2.1 * 1024 * 1024,
+          uploadedAt: DateTime.now().subtract(const Duration(hours: 4)),
+          isVerified: true,
+        ),
+        EvidenceItem(
+          evidenceId: 'photo_home_ceiling_2',
+          type: 'photo',
+          title: 'ceiling_storm_water_leak.jpg',
+          description: 'Property Damage',
+          fileSize: 2.5 * 1024 * 1024,
+          uploadedAt: DateTime.now().subtract(const Duration(hours: 4)),
+          isVerified: true,
+        ),
+      ]);
+    } else if (categoryId == 'personal_health') {
+      _policyPhotos.addAll([
+        EvidenceItem(
+          evidenceId: 'photo_hlth_doc_1',
+          type: 'photo',
+          title: 'hospital_admission_referral.jpg',
+          description: 'Hospital Admission',
+          fileSize: 1.2 * 1024 * 1024,
+          uploadedAt: DateTime.now().subtract(const Duration(hours: 1)),
+          isVerified: true,
+        ),
+      ]);
+    }
+  }
+
+  void _addPhoto(EvidenceItem photo) {
+    if (_policyPhotos.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Maximum limit of 5 photos reached.'),
+          backgroundColor: Color(0xFFEF4444),
+          duration: Duration(milliseconds: 1500),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _policyPhotos.add(photo);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Attached "${photo.title}" (${_policyPhotos.length}/5 photos uploaded)'),
+        backgroundColor: const Color(0xFF16A34A),
+        duration: const Duration(milliseconds: 1500),
+      ),
+    );
+  }
+
+  void _removePhoto(int index) {
+    setState(() {
+      final removed = _policyPhotos.removeAt(index);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Removed "${removed.title}" (${_policyPhotos.length}/5 remaining)'),
+          backgroundColor: const Color(0xFFFF5500),
+          duration: const Duration(milliseconds: 1500),
+        ),
+      );
+    });
+  }
+
+  void _showPhotoUploadOptions(ClaimCategory selected) {
+    if (_policyPhotos.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Photo limit reached (5/5). Remove an existing photo to upload another.'),
+          backgroundColor: Color(0xFFEF4444),
+          duration: Duration(milliseconds: 1500),
+        ),
+      );
+      return;
+    }
+
+    final isVehicle = selected.categoryId == 'vehicle_transit';
+    final isDevice = selected.categoryId == 'device_electronics';
+    final isHome = selected.categoryId == 'home_property';
+
+    List<Map<String, String>> presets;
+    if (isVehicle) {
+      presets = [
+        {
+          'title': 'accident_scene_skidmarks_view.jpg',
+          'label': 'Accident Scene',
+          'size': '2.8 MB',
+        },
+        {
+          'title': 'front_grille_headlight_impact.jpg',
+          'label': 'Damage to Car',
+          'size': '2.1 MB',
+        },
+        {
+          'title': 'side_door_rear_quarter_damage.jpg',
+          'label': 'Damage to Car',
+          'size': '1.7 MB',
+        },
+        {
+          'title': 'third_party_vehicle_damage.jpg',
+          'label': 'Third-Party Damage',
+          'size': '2.3 MB',
+        },
+        {
+          'title': 'license_disc_and_vin_plate.jpg',
+          'label': 'License Disc & VIN',
+          'size': '1.2 MB',
+        },
+      ];
+    } else if (isDevice) {
+      presets = [
+        {
+          'title': 'oled_display_glass_shatter.jpg',
+          'label': 'Damaged Screen',
+          'size': '1.5 MB',
+        },
+        {
+          'title': 'rear_camera_housing_crack.jpg',
+          'label': 'Rear Camera Damage',
+          'size': '1.8 MB',
+        },
+        {
+          'title': 'imei_serial_barcode_label.jpg',
+          'label': 'IMEI Label',
+          'size': '1.1 MB',
+        },
+      ];
+    } else if (isHome) {
+      presets = [
+        {
+          'title': 'storm_water_flooding_entry.jpg',
+          'label': 'Water Damage',
+          'size': '2.4 MB',
+        },
+        {
+          'title': 'power_surge_scorched_db_board.jpg',
+          'label': 'Electrical Surge',
+          'size': '1.6 MB',
+        },
+      ];
+    } else {
+      presets = [
+        {
+          'title': 'medical_emergency_doctor_note.jpg',
+          'label': 'Medical Evidence',
+          'size': '1.3 MB',
+        },
+      ];
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      isVehicle ? 'Upload Accident & Damage Photos' : 'Upload Incident Photos',
+                      style: const TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF16A34A)),
+                    ),
+                    child: Text(
+                      '${5 - _policyPhotos.length} Slots Left',
+                      style: const TextStyle(
+                        color: Color(0xFF16A34A),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                isVehicle
+                    ? 'Limit 5 photos: Attach clear shots of the accident scene, vehicle impact, or other car.'
+                    : 'Limit 5 photos: Attach clear photos supporting your claim.',
+                style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+
+              // Camera and Gallery buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        _addPhoto(
+                          EvidenceItem(
+                            evidenceId: 'photo_cam_${DateTime.now().millisecondsSinceEpoch}',
+                            type: 'photo',
+                            title: isVehicle
+                                ? 'camera_accident_damage_${_policyPhotos.length + 1}.jpg'
+                                : 'camera_damage_${_policyPhotos.length + 1}.jpg',
+                            description: isVehicle ? 'Accident Scene' : 'Damage Photo',
+                            fileSize: 2.2 * 1024 * 1024,
+                            uploadedAt: DateTime.now(),
+                            isVerified: true,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.camera_alt_rounded, color: Color(0xFFFF5500)),
+                      label: const Text('Take Photo', style: TextStyle(color: Color(0xFFFF5500), fontWeight: FontWeight.w700)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFFF5500)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        _addPhoto(
+                          EvidenceItem(
+                            evidenceId: 'photo_gal_${DateTime.now().millisecondsSinceEpoch}',
+                            type: 'photo',
+                            title: isVehicle
+                                ? 'gallery_car_damage_${_policyPhotos.length + 1}.jpg'
+                                : 'gallery_incident_${_policyPhotos.length + 1}.jpg',
+                            description: isVehicle ? 'Damage to Car' : 'Incident Photo',
+                            fileSize: 1.8 * 1024 * 1024,
+                            uploadedAt: DateTime.now(),
+                            isVerified: true,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.photo_library_rounded, color: Color(0xFF0F172A)),
+                      label: const Text('From Gallery', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w700)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+              const Text(
+                'Quick Attach Incident Evidence:',
+                style: TextStyle(color: Color(0xFF64748B), fontSize: 11.5, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+
+              ...presets.map((preset) {
+                return ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.add_photo_alternate_rounded, color: Color(0xFFFF5500), size: 18),
+                  ),
+                  title: Text(
+                    preset['title']!,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)),
+                  ),
+                  subtitle: Text(
+                    '${preset['label']} • ${preset['size']}',
+                    style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                  ),
+                  trailing: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF16A34A)),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _addPhoto(
+                      EvidenceItem(
+                        evidenceId: 'photo_preset_${DateTime.now().millisecondsSinceEpoch}',
+                        type: 'photo',
+                        title: preset['title']!,
+                        description: preset['label']!,
+                        fileSize: 2.0 * 1024 * 1024,
+                        uploadedAt: DateTime.now(),
+                        isVerified: true,
+                      ),
+                    );
+                  },
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _applyCategoryCoveredItems(String categoryId, {String? preferCoveredItemId}) {
@@ -202,6 +575,8 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
         'underwriter': _selectedCoveredItem?.underwriter ?? 'Vodacom Insurance Co.',
         'assetName': _selectedCoveredItem?.assetName ?? '${_brandController.text} ${_modelController.text}',
         'coverageAmount': _selectedCoveredItem?.coverageAmount ?? 15000.0,
+        'photoCount': _policyPhotos.length,
+        'photoTitles': _policyPhotos.map((p) => p.title).toList(),
       });
       _provider.nextStep();
       _triggerAutomatedVerification();
@@ -235,7 +610,7 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
       _provider.updateSupportingEvidence(
         SupportingEvidence(
           documents: docs,
-          photos: const [],
+          photos: _policyPhotos,
           invoices: const [],
           receipts: const [],
           other: const [],
@@ -460,6 +835,7 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
                 _provider.selectCategory(cat);
                 _selectedSubcategory = cat.subCategories.first;
                 _applyCategoryCoveredItems(cat.categoryId);
+                _initPhotosForCategory(cat.categoryId);
               });
             },
             child: Container(
@@ -985,8 +1361,271 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
             label: isVehicle ? 'Registration Number / VIN' : 'Serial No / IMEI / Reg',
             controller: _serialController,
           ),
+          const SizedBox(height: 16),
+          const Divider(color: Color(0xFFE2E8F0), height: 1),
+          const SizedBox(height: 14),
+
+          // Photo Upload Section with Limit of 5 Photos
+          _buildPolicyPhotoUploadSection(selected),
         ],
       ),
+    );
+  }
+
+  /// Photo upload section for policy details (limit: 5 photos)
+  Widget _buildPolicyPhotoUploadSection(ClaimCategory selected) {
+    final isVehicle = selected.categoryId == 'vehicle_transit';
+    final isDevice = selected.categoryId == 'device_electronics';
+    final isHome = selected.categoryId == 'home_property';
+
+    String photoTitle;
+    String photoSubtitle;
+    IconData photoIcon;
+
+    if (isVehicle) {
+      photoTitle = 'Accident Scene & Vehicle Damage Photos';
+      photoSubtitle = 'Upload photos of accident scene, car damages, or other vehicle (Max 5)';
+      photoIcon = Icons.car_crash_rounded;
+    } else if (isDevice) {
+      photoTitle = 'Damaged Device & Screen Photos';
+      photoSubtitle = 'Upload photos showing cracked screen, body damage, or serial label (Max 5)';
+      photoIcon = Icons.phone_android_rounded;
+    } else if (isHome) {
+      photoTitle = 'Property Damage & Scene Photos';
+      photoSubtitle = 'Upload photos of structural damage, water leaks, or forced entry (Max 5)';
+      photoIcon = Icons.home_repair_service_rounded;
+    } else {
+      photoTitle = 'Claim Incident Photos & Evidence';
+      photoSubtitle = 'Upload relevant incident photos or supporting medical/claim documentation (Max 5)';
+      photoIcon = Icons.add_a_photo_rounded;
+    }
+
+    final count = _policyPhotos.length;
+    final isMaxReached = count >= 5;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section Header with Title, Icon, and 5-Photo Counter Pill
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF5500).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(photoIcon, color: const Color(0xFFFF5500), size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    photoTitle,
+                    style: const TextStyle(
+                      color: Color(0xFF0F172A),
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    photoSubtitle,
+                    style: const TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Photo limit badge (pure green on white green when active/limit reached)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isMaxReached ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isMaxReached ? const Color(0xFF16A34A) : const Color(0xFFCBD5E1),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isMaxReached ? Icons.check_circle_rounded : Icons.photo_library_rounded,
+                    color: isMaxReached ? const Color(0xFF16A34A) : const Color(0xFFFF5500),
+                    size: 13,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$count / 5 Photos',
+                    style: TextStyle(
+                      color: isMaxReached ? const Color(0xFF16A34A) : const Color(0xFF0F172A),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 10),
+
+        // List of Uploaded Photos (Up to 5)
+        if (_policyPhotos.isNotEmpty) ...[
+          for (int i = 0; i < _policyPhotos.length; i++) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  // Thumbnail preview container
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF0E6),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFF5500).withValues(alpha: 0.3)),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        isVehicle ? Icons.car_crash_rounded : Icons.image_rounded,
+                        color: const Color(0xFFFF5500),
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(color: const Color(0xFFCBD5E1)),
+                              ),
+                              child: Text(
+                                _policyPhotos[i].description ?? (isVehicle ? 'Damage Photo' : 'Photo'),
+                                style: const TextStyle(
+                                  color: Color(0xFF0F172A),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Icon(Icons.verified_rounded, color: Color(0xFF16A34A), size: 13),
+                            const SizedBox(width: 2),
+                            const Text(
+                              'Verified',
+                              style: TextStyle(
+                                color: Color(0xFF16A34A),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          _policyPhotos[i].title,
+                          style: const TextStyle(
+                            color: Color(0xFF0F172A),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.5,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          '${_policyPhotos[i].displaySize} • Ready for assessor review',
+                          style: const TextStyle(
+                            color: Color(0xFF64748B),
+                            fontSize: 10.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 20),
+                    tooltip: 'Remove photo',
+                    onPressed: () => _removePhoto(i),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+
+        // Upload Button or Maximum Reached Banner
+        if (!isMaxReached) ...[
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _showPhotoUploadOptions(selected),
+              icon: const Icon(Icons.add_a_photo_rounded, size: 18),
+              label: Text(
+                'Upload Photo (${5 - count} remaining of 5 max)',
+                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFFF5500),
+                side: const BorderSide(color: Color(0xFFFF5500), width: 1.2),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                backgroundColor: const Color(0xFFFFF0E6).withValues(alpha: 0.5),
+              ),
+            ),
+          ),
+        ] else ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0FDF4),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF16A34A)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Photo limit reached (5/5). Remove an existing photo to upload another.',
+                    style: TextStyle(
+                      color: Color(0xFF16A34A),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -1316,6 +1955,56 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
           );
         }),
 
+        if (_policyPhotos.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Policy Damage & Scene Photos (${_policyPhotos.length}/5 Attached)',
+            style: const TextStyle(
+              color: Color(0xFF0F172A),
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ..._policyPhotos.map((photo) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.5)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.image_rounded, color: Color(0xFF16A34A), size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          photo.title,
+                          style: const TextStyle(
+                            color: Color(0xFF0F172A),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          '${photo.description ?? "Damage Photo"} • ${photo.displaySize}',
+                          style: const TextStyle(color: Color(0xFF64748B), fontSize: 11.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 18),
+                ],
+              ),
+            );
+          }),
+        ],
+
         const SizedBox(height: 16),
         const Text(
           'Attached Supporting Files (3 Ready)',
@@ -1516,10 +2205,11 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
               _buildReviewRow('Policy Number', _selectedCoveredItem?.policyNumber ?? 'POL-EC-98421'),
               _buildReviewRow('Identifier / Reg', _serialController.text),
               _buildReviewRow('Primary Cause', _selectedCause),
+              _buildReviewRow('Attached Photos', '${_policyPhotos.length}/5 Photos (${_policyPhotos.map((p) => p.description).toSet().join(", ")})'),
               _buildReviewRow('SAPS Case Number', _policeCasController.text),
               _buildReviewRow('Claim Amount', _estimatedValueController.text),
               _buildReviewRow('Estimated Decision', 'Under 4 Hours (Auto-Approval)'),
-              _buildReviewRow('Evidence Attached', '3 Files (100% Verified)'),
+              _buildReviewRow('Evidence Attached', '${_policyPhotos.length + 3} Files (100% Verified)'),
             ],
           ),
         ),
