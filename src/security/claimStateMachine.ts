@@ -44,14 +44,16 @@ const SYSTEM: TransitionActor[] = ['SYSTEM']
 /**
  * Allowed transitions and who may perform each. Anything absent is illegal.
  * ADMIN deliberately has no claim transitions (separation of duties: admins manage
- * configuration and users, not claim outcomes). Payout is MANAGER-only.
+ * configuration and users, not claim outcomes). Decision and payout are MANAGER-only
+ * (Phase 3): assessors prepare a claim (verify, screen, review, request info) but do not
+ * decide it or pay it.
  */
 export const TRANSITIONS: Readonly<Record<ClaimStage, Partial<Record<ClaimStage, TransitionActor[]>>>> = {
   Draft: { Submitted: CUSTOMER, Withdrawn: CUSTOMER },
   Submitted: { Verified: INSURER, Withdrawn: CUSTOMER },
   Verified: { Screening: INSURER, Withdrawn: CUSTOMER },
   Screening: { Review: INSURER, 'Info Needed': INSURER, Withdrawn: CUSTOMER },
-  Review: { Decision: INSURER, 'Info Needed': INSURER, Withdrawn: CUSTOMER },
+  Review: { Decision: MANAGER_ONLY, 'Info Needed': INSURER, Withdrawn: CUSTOMER },
   'Info Needed': { Screening: CUSTOMER, Withdrawn: CUSTOMER, Expired: SYSTEM },
   Decision: { Paid: MANAGER_ONLY, Appeal: CUSTOMER },
   Appeal: { Review: MANAGER_ONLY },

@@ -32,12 +32,12 @@ Owner: **Cyber** = delivered on branch `cyber`; **Backend** = backend team.
 |---|---|---|
 | Identity provider / JWKS verification, key rotation, revocation (`jti` denylist) | PLANNED (BACKEND-SEC-019) | Backend |
 | Per-environment `wrangler.toml` (`[env.production]`, distinct issuer/audience, `wrangler secret put --env`) | PLANNED (BACKEND-SEC-018) | Backend |
-| Decision record (`claim_decisions`: reason, amount, versions) | PLANNED (BACKEND-SEC-005); outcome-only `/decide` IMPLEMENTED | Backend |
+| Decision record (`claim_decisions`: reason, amount, versions) | IMPLEMENTED (Phase 3, `migrations/0005`); evidence digest / risk signal / integrity signature columns reserved | Cyber |
 | Separation of duties (decider ≠ payer) | DECISION REQUIRED (BACKEND-SEC-015) | Product / Backend |
 | Appeal limit | DECISION REQUIRED (BACKEND-SEC-016) | Product / Backend |
 | Per-tenant claimant reference instead of `user_id` | DECISION REQUIRED (BACKEND-SEC-017) | Product / Backend |
 | Evidence hashing / tamper detection (SHA-256 into `evidence.sha256`) | PLANNED (table exists) | Backend |
-| Payout protection (destination verification, idempotency, step-up) | PLANNED; MANAGER-only `/pay` state transition IMPLEMENTED | Backend |
+| Payout protection | PARTIAL (Phase 3): simulated payout with server-held amount, destination snapshot check, one-per-claim + idempotency key IMPLEMENTED; real rail, destination verification, step-up auth PLANNED | Cyber / Backend |
 | Step-up authentication for payout/mandate/banking changes | PLANNED | Backend |
 | Configuration versioning + audit | PLANNED (no config exists) | Backend |
 | Explainable screening signals | PLANNED | Backend |

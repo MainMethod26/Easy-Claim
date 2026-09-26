@@ -45,12 +45,12 @@ Intended user experiences:
 | OCR/text extraction | NOT IMPLEMENTED (stub endpoint + queue consumer that logs) | `src/endpoints/ocr.ts` |
 | Screening | PARTIAL (customer narrative stored; insurer `/screen` and `/request-info` move the stage; no fraud/risk logic) | `PATCH /api/v1/claims/:claimId/screening`, `src/endpoints/claimsInsurer.ts` |
 | Review | PARTIAL (stage transition via `/review`; no review record) | `src/endpoints/claimsInsurer.ts` |
-| Decisions | PARTIAL (outcome only: `/decide` writes `Approved`/`Rejected` to `claims.status`; no amount, reason or decision record) | `POST /api/v1/claims/:claimId/decide`, `GET /api/v1/claims/:claimId/decision` |
-| Payouts | PARTIAL (`/pay` is a MANAGER-only Decision → Paid state transition that requires an approved decision; no payment execution, no bank details) | `POST /api/v1/claims/:claimId/pay` |
+| Decisions | IMPLEMENTED (Phase 3): MANAGER-only; insert-only decision record (actor, time, reason, previous stage, claimed/approved amounts, destination snapshot, rules version) written atomically with the stage change; approved amount ≤ claimed amount | `POST /api/v1/claims/:claimId/decide`, `GET /api/v1/claims/:claimId/decision`, `migrations/0005_decisions_payouts.sql` |
+| Payouts | PARTIAL (Phase 3): **simulated** payout — MANAGER-only, no request body, amount = recorded approved amount, destination must match the decision-time snapshot, one payout per claim, `Idempotency-Key` replay; no payment rail | `POST /api/v1/claims/:claimId/pay`, `PUT /api/v1/claims/:claimId/payout-details`, `GET /api/v1/claims/:claimId/payout` |
 | Audit logging | IMPLEMENTED (append-only `audit_events` incl. acting tenant and server-generated request id; a stage change and its audit row are written in one D1 batch) | `src/security/audit.ts`, `migrations/0002_security.sql`, `migrations/0003_tenants.sql` |
 | Notifications | PARTIAL (hard-coded demo data) | `src/endpoints/gateway.ts` |
-| Database | IMPLEMENTED (Cloudflare D1 + 3 migrations) | `wrangler.toml`, `migrations/` |
-| Tests | TESTED/PASSED (12 files, 183 passed + 1 todo; the todo is TENANT-004 evidence isolation, BLOCKED until an evidence endpoint exists) | `test/` |
+| Database | IMPLEMENTED (Cloudflare D1 + 4 migrations; 0005 = Phase 3, 0004 reserved for Phase 2) | `wrangler.toml`, `migrations/` |
+| Tests | TESTED/PASSED (13 files, 206 passed + 1 todo after Phase 3; the todo is TENANT-004 evidence isolation, BLOCKED until an evidence endpoint exists) | `test/` |
 
 ## API
 
@@ -79,8 +79,10 @@ All routes are under `/api/v1`. Every route requires a verified bearer token (`A
 | POST | `/claims/:claimId/screen` | Verified → Screening (Phase 1) | actor | ASSESSOR, MANAGER (claim's tenant) | — | `status`, `claimId`, `from`, `to` | Stage change only; no screening logic |
 | POST | `/claims/:claimId/review` | Screening → Review, Appeal → Review (Phase 1) | actor | ASSESSOR, MANAGER (claim's tenant); Appeal → Review MANAGER only (403 for ASSESSOR) | — | `status`, `claimId`, `from`, `to` | |
 | POST | `/claims/:claimId/request-info` | Screening / Review → Info Needed (Phase 1) | actor | ASSESSOR, MANAGER (claim's tenant) | — | `status`, `claimId`, `from`, `to` | The customer answers with `PATCH /claims/:claimId/screening` |
-| POST | `/claims/:claimId/decide` | Review → Decision (Phase 1) | actor | ASSESSOR, MANAGER (claim's tenant) | `{ outcome: "Approved" \| "Rejected" }` (strict) | `status`, `claimId`, `from`, `to`, `outcome` | Outcome written to `claims.status` in the same statement as the stage; no amount, reason or decision record |
-| POST | `/claims/:claimId/pay` | Decision → Paid (Phase 1) | actor | MANAGER (claim's tenant); ASSESSOR → 403 | — | `status`, `claimId`, `from`, `to` | 409 `not_approved` unless `claims.status` is `Approved`; state transition only, **no payment is executed** |
+| PUT | `/claims/:claimId/payout-details` | Claimed amount + payout destination (Phase 3) | actor | CUSTOMER (owner) | `{ claimedAmountCents, bankName, accountHolder, accountNumber }` (strict) | masked destination (last 4) | Only while Draft / Info Needed; 409 `payout_details_locked` afterwards (audited); account number stored as SHA-256 + last 4 |
+| GET | `/claims/:claimId/payout` | Masked money view (Phase 3) | actor | owner; ASSESSOR, MANAGER (claim's tenant) | — | `claimedAmountCents`, `destination` (masked), `decision`, `payout` | |
+| POST | `/claims/:claimId/decide` | Review → Decision (Phase 3) | actor | MANAGER (claim's tenant); ASSESSOR → 403 | `{ outcome, reason, approvedAmountCents? }` (strict) | `decisionId`, `approvedAmountCents`, … | Insert-only `claim_decisions` row in the same batch as the stage change; 422 `amount_exceeds_claimed` / `payout_details_missing` |
+| POST | `/claims/:claimId/pay` | Decision → Paid, **simulated** (Phase 3) | actor | MANAGER (claim's tenant); ASSESSOR → 403 | no body (any field → 400); optional `Idempotency-Key` header | `payoutId`, `amountCents`, masked destination | Amount = recorded approved amount; 409 `destination_mismatch` if the destination no longer matches the decision snapshot; one payout per claim (409 `already_paid`, same key → 200 replay); **no payment is executed** |
 | POST | `/ocr/process` | OCR stub | actor | ASSESSOR, MANAGER | — | `extracted` | Stub |
 | GET | `/profile` | Profile | actor | any | — | `profile` | Stub (empty) |
 | PATCH | `/profile` | Update profile | actor | any | — | `updated` | Stub, no-op |

@@ -34,8 +34,8 @@ app.use(
       const allowed = (c.env.ALLOWED_ORIGINS ?? '').split(',').map((o: string) => o.trim()).filter(Boolean)
       return allowed.includes(origin) ? origin : null
     },
-    allowHeaders: ['Content-Type', 'Authorization'],
-    allowMethods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
     maxAge: 600,
   })
 )

@@ -4,11 +4,13 @@ import { requireRole } from '../security/rbac'
 import { writeAuditEvent } from '../security/audit'
 import { loadAuthorizedClaim, transitionClaim } from '../security/claimAccess'
 import { MAIN_PATH, isClaimStage } from '../security/claimStateMachine'
+import { destinationHash, latestDecision, payoutFor } from '../security/ledger'
 import {
   appealSchema,
   claimIdParam,
   initiateClaimSchema,
   listQuerySchema,
+  payoutDetailsSchema,
   screeningSchema,
   validate,
   verifyEligibilitySchema,
@@ -239,8 +241,95 @@ router.get('/:claimId/decision', validate('param', claimIdParam), async (c) => {
   const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'read')
   if (!claim) return c.json(notFound, 404)
 
+  // Phase 3: the decision record is authoritative. Claims decided before Phase 3 (seed data)
+  // have no record; their claims.status is reported with record: null.
+  const record = await latestDecision(c.env.DB, claim.id)
+  if (record) {
+    return c.json({
+      decision: record.outcome,
+      record: {
+        id: record.id,
+        decidedAt: record.decided_at,
+        decidedByRole: record.actor_role,
+        reason: record.reason,
+        approvedAmountCents: record.approved_amount_cents,
+        rulesVersion: record.rules_version,
+      },
+    })
+  }
   const decided = claim.stage === 'Decision' || claim.stage === 'Paid'
-  return c.json({ decision: decided ? claim.status : 'pending' })
+  return c.json({ decision: decided ? claim.status : 'pending', record: null })
+})
+
+/**
+ * Phase 3: the customer states what they claim and where a payout should go, while the
+ * claim is still theirs to edit (Draft / Info Needed). Once submitted these inputs are
+ * frozen; the decision snapshots the destination hash and /pay refuses to pay to anything
+ * else. The full account number is hashed and never stored or returned.
+ */
+router.put(
+  '/:claimId/payout-details',
+  requireRole('CUSTOMER'),
+  validate('param', claimIdParam),
+  validate('json', payoutDetailsSchema),
+  async (c) => {
+    const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'owner-write')
+    if (!claim) return c.json(notFound, 404)
+
+    if (claim.stage !== 'Draft' && claim.stage !== 'Info Needed') {
+      await writeAuditEvent(c, {
+        action: 'payout.destination_change_blocked',
+        resourceType: 'claim',
+        resourceId: claim.id,
+        outcome: 'denied',
+        details: { stage: claim.stage, reason: 'locked_after_submission' },
+      })
+      return c.json({ error: 'payout_details_locked', stage: claim.stage }, 409)
+    }
+
+    const { claimedAmountCents, bankName, accountHolder, accountNumber } = c.req.valid('json')
+    const hash = await destinationHash(bankName, accountNumber)
+    const last4 = accountNumber.slice(-4)
+    const written = await c.env.DB.prepare(
+      `UPDATE claims SET claimed_amount_cents = ?, payout_bank_name = ?, payout_account_holder = ?,
+         payout_account_last4 = ?, payout_destination_hash = ?, payout_details_updated_at = ?, updated_at = ?
+       WHERE id = ? AND stage IN ('Draft', 'Info Needed')`
+    )
+      .bind(claimedAmountCents, bankName.trim(), accountHolder.trim(), last4, hash, new Date().toISOString(), new Date().toISOString(), claim.id)
+      .run()
+    if (written.meta.changes !== 1) return c.json({ error: 'payout_details_locked' }, 409)
+
+    await writeAuditEvent(c, {
+      action: 'claim.payout_details_set',
+      resourceType: 'claim',
+      resourceId: claim.id,
+      outcome: 'success',
+      details: { claimedAmountCents, destinationLast4: last4 },
+    })
+    return c.json({ status: 'payout_details_saved', claimedAmountCents, destination: { bankName: bankName.trim(), accountLast4: last4 } })
+  }
+)
+
+/** Masked view of the money side of a claim: inputs, latest decision, payout (if any). */
+router.get('/:claimId/payout', validate('param', claimIdParam), async (c) => {
+  const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'read')
+  if (!claim) return c.json(notFound, 404)
+
+  const [decision, payout] = await Promise.all([latestDecision(c.env.DB, claim.id), payoutFor(c.env.DB, claim.id)])
+  return c.json({
+    claimId: claim.id,
+    stage: claim.stage,
+    claimedAmountCents: claim.claimed_amount_cents,
+    destination: claim.payout_destination_hash
+      ? { bankName: claim.payout_bank_name, accountHolder: claim.payout_account_holder, accountLast4: claim.payout_account_last4 }
+      : null,
+    decision: decision
+      ? { id: decision.id, outcome: decision.outcome, approvedAmountCents: decision.approved_amount_cents, decidedAt: decision.decided_at, decidedByRole: decision.actor_role }
+      : null,
+    payout: payout
+      ? { id: payout.id, amountCents: payout.amount_cents, destinationLast4: payout.destination_last4, status: payout.status, initiatedAt: payout.initiated_at }
+      : null,
+  })
 })
 
 router.post(

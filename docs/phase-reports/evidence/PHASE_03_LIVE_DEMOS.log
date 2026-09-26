@@ -1,0 +1,65 @@
+# Phase 3 live demo evidence
+# Captured 2026-09-26T03:18:54Z against wrangler dev (127.0.0.1:8788), branch phase-3-decision-payout (uncommitted). Tokens minted with scripts/mint-token.mjs; tokens are not printed.
+
+== Setup: customer files a claim for R4 200 with a payout destination, then submits
+[initiate] claim_908b364a-c2cd-409f-ad7e-1c110ef6d520
+[payout details (Draft)] {"status":"payout_details_saved","claimedAmountCents":420000,"destination":{"bankName":"Demo Bank","accountLast4":"7890"}} -> HTTP 200
+[screening] {"status":"screening_updated","message":"Cause of loss and context saved."} -> HTTP 200
+[submit] {"status":"submitted","message":"Claim successfully submitted for decision.","claimId":"claim_908b364a-c2cd-409f-ad7e-1c110ef6d520"} -> HTTP 200
+== DEMO 2: illegal transition Submitted -> Paid
+[manager pays a Submitted claim] {"error":"illegal_transition"} -> HTTP 409
+[decide with client-chosen state] {"error":"validation_failed","issues":[{"path":"","code":"unrecognized_keys","message":"Unrecognized key: \"state\""}]} -> HTTP 400
+== Assessor prepares the claim (verify, screen, review)
+[verify] {"status":"transitioned","claimId":"claim_908b364a-c2cd-409f-ad7e-1c110ef6d520","from":"Submitted","to":"Verified"} -> HTTP 200
+[screen] {"status":"transitioned","claimId":"claim_908b364a-c2cd-409f-ad7e-1c110ef6d520","from":"Verified","to":"Screening"} -> HTTP 200
+[review] {"status":"transitioned","claimId":"claim_908b364a-c2cd-409f-ad7e-1c110ef6d520","from":"Screening","to":"Review"} -> HTTP 200
+== DEMO 1: unauthorized decision
+[customer approves own claim] {"error":"forbidden"} -> HTTP 403
+[assessor decides] {"error":"forbidden"} -> HTTP 403
+[cross-tenant manager decides] {"error":"not_found"} -> HTTP 404
+== DEMO 3: payout manipulation (legitimate R4 200, attacker R420 000)
+[approve R420 000] {"error":"amount_exceeds_claimed"} -> HTTP 422
+== DEMO 5 (part 1): legitimate decision
+[manager approves (full claimed amount)] {"status":"transitioned","claimId":"claim_908b364a-c2cd-409f-ad7e-1c110ef6d520","from":"Review","to":"Decision","outcome":"Approved","decisionId":"dec_07117cdc-67a3-4e95-a798-d1dae8067892","
+[customer reads decision] {"decision":"Approved","record":{"id":"dec_07117cdc-67a3-4e95-a798-d1dae8067892","decidedAt":"2026-09-26T03:17:09.467Z","decidedByRole":"MANAGER","reason":"Documents verified, within cover",
+[pay with client amount R420 000] {"error":"client_supplied_fields"} -> HTTP 400
+== DEMO 4: payout destination attack after approval
+[customer changes destination] {"error":"payout_details_locked","stage":"Decision"} -> HTTP 409
+[direct DB tamper of the destination hash (simulating a compromised path)]
+[pay after tamper] {"error":"destination_mismatch"} -> HTTP 409
+[restore the legitimate destination hash]
+== DEMO 5 (part 2): legitimate payout, replay, cross-tenant
+[cross-tenant manager pays] {"error":"not_found"} -> HTTP 404
+[assessor pays] {"error":"forbidden"} -> HTTP 403
+[manager pays (Idempotency-Key demo-1)] {"status":"paid","simulated":true,"claimId":"claim_908b364a-c2cd-409f-ad7e-1c110ef6d520","payoutId":"pay_f03c5ca8-f94f-40eb-bba2-2ed9381602ca","decisionId":"dec_07117cdc-67a3-4e95-a798-d1dae
+[replay without key] {"error":"already_paid"} -> HTTP 409
+[replay with same key] {"status":"already_paid","payoutId":"pay_f03c5ca8-f94f-40eb-bba2-2ed9381602ca","amountCents":420000,"simulated":true} -> HTTP 200
+[replay with other key] {"error":"already_paid"} -> HTTP 409
+[customer payout view] {"claimId":"claim_908b364a-c2cd-409f-ad7e-1c110ef6d520","stage":"Paid","claimedAmountCents":420000,"destination":{"bankName":"Demo Bank","accountHolder":"Customer A","accountLast4":"7890"},"
+== Audit trail for this claim
+ "action": "claim.created", "actor_role": "CUSTOMER", "outcome": "success", "reason": null, "to_stage": null
+ "action": "claim.payout_details_set", "actor_role": "CUSTOMER", "outcome": "success", "reason": null, "to_stage": null
+ "action": "claim.screening_updated", "actor_role": "CUSTOMER", "outcome": "success", "reason": null, "to_stage": null
+ "action": "claim.stage_changed", "actor_role": "CUSTOMER", "outcome": "success", "reason": null, "to_stage": "Submitted"
+ "action": "claim.transition_rejected", "actor_role": "MANAGER", "outcome": "denied", "reason": "illegal_transition", "to_stage": "Paid"
+ "action": "claim.stage_changed", "actor_role": "ASSESSOR", "outcome": "success", "reason": null, "to_stage": "Verified"
+ "action": "claim.stage_changed", "actor_role": "ASSESSOR", "outcome": "success", "reason": null, "to_stage": "Screening"
+ "action": "claim.stage_changed", "actor_role": "ASSESSOR", "outcome": "success", "reason": null, "to_stage": "Review"
+ "action": "claim.transition_rejected", "actor_role": "ASSESSOR", "outcome": "denied", "reason": "role_not_permitted", "to_stage": "Decision"
+ "action": "authz.claim_access_denied", "actor_role": "MANAGER", "outcome": "denied", "reason": "cross_tenant", "to_stage": null
+ "action": "claim.decision_rejected", "actor_role": "MANAGER", "outcome": "denied", "reason": "amount_exceeds_claimed", "to_stage": null
+ "action": "claim.stage_changed", "actor_role": "MANAGER", "outcome": "success", "reason": null, "to_stage": "Decision"
+ "action": "claim.decision_recorded", "actor_role": "MANAGER", "outcome": "success", "reason": null, "to_stage": null
+ "action": "payout.blocked", "actor_role": "MANAGER", "outcome": "denied", "reason": "client_supplied_fields", "to_stage": null
+ "action": "payout.destination_change_blocked", "actor_role": "CUSTOMER", "outcome": "denied", "reason": "locked_after_submission", "to_stage": null
+ "action": "payout.blocked", "actor_role": "MANAGER", "outcome": "denied", "reason": "destination_mismatch", "to_stage": null
+ "action": "authz.claim_access_denied", "actor_role": "MANAGER", "outcome": "denied", "reason": "cross_tenant", "to_stage": null
+ "action": "claim.transition_rejected", "actor_role": "ASSESSOR", "outcome": "denied", "reason": "role_not_permitted", "to_stage": "Paid"
+ "action": "claim.stage_changed", "actor_role": "MANAGER", "outcome": "success", "reason": null, "to_stage": "Paid"
+ "action": "payout.completed_simulated", "actor_role": "MANAGER", "outcome": "success", "reason": null, "to_stage": null
+ "action": "payout.blocked", "actor_role": "MANAGER", "outcome": "denied", "reason": "already_paid", "to_stage": null
+ "action": "payout.replayed_idempotent", "actor_role": "MANAGER", "outcome": "success", "reason": null, "to_stage": null
+ "action": "payout.blocked", "actor_role": "MANAGER", "outcome": "denied", "reason": "already_paid", "to_stage": null
+== Ledger rows
+ "outcome": "Approved", "approved_amount_cents": 420000, "claimed_amount_cents": 420000, "actor_id": "manager_a1", "rules_version": "phase3-manual-v1"
+ "amount_cents": 420000, "destination_last4": "7890", "status": "simulated", "idempotency_key": "demo-1", "initiated_by": "manager_a1"

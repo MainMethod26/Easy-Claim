@@ -51,12 +51,12 @@
 
 ### BACKEND-SEC-005 — Decision record
 - **Requirement:** Table `claim_decisions` (claim_id, tenant_id, outcome, amount, reason, actor_id, actor_role, decided_at, request_id, rules_version, model_version, evidence hashes, screening result), insert-only with the same trigger pair as `audit_events`, written in the same `DB.batch` as the `Review → Decision` transition (pass extra statements through `transitionClaim`). `GET /claims/:id/decision` reads it.
-- **Status:** PARTIAL — `POST /claims/:claimId/decide` exists and records only the outcome as `claims.status`; no reason, amount or versioning.
+- **Status:** IMPLEMENTED (Phase 3) — `claim_decisions` insert-only table (`migrations/0005_decisions_payouts.sql`): outcome, reason, previous stage, claimed/approved amounts, destination snapshot, actor, role, time, request id, `rules_version`; written in the same D1 batch as the transition. Reserved columns `evidence_digest` (Phase 2), `risk_signal`, `integrity_signature` are NULL. Decision is now MANAGER-only. See `docs/phase-reports/PHASE_03_REPORT.md`.
 - **DECISION REQUIRED:** may ASSESSORs decide, or MANAGER only? (state machine currently allows both for `Review → Decision`).
 
 ### BACKEND-SEC-006 — Payout protections
 - **Requirement:** Payout only from Decision/Approved by MANAGER; idempotency key per claim; verified destination; step-up auth for destination changes; high-value threshold requires second approver; audit `payout.*` events.
-- **Status:** PARTIAL — `POST /claims/:claimId/pay` is a MANAGER-only state transition that requires `status = 'Approved'` (denials audited). No payment execution, destination, amount or idempotency key exists.
+- **Status:** PARTIAL (Phase 3) — simulated payout IMPLEMENTED: MANAGER-only, no client body, amount = recorded approved amount (≤ claimed), destination hash must match the decision snapshot, `payouts.claim_id UNIQUE` + `Idempotency-Key` replay, all denials audited (`payout.blocked`). Still yours: real payment rail, destination verification / step-up auth for legitimate destination changes, high-value second approver, separation of duties (015). See `docs/phase-reports/PHASE_03_REPORT.md`.
 
 ### BACKEND-SEC-007 — Evidence upload
 - **Requirement:** R2 bucket binding; server-generated `storage_key`; size limit; MIME + magic-byte allowlist (PDF/JPEG/PNG); compute SHA-256 into `evidence.sha256`; row in existing `evidence` table linked to `claim_id`, `uploaded_by` and the claim's `tenant_id`; access only through `loadAuthorizedClaim` (owner or tenant insurer); no overwrite — new version instead; audit `evidence.uploaded`.
