@@ -109,7 +109,7 @@
 ### BACKEND-SEC-020 — ADMIN scope (DECISION REQUIRED)
 - **Question:** is ADMIN platform-wide or per tenant? Tokens may carry `tenant_id` for ADMIN but it is ignored; ADMIN has no claim access at all today. Decide before building admin/configuration endpoints (009).
 
-## BACKEND-SEC-020 — Unmounted MVC layer must stay unmounted until it is guarded (added 2026-09-26, Phase 4 merge)
+### BACKEND-SEC-021 — Unmounted MVC layer must stay unmounted until it is guarded (added 2026-09-26, Phase 4 merge)
 
 `src/controllers/*`, `src/routes/*`, `src/services/*` are present in the repository but are **not** mounted by `src/index.ts`. Upstream commit `d76a0c6` mounted them in place of the secured entry point; the Phase 4 rebase restored the secured entry point (see `docs/quantum/PHASE_04_REPORT.md` §18a). An automated security review of those unmounted files found, in addition to the missing `requireActor`:
 
