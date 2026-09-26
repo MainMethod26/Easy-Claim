@@ -995,7 +995,13 @@ class _CoversScreenState extends State<CoversScreen> {
                 ClaimsWizardModal.show(
                   context,
                   campaignName: policy.plan.name,
-                  initialCategory: 'device_electronics',
+                  initialCategory: policy.plan.category == PlanCategory.vehicle
+                      ? 'vehicle_transit'
+                      : (policy.plan.category == PlanCategory.home
+                          ? 'home_property'
+                          : (policy.plan.category == PlanCategory.health
+                              ? 'personal_health'
+                              : 'device_electronics')),
                 );
               },
               icon: const Icon(Icons.flash_on_rounded),

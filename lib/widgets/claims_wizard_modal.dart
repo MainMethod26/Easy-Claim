@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/claims_wizard_models.dart';
+import '../models/covers_models.dart';
 import '../providers/claims_wizard_provider.dart';
 import '../services/logo_dev_service.dart';
 
@@ -15,6 +16,7 @@ class ClaimsWizardModal extends StatefulWidget {
   final String? pinnedCampaignName;
   final String? pinnedCampaignId;
   final String? initialCategory;
+  final String? initialCoveredItemId;
   final VoidCallback? onCompleted;
 
   const ClaimsWizardModal({
@@ -22,6 +24,7 @@ class ClaimsWizardModal extends StatefulWidget {
     this.pinnedCampaignName,
     this.pinnedCampaignId,
     this.initialCategory,
+    this.initialCoveredItemId,
     this.onCompleted,
   });
 
@@ -30,6 +33,7 @@ class ClaimsWizardModal extends StatefulWidget {
     String? campaignName,
     String? campaignId,
     String? initialCategory,
+    String? initialCoveredItemId,
     VoidCallback? onCompleted,
   }) {
     return showModalBottomSheet(
@@ -41,6 +45,7 @@ class ClaimsWizardModal extends StatefulWidget {
         pinnedCampaignName: campaignName,
         pinnedCampaignId: campaignId,
         initialCategory: initialCategory,
+        initialCoveredItemId: initialCoveredItemId,
         onCompleted: onCompleted,
       ),
     );
@@ -66,6 +71,9 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
 
   String _selectedCause = 'Theft / Robbery';
   String _selectedSubcategory = 'Smartphone';
+
+  CoveredItem? _selectedCoveredItem;
+  bool _isManualEntry = false;
 
   final List<String> _simulatedFiles = [
     'SAPS_Affidavit_CAS482.pdf (1.2 MB)',
@@ -98,6 +106,43 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
         ? ClaimCategories.getById(widget.initialCategory!) ?? ClaimCategories.allCategories.first
         : ClaimCategories.allCategories.first;
     _provider.selectCategory(initialCat);
+
+    // Apply covered items corresponding to the active insurance category
+    _applyCategoryCoveredItems(initialCat.categoryId, preferCoveredItemId: widget.initialCoveredItemId);
+  }
+
+  void _applyCategoryCoveredItems(String categoryId, {String? preferCoveredItemId}) {
+    final items = CoversMockData.getCoveredItemsByCategory(categoryId);
+    if (items.isNotEmpty) {
+      CoveredItem target = items.first;
+      if (preferCoveredItemId != null) {
+        final match = items.where((i) => i.id == preferCoveredItemId).toList();
+        if (match.isNotEmpty) target = match.first;
+      }
+      _selectCoveredItem(target, notify: false);
+    } else {
+      _selectedCoveredItem = null;
+    }
+  }
+
+  void _selectCoveredItem(CoveredItem item, {bool notify = true}) {
+    void update() {
+      _selectedCoveredItem = item;
+      _brandController.text = item.make;
+      _modelController.text = item.model;
+      _serialController.text = item.registrationOrSerial.isNotEmpty
+          ? item.registrationOrSerial
+          : item.identifier;
+      _selectedSubcategory = item.subCategory;
+      _estimatedValueController.text = 'R${(item.coverageAmount * 0.15).toInt()}';
+      _isManualEntry = false;
+    }
+
+    if (notify) {
+      setState(update);
+    } else {
+      update();
+    }
   }
 
   @override
@@ -120,15 +165,22 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
     await Future.delayed(const Duration(milliseconds: 900));
 
     if (!mounted) return;
+
+    final item = _selectedCoveredItem;
+    final policyNum = item?.policyNumber ?? 'POL-EC-98421';
+    final planName = item?.insuranceName ?? 'EasyShield Mobile Guard';
+    final underwriter = item?.underwriter ?? 'Vodacom Insurance Co.';
+    final assetName = item?.assetName ?? '${_brandController.text} ${_modelController.text}';
+
     _provider.updateVerificationStatus(
-      const VerificationStatus(
+      VerificationStatus(
         isIdentityVerified: true,
         isPolicyActive: true,
         isWithinWaitingPeriod: true,
         isWithinFilingWindow: true,
         verificationMessage:
-            'Identity verified (Thabo Bester ···081). EasyShield Mobile Guard active (POL-EC-98421). Waiting period passed. Incident within 30-day window.',
-        verificationErrors: [],
+            'Identity verified (Thabo Bester ···081). $planName active ($policyNum) covering $assetName underwritten by $underwriter. Waiting period passed. Incident within 30-day window.',
+        verificationErrors: const [],
       ),
     );
 
@@ -145,6 +197,11 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
         'model': _modelController.text,
         'serial': _serialController.text,
         'subCategory': _selectedSubcategory,
+        'coveredItemId': _selectedCoveredItem?.id,
+        'policyNumber': _selectedCoveredItem?.policyNumber ?? 'POL-EC-98421',
+        'underwriter': _selectedCoveredItem?.underwriter ?? 'Vodacom Insurance Co.',
+        'assetName': _selectedCoveredItem?.assetName ?? '${_brandController.text} ${_modelController.text}',
+        'coverageAmount': _selectedCoveredItem?.coverageAmount ?? 15000.0,
       });
       _provider.nextStep();
       _triggerAutomatedVerification();
@@ -402,6 +459,7 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
               setState(() {
                 _provider.selectCategory(cat);
                 _selectedSubcategory = cat.subCategories.first;
+                _applyCategoryCoveredItems(cat.categoryId);
               });
             },
             child: Container(
@@ -508,107 +566,427 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
 
         const SizedBox(height: 18),
 
-        // Dynamic Form Fields based on Category
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
-          child: Column(
+        // Dynamic Form Fields based on Category - Configured to Insurance Covered Items
+        _buildPolicyAndCoveredItemsSection(selected),
+      ],
+    );
+  }
+
+  /// Configures and displays the insurance's covered items
+  /// (e.g. For vehicle insurance, displays covered vehicles and allows user to pick which vehicle to claim)
+  Widget _buildPolicyAndCoveredItemsSection(ClaimCategory selected) {
+    final coveredItems = CoversMockData.getCoveredItemsByCategory(selected.categoryId);
+    final isVehicle = selected.categoryId == 'vehicle_transit';
+    final isDevice = selected.categoryId == 'device_electronics';
+    final isHome = selected.categoryId == 'home_property';
+    final isHealth = selected.categoryId == 'personal_health';
+
+    String insuranceTitle;
+    String insuranceSub;
+    String itemTypeNoun;
+    IconData sectionIcon;
+
+    if (isVehicle) {
+      insuranceTitle = 'My Covered Vehicles';
+      insuranceSub = 'King Price Assurance (Active Policy) • Select which vehicle to claim';
+      itemTypeNoun = 'vehicle';
+      sectionIcon = Icons.directions_car_rounded;
+    } else if (isDevice) {
+      insuranceTitle = 'My Covered Devices';
+      insuranceSub = 'Vodacom Insurance Co. (Active Policy) • Select which device to claim';
+      itemTypeNoun = 'device';
+      sectionIcon = Icons.phone_android_rounded;
+    } else if (isHome) {
+      insuranceTitle = 'My Covered Properties & Contents';
+      insuranceSub = 'Discovery Insure (Active Policy) • Select which property to claim';
+      itemTypeNoun = 'property';
+      sectionIcon = Icons.home_rounded;
+    } else if (isHealth) {
+      insuranceTitle = 'Covered Beneficiaries & Dependents';
+      insuranceSub = 'Discovery Health (Active Policy) • Select which member to claim';
+      itemTypeNoun = 'beneficiary';
+      sectionIcon = Icons.health_and_safety_rounded;
+    } else {
+      insuranceTitle = 'My Covered Items';
+      insuranceSub = 'EasyClaim Underwriting Partner • Select item to claim';
+      itemTypeNoun = 'item';
+      sectionIcon = Icons.shield_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section Header with Underwriter & Active Count
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Required Policy Details',
-                style: TextStyle(
-                  color: Color(0xFFFF6D00),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF5500),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(sectionIcon, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      insuranceTitle,
+                      style: const TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      insuranceSub,
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              _buildDarkField(label: 'Make / Brand', controller: _brandController),
-              const SizedBox(height: 8),
-              const Text(
-                'Quick Select Brand',
-                style: TextStyle(color: Color(0xFF64748B), fontSize: 11.5, fontWeight: FontWeight.w600),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF16A34A)),
+                ),
+                child: Text(
+                  '${coveredItems.length} Covered',
+                  style: const TextStyle(
+                    color: Color(0xFF16A34A),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
-              const SizedBox(height: 6),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    'Apple',
-                    'Samsung',
-                    'Dell',
-                    'Volkswagen',
-                    'Toyota',
-                  ].map((brand) {
-                    final isSelected = _brandController.text.trim().toLowerCase() == brand.toLowerCase();
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _brandController.text = brand;
-                          if (brand == 'Apple') {
-                            _modelController.text = 'iPhone 15 Pro Max 256GB';
-                          } else if (brand == 'Samsung') {
-                            _modelController.text = 'Galaxy S24 Ultra 512GB';
-                          } else if (brand == 'Dell') {
-                            _modelController.text = 'XPS 15 9530 Core i7';
-                          } else if (brand == 'Volkswagen') {
-                            _modelController.text = 'Polo 1.0 TSI Life DSG';
-                          } else if (brand == 'Toyota') {
-                            _modelController.text = 'Corolla Cross 1.8 Hybrid';
-                          }
-                        });
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? const Color(0xFFFF5500).withValues(alpha: 0.15)
-                              : const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isSelected ? const Color(0xFFFF5500) : const Color(0xFFE2E8F0),
-                            width: isSelected ? 1.5 : 1.0,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            BrandLogo(
-                              name: brand,
-                              size: 20,
-                              borderRadius: 4,
-                              padding: 2,
+            ],
+          ),
+
+          const SizedBox(height: 12),
+          Text(
+            'Select which $itemTypeNoun you are claiming for:',
+            style: const TextStyle(
+              color: Color(0xFFFF6D00),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Covered Items Selector Cards
+          if (coveredItems.isNotEmpty && !_isManualEntry) ...[
+            ...coveredItems.map((item) {
+              final isChosen = _selectedCoveredItem?.id == item.id;
+              return GestureDetector(
+                onTap: () {
+                  _selectCoveredItem(item);
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isChosen ? const Color(0xFFF0FDF4) : Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: isChosen ? const Color(0xFF16A34A) : const Color(0xFFE2E8F0),
+                      width: isChosen ? 2.0 : 1.0,
+                    ),
+                    boxShadow: isChosen
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFF16A34A).withValues(alpha: 0.12),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
-                            const SizedBox(width: 8),
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    children: [
+                      BrandLogo(
+                        name: item.make,
+                        size: 38,
+                        borderRadius: 10,
+                        padding: 3,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              brand,
+                              item.assetName,
                               style: TextStyle(
-                                color: isSelected ? const Color(0xFFFF5500) : const Color(0xFF64748B),
-                                fontSize: 12,
-                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                color: const Color(0xFF0F172A),
+                                fontWeight: isChosen ? FontWeight.w800 : FontWeight.w700,
+                                fontSize: 13.5,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${item.insuranceName} • ${item.policyNumber}',
+                              style: const TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              item.identifier,
+                              style: const TextStyle(
+                                color: Color(0xFF334155),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF0FDF4),
+                                    borderRadius: BorderRadius.circular(5),
+                                    border: Border.all(color: const Color(0xFF16A34A)),
+                                  ),
+                                  child: const Text(
+                                    '● Covered & Active',
+                                    style: TextStyle(
+                                      color: Color(0xFF16A34A),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF0E6),
+                                    borderRadius: BorderRadius.circular(5),
+                                    border: Border.all(color: const Color(0xFFFF5500).withValues(alpha: 0.3)),
+                                  ),
+                                  child: Text(
+                                    'Limit: ${item.formattedCoverage}',
+                                    style: const TextStyle(
+                                      color: Color(0xFFFF5500),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
-                    );
-                  }).toList(),
+                      const SizedBox(width: 10),
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: isChosen ? const Color(0xFF16A34A) : Colors.transparent,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isChosen ? const Color(0xFF16A34A) : const Color(0xFFCBD5E1),
+                            width: 2,
+                          ),
+                        ),
+                        child: isChosen
+                            ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+
+            // Selected Item Confirmation Banner
+            if (_selectedCoveredItem != null) ...[
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.5)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Claiming on: ${_selectedCoveredItem!.assetName} (${_selectedCoveredItem!.policyNumber})',
+                        style: const TextStyle(
+                          color: Color(0xFF16A34A),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11.5,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 10),
-              _buildDarkField(label: 'Model / Specification', controller: _modelController),
-              const SizedBox(height: 10),
-              _buildDarkField(label: 'Serial No / IMEI / Reg', controller: _serialController),
+            ],
+          ],
+
+          const SizedBox(height: 12),
+          const Divider(color: Color(0xFFE2E8F0), height: 1),
+          const SizedBox(height: 12),
+
+          // Header for the Policy Details form fields
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _isManualEntry ? 'Custom Item Details' : 'Policy Details (Auto-filled)',
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _isManualEntry = !_isManualEntry;
+                    if (_isManualEntry) {
+                      _selectedCoveredItem = null;
+                    } else {
+                      _applyCategoryCoveredItems(selected.categoryId);
+                    }
+                  });
+                },
+                child: Text(
+                  _isManualEntry ? '← Choose from My Covered Items' : 'Claim for unlisted item',
+                  style: const TextStyle(
+                    color: Color(0xFFFF5500),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ],
           ),
-        ),
-      ],
+          const SizedBox(height: 10),
+
+          // Form fields
+          _buildDarkField(
+            label: isVehicle ? 'Vehicle Make / Brand' : 'Make / Brand',
+            controller: _brandController,
+          ),
+          if (_isManualEntry) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'Quick Select Brand',
+              style: TextStyle(color: Color(0xFF64748B), fontSize: 11.5, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  'Apple',
+                  'Samsung',
+                  'Dell',
+                  'Volkswagen',
+                  'Toyota',
+                ].map((brand) {
+                  final isSelected = _brandController.text.trim().toLowerCase() == brand.toLowerCase();
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _brandController.text = brand;
+                        if (brand == 'Apple') {
+                          _modelController.text = 'iPhone 15 Pro Max 256GB';
+                        } else if (brand == 'Samsung') {
+                          _modelController.text = 'Galaxy S24 Ultra 512GB';
+                        } else if (brand == 'Dell') {
+                          _modelController.text = 'XPS 15 9530 Core i7';
+                        } else if (brand == 'Volkswagen') {
+                          _modelController.text = 'Polo 1.0 TSI Life DSG';
+                        } else if (brand == 'Toyota') {
+                          _modelController.text = 'Corolla Cross 1.8 Hybrid';
+                        }
+                      });
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFFFF5500).withValues(alpha: 0.15)
+                            : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFFFF5500) : const Color(0xFFE2E8F0),
+                          width: isSelected ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          BrandLogo(
+                            name: brand,
+                            size: 20,
+                            borderRadius: 4,
+                            padding: 2,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            brand,
+                            style: TextStyle(
+                              color: isSelected ? const Color(0xFFFF5500) : const Color(0xFF64748B),
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          _buildDarkField(
+            label: isVehicle ? 'Vehicle Model / Specification' : 'Model / Specification',
+            controller: _modelController,
+          ),
+          const SizedBox(height: 10),
+          _buildDarkField(
+            label: isVehicle ? 'Registration Number / VIN' : 'Serial No / IMEI / Reg',
+            controller: _serialController,
+          ),
+        ],
+      ),
     );
   }
 
@@ -705,8 +1083,8 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
                 _buildVerificationCheck(
                   title: 'Active Policy Standing',
                   passed: status.isPolicyActive,
-                  detail: 'Policy POL-EC-98421 confirmed with Vodacom Insurance',
-                  brandName: 'vodacom',
+                  detail: 'Policy ${_selectedCoveredItem?.policyNumber ?? 'POL-EC-98421'} confirmed with ${_selectedCoveredItem?.underwriter ?? 'Vodacom Insurance Co.'} for ${_selectedCoveredItem?.assetName ?? _brandController.text}',
+                  brandName: _getBrandForUnderwriter(_selectedCoveredItem?.underwriter),
                 ),
                 const Divider(color: Color(0xFFE2E8F0), height: 20),
                 _buildVerificationCheck(
@@ -1104,7 +1482,7 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${_brandController.text} ${_modelController.text}',
+                            _selectedCoveredItem?.assetName ?? '${_brandController.text} ${_modelController.text}',
                             style: const TextStyle(
                               color: Color(0xFF0F172A),
                               fontWeight: FontWeight.w700,
@@ -1114,16 +1492,16 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
-                          const Text(
-                            'Underwritten by Vodacom Insurance',
-                            style: TextStyle(color: Color(0xFF64748B), fontSize: 11.5),
+                          Text(
+                            'Policy ${_selectedCoveredItem?.policyNumber ?? 'POL-EC-98421'} · Underwritten by ${_selectedCoveredItem?.underwriter ?? 'Vodacom Insurance Co.'}',
+                            style: const TextStyle(color: Color(0xFF64748B), fontSize: 11.5),
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const BrandLogo(
-                      name: 'vodacom',
+                    BrandLogo(
+                      name: _getBrandForUnderwriter(_selectedCoveredItem?.underwriter),
                       size: 30,
                       borderRadius: 8,
                       padding: 3,
@@ -1134,7 +1512,9 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
               const SizedBox(height: 14),
 
               _buildReviewRow('Category', _provider.selectedCategory?.name ?? 'Device & Tech'),
-              _buildReviewRow('Asset Claimed', '${_brandController.text} ${_modelController.text}'),
+              _buildReviewRow('Covered Item', _selectedCoveredItem?.assetName ?? '${_brandController.text} ${_modelController.text}'),
+              _buildReviewRow('Policy Number', _selectedCoveredItem?.policyNumber ?? 'POL-EC-98421'),
+              _buildReviewRow('Identifier / Reg', _serialController.text),
               _buildReviewRow('Primary Cause', _selectedCause),
               _buildReviewRow('SAPS Case Number', _policeCasController.text),
               _buildReviewRow('Claim Amount', _estimatedValueController.text),
@@ -1246,7 +1626,7 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
               ),
               const SizedBox(width: 10),
               Text(
-                '${_brandController.text} ${_modelController.text}',
+                _selectedCoveredItem?.assetName ?? '${_brandController.text} ${_modelController.text}',
                 style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w700, fontSize: 13),
               ),
             ],
@@ -1488,5 +1868,14 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
       default:
         return Icons.shield_rounded;
     }
+  }
+
+  String _getBrandForUnderwriter(String? underwriter) {
+    if (underwriter == null) return 'vodacom';
+    final lower = underwriter.toLowerCase();
+    if (lower.contains('king')) return 'king price';
+    if (lower.contains('discovery')) return 'discovery';
+    if (lower.contains('vodacom')) return 'vodacom';
+    return 'vodacom';
   }
 }

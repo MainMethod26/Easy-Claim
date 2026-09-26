@@ -186,5 +186,34 @@ void main() {
       expect(find.text('Device & Electronics'), findsOneWidget);
       expect(find.text('Continue to Step 2'), findsOneWidget);
     });
+
+    testWidgets('ClaimsWizardModal configures policy details to covered items and allows vehicle selection', (WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+          body: ClaimsWizardModal(
+            initialCategory: 'vehicle_transit',
+          ),
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Should display vehicle insurance covered items header
+      expect(find.text('My Covered Vehicles'), findsOneWidget);
+      expect(find.text('Select which vehicle you are claiming for:'), findsOneWidget);
+
+      // Should list both covered vehicles
+      expect(find.text('Volkswagen Polo TSI (2022)'), findsOneWidget);
+      expect(find.text('Toyota Hilux 2.8 GD-6 4x4 (2023)'), findsOneWidget);
+
+      // Tap on Toyota Hilux to choose it
+      await tester.ensureVisible(find.text('Toyota Hilux 2.8 GD-6 4x4 (2023)'));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.text('Toyota Hilux 2.8 GD-6 4x4 (2023)'));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Active confirmation banner should update to Toyota Hilux
+      expect(find.textContaining('Toyota Hilux 2.8 GD-6 4x4 (2023)'), findsWidgets);
+      expect(find.textContaining('POL-EC-44105'), findsWidgets);
+    });
   });
 }
