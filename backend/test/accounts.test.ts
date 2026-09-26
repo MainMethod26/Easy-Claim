@@ -213,14 +213,14 @@ describe('ACCOUNTS: /admin/* (SUPERADMIN)', () => {
     expect((await env.DB.prepare("SELECT status FROM users WHERE id = 'usr_root_2'").first<{ status: string }>())!.status).toBe('active')
   })
 
-  it('lists accounts with and without a tenant filter; never returns password hashes or customers by default', async () => {
+  it('lists accounts with and without a tenant filter; lists only insurer admins (and platform admins); never hashes, customers or claim staff', async () => {
     const all = await json(await call('/admin/users', { as: superadmin }))
     const names = all.users.map((u: { username: string }) => u.username)
-    expect(names).toEqual(expect.arrayContaining(['superadmin', 'admin_discovery', 'admin_sanlam', 'assessor_discovery', 'manager_sanlam']))
-    expect(names).not.toContain('mike')
+    expect(names).toEqual(expect.arrayContaining(['superadmin', 'admin_discovery', 'admin_sanlam']))
+    for (const n of ['mike', 'assessor_discovery', 'manager_sanlam']) expect(names).not.toContain(n)
     expect(JSON.stringify(all)).not.toContain('pbkdf2')
     const disc = await json(await call('/admin/users?tenantId=ins_discovery', { as: superadmin }))
-    expect(disc.users.map((u: { username: string }) => u.username).sort()).toEqual(['admin_discovery', 'assessor_discovery', 'manager_discovery'])
+    expect(disc.users.map((u: { username: string }) => u.username).sort()).toEqual(['admin_discovery'])
     expect((await call('/admin/users?tenantId=bad%20id', { as: superadmin })).status).toBe(400)
   })
 

@@ -1,6 +1,7 @@
 import '../../core/api/api_client.dart';
 import '../../core/auth/session.dart';
 import '../models/api_models.dart';
+import '../models/onboarding_models.dart';
 
 // Repositories are the only place that knows API paths and request bodies
 // (docs/API_CONTRACT.md). Each takes an ApiClient so tests can inject a fake transport.
@@ -49,6 +50,25 @@ class AuthRepository {
   Future<AuthActor> me() => restore();
 
   void signOut() => _session.signOut();
+
+  /// Public: an insurance company applies to join (no token needed; nothing is created until approval).
+  Future<void> applyAsInsurer({
+    required String companyName,
+    required String fspNumber,
+    required String contactEmail,
+    required String adminUsername,
+    required String adminDisplayName,
+    required String password,
+  }) async {
+    await _api.post('/auth/insurer-applications', body: {
+      'companyName': companyName.trim(),
+      'fspNumber': fspNumber.trim(),
+      'contactEmail': contactEmail.trim(),
+      'adminUsername': adminUsername.trim(),
+      'adminDisplayName': adminDisplayName.trim(),
+      'password': password,
+    });
+  }
 }
 
 class CoversRepository {
@@ -59,6 +79,20 @@ class CoversRepository {
     final body = await _api.get('/covers/my-covers');
     return ((body['policies'] as List?) ?? const []).whereType<Map<String, dynamic>>().map(Policy.fromJson).toList();
   }
+
+  /// Insurers a customer can link an existing policy with.
+  Future<List<InsurerOption>> insurers() async {
+    final body = await _api.get('/covers/insurers');
+    return ((body['insurers'] as List?) ?? const []).whereType<Map<String, dynamic>>().map(InsurerOption.fromJson).toList();
+  }
+
+  Future<List<PolicyLinkRequest>> linkRequests() async {
+    final body = await _api.get('/covers/link-requests');
+    return ((body['requests'] as List?) ?? const []).whereType<Map<String, dynamic>>().map(PolicyLinkRequest.fromJson).toList();
+  }
+
+  Future<PolicyLinkRequest> requestLink({required String tenantId, required String policyNumber}) async =>
+      PolicyLinkRequest.fromJson((await _api.post('/covers/link-requests', body: {'tenantId': tenantId, 'policyNumber': policyNumber}))['request'] as Map<String, dynamic>);
 }
 
 /// Customer claim operations (and the shared read views used by insurer screens too).

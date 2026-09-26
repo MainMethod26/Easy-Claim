@@ -26,7 +26,7 @@ export interface ClaimRow {
 
 /**
  * - 'read':        the owning CUSTOMER, ASSESSOR / MANAGER / INSURER_ADMIN of the claim's tenant,
- *                  or a SUPERADMIN (platform read-only). Drafts stay private to their owner.
+ *                  never a SUPERADMIN (platform operator: aggregates only). Drafts stay private to their owner.
  * - 'owner-write': only the owning CUSTOMER
  * - 'insurer':     only ASSESSOR / MANAGER of the claim's tenant (claim work)
  */
@@ -65,7 +65,6 @@ export async function loadAuthorizedClaim(
 
   const isOwner = claim !== null && actor.role === 'CUSTOMER' && claim.user_id === actor.id
   const tenantInsurer = claim !== null && isTenantInsurer(actor, claim)
-  const platformReader = claim !== null && actor.role === 'SUPERADMIN' && claim.stage !== 'Draft'
   const tenantAdminReader =
     claim !== null && actor.role === 'INSURER_ADMIN' && actor.tenantId !== null &&
     claim.tenant_id === actor.tenantId && claim.stage !== 'Draft'
@@ -75,13 +74,14 @@ export async function loadAuthorizedClaim(
       ? isOwner
       : mode === 'insurer'
         ? tenantInsurer
-        : isOwner || tenantInsurer || tenantAdminReader || platformReader
+        : isOwner || tenantInsurer || tenantAdminReader
   if (claim && allowed) return claim
 
   let reason: DenyReason
   if (!claim) reason = 'missing'
   else if (actor.role === 'CUSTOMER') reason = isOwner ? 'mode' : 'not_owner'
-  else if (actor.role === 'SUPERADMIN') reason = claim.stage === 'Draft' ? 'draft' : 'mode'
+  // The platform operator never reads claim contents (decided 27 Sep 2026): aggregates only.
+  else if (actor.role === 'SUPERADMIN') reason = 'role'
   else if (actor.role === 'INSURER_ADMIN')
     reason = claim.tenant_id !== actor.tenantId ? 'cross_tenant' : claim.stage === 'Draft' ? 'draft' : 'mode'
   else if (!INSURER_ROLES.includes(actor.role)) reason = 'role'

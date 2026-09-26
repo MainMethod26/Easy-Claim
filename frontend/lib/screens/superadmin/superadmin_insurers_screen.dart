@@ -66,7 +66,7 @@ class _SuperadminInsurersScreenState extends State<SuperadminInsurersScreen> {
                   child: ListTile(
                     leading: const CircleAvatar(backgroundColor: Color(0xFFFFF7ED), child: Icon(Icons.business_outlined, color: Color(0xFFFF5500))),
                     title: Text(t.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                    subtitle: Text('${t.id} · ${t.adminCount} admin(s) · ${t.policyCount} policies · ${t.claimCount} claims'),
+                    subtitle: Text('${t.id} · ${t.adminCount} staff · ${t.policyCount} policies · ${t.claimCount} claims'),
                   ),
                 );
               },

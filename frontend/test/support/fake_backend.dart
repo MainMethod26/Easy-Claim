@@ -11,7 +11,10 @@ class SentRequest {
   final String path;
   final Map<String, String> headers;
   final String body;
-  SentRequest(this.method, this.path, this.headers, this.body);
+
+  /// Query parameters of the request (the route key ignores them).
+  final Map<String, String> query;
+  SentRequest(this.method, this.path, this.headers, this.body, [this.query = const {}]);
 
   Map<String, dynamic> get json => body.isEmpty ? const {} : jsonDecode(body) as Map<String, dynamic>;
 }
@@ -38,7 +41,7 @@ class FakeBackend {
 
   late final http.Client client = MockClient((req) async {
     final path = req.url.path.replaceFirst('/api/v1', '');
-    final sent = SentRequest(req.method, path, req.headers, req.body);
+    final sent = SentRequest(req.method, path, req.headers, req.body, req.url.queryParameters);
     requests.add(sent);
     final handler = routes['${req.method} $path'];
     final (status, body) = handler == null ? (404, {'error': 'not_found'}) : handler(sent);

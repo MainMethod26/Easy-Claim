@@ -109,3 +109,41 @@ export const createTenantSchema = z
   .object({ id: z.string().regex(/^ins_[a-z0-9_]{2,40}$/), name: z.string().trim().min(2).max(100) })
   .strict()
 export const tenantQuerySchema = z.object({ tenantId: id.optional() })
+
+// ---- Admin dashboards (read-only metrics, docs/admin/METRICS.md) ----
+/** Reporting window in days, bounded so one request cannot scan unbounded history. */
+export const metricsQuerySchema = z.object({ days: z.coerce.number().int().min(1).max(365).default(30) }).strict()
+/** Audit log paging and filters. `before` is the `nextBefore` cursor of the previous page. */
+const auditBase = {
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  before: z.iso.datetime().optional(),
+  outcome: z.enum(['success', 'denied', 'failure']).optional(),
+  action: z.string().regex(/^[a-z_.]{1,64}$/).optional(),
+}
+export const tenantAuditQuerySchema = z.object(auditBase).strict()
+export const platformAuditQuerySchema = z.object({ ...auditBase, tenantId: id.optional() }).strict()
+
+// ---- Insurer onboarding and policy linking (migration 0011) ----
+const tenantIdSchema = z.string().regex(/^ins_[a-z0-9_]{2,40}$/)
+const decisionReason = z.string().trim().min(5).max(500)
+/** Public: an insurance company applies. FSP = FSCA financial services provider licence number. */
+export const insurerApplicationSchema = z
+  .object({
+    companyName: z.string().trim().min(2).max(100),
+    fspNumber: z.string().trim().regex(/^[0-9]{1,8}$/),
+    contactEmail: z.email().max(254),
+    adminUsername: username,
+    adminDisplayName: displayName,
+    password,
+  })
+  .strict()
+export const applicationStatusQuerySchema = z.object({ status: z.enum(['pending', 'approved', 'rejected']).optional() }).strict()
+export const applicationIdParam = z.object({ applicationId: id })
+/** Approving names the new tenant id; the tenant's display name is the application's company name. */
+export const approveApplicationSchema = z.object({ tenantId: tenantIdSchema }).strict()
+export const rejectSchema = z.object({ reason: decisionReason }).strict()
+/** Customer: link an existing policy by insurer + the insurer's policy number. */
+export const linkRequestSchema = z.object({ tenantId: tenantIdSchema, policyNumber: z.string().trim().regex(/^[A-Za-z0-9-]{4,32}$/) }).strict()
+export const linkRequestIdParam = z.object({ requestId: id })
+/** Insurer admin approves with the plan name from its own records. */
+export const approveLinkSchema = z.object({ planName: z.string().trim().min(2).max(100) }).strict()

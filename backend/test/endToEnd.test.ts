@@ -90,8 +90,8 @@ describe.each([
     const tenantAdmin = await signIn('admin_discovery')
     expect((await api(tenantAdmin, `/claims/${claimId}`)).status).toBe(200)
     expect((await api(tenantAdmin, `/claims/${claimId}/decide`, { method: 'POST', json: { outcome: 'Approved', reason: 'x' } })).status).toBe(403)
-    // The platform operator can read the claim but never decides it.
-    expect((await api(platform, `/claims/${claimId}`)).status).toBe(200)
+    // The platform operator neither reads the claim nor decides it.
+    expect((await api(platform, `/claims/${claimId}`)).status).toBe(404)
     expect((await api(platform, `/claims/${claimId}/decide`, { method: 'POST', json: { outcome: 'Approved', reason: 'x' } })).status).toBe(403)
 
     // 4. The manager decides; the decision is ML-DSA-65 signed and verifiable by the customer.
@@ -102,7 +102,8 @@ describe.each([
     expect(decision.body).toMatchObject({ to: 'Decision', outcome: 'Approved', approvedAmountCents: 420_000, integrity: { alg: 'ML-DSA-65' } })
     const verified = await api(customer, `/claims/${claimId}/decision/verify`)
     expect(verified.body.integrity.status).toBe('VALID')
-    expect((await api(platform, `/claims/${claimId}/decision/verify`)).body.integrity.status).toBe('VALID')
+    // The platform operator cannot verify a single claim's signature; it sees signature counts on /admin/integrity.
+    expect((await api(platform, `/claims/${claimId}/decision/verify`)).status).toBe(404)
 
     // 5. Payout (simulated) at the recorded amount to the recorded destination.
     expect((await api(insurer, `/claims/${claimId}/pay`, { method: 'POST' })).status).toBe(403)
@@ -113,10 +114,10 @@ describe.each([
     expect(money.body).toMatchObject({ stage: 'Paid', payout: { amountCents: 420_000, status: 'simulated' } })
     const timeline = await api(customer, `/claims/${claimId}/timeline`)
     expect(timeline.body.timeline.every((s: { completed: boolean }) => s.completed)).toBe(true)
-    // The insurer admin and the superadmin see the paid claim read-only.
+    // The insurer admin sees the paid claim read-only; the platform operator does not see it at all.
     expect((await api(tenantAdmin, `/claims/${claimId}`)).body.claim).toMatchObject({ stage: 'Paid' })
     expect((await api(tenantAdmin, `/claims/${claimId}/payout`)).body).toMatchObject({ payout: { amountCents: 420_000 } })
-    expect((await api(platform, `/claims/${claimId}`)).body.claim).toMatchObject({ stage: 'Paid' })
+    expect((await api(platform, `/claims/${claimId}`)).status).toBe(404)
     const decidedBy = (await api(customer, `/claims/${claimId}/decision`)).body.record
     expect(decidedBy).toMatchObject({ decidedByRole: 'MANAGER' })
 
@@ -134,7 +135,7 @@ describe.each([
 })
 
 describe('claim detail route', () => {
-  it('owner, tenant staff, tenant insurer admin and superadmin read it; other customer and other tenant get 404; no token 401', async () => {
+  it('owner, tenant staff and tenant insurer admin read it; superadmin, other customer and other tenant get 404; no token 401', async () => {
     const own = await call('/claims/claim_disc_101', { as: customerA })
     expect(own.status).toBe(200)
     expect(((await own.json()) as any).claim).toMatchObject({ id: 'claim_disc_101', stage: 'Review', insurerName: expect.any(String), planName: 'Discovery Health Executive Plan' })
@@ -143,7 +144,7 @@ describe('claim detail route', () => {
     expect((await call('/claims/claim_disc_101', { as: managerA })).status).toBe(200)
     expect((await call('/claims/claim_disc_101', { as: insurerAdminA })).status).toBe(200)
     expect((await call('/claims/claim_disc_101', { as: insurerAdminB })).status).toBe(404)
-    expect((await call('/claims/claim_disc_101', { as: superadmin })).status).toBe(200)
+    expect((await call('/claims/claim_disc_101', { as: superadmin })).status).toBe(404)
     expect((await call('/claims/claim_disc_101')).status).toBe(401)
   })
 })

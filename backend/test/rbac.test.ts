@@ -25,8 +25,8 @@ describe('function-level authorization (RBAC)', () => {
     expect((await call('/ocr/process', { method: 'POST', as: superadmin })).status).toBe(403)
   })
 
-  it('superadmin reads a submitted claim (platform read-only) but has no claim actions', async () => {
-    expect((await call('/claims/claim_disc_101/timeline', { as: superadmin })).status).toBe(200)
+  it('superadmin neither reads a claim nor acts on it (platform operator)', async () => {
+    expect((await call('/claims/claim_disc_101/timeline', { as: superadmin })).status).toBe(404)
     expect((await call('/claims/claim_disc_101/review', { method: 'POST', as: superadmin })).status).toBe(403)
     expect((await call('/claims/claim_disc_101/risk-signals', { as: superadmin })).status).toBe(403)
   })

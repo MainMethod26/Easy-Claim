@@ -58,18 +58,7 @@ router.get('/', validate('query', listQuerySchema), async (c) => {
     return c.json({ claims: results })
   }
 
-  if (actor.role === 'SUPERADMIN') {
-    // Platform read-only view across insurers; Drafts stay private. Optional ?tenantId filter.
-    const tenantId = c.req.query('tenantId') ?? null
-    const { results } = await c.env.DB.prepare(
-      `SELECT id, policy_id, tenant_id, stage, status, category, claimed_amount_cents, created_at, updated_at
-       FROM claims WHERE stage <> 'Draft' AND (? IS NULL OR tenant_id = ?) ORDER BY created_at DESC, id LIMIT ?`
-    )
-      .bind(tenantId, tenantId, limit)
-      .all()
-    return c.json({ claims: results })
-  }
-
+  // SUPERADMIN (platform operator) sees aggregates on /admin/*, never claim lists.
   await writeAuditEvent(c, { action: 'authz.role_denied', resourceType: 'route', resourceId: 'GET /claims', outcome: 'denied' })
   return c.json({ error: 'forbidden' }, 403)
 })

@@ -76,6 +76,21 @@ Anyone can also register a new customer from the sign-in screen ("Create account
 5. **Superadmin (`superadmin`)**: platform dashboard (claims by stage per insurer, users by role) → Insurers: add
    "Demo Mutual" → Accounts: create its insurer admin → Claims: read-only list across insurers, open the paid claim.
    There is no Verify/Decide/Pay button anywhere for the superadmin.
+   **Consoles** (one app, chosen by role after sign-in): the insurer admin gets Overview (KPIs, claims by stage,
+   screening bands, decision signatures), Claims (read-only), Team and Audit log. The superadmin gets Overview,
+   Insurers, Accounts, Claims (read-only), Security centre, Integrity & crypto and Global audit log. Assessors and
+   managers get "My queue" (the stages their role acts on) and All claims. Every number is defined in
+   `docs/admin/METRICS.md`; screenshots are in `docs/admin/screenshots/`.
+   **Onboarding a new insurer and customer (27 Sep 2026):**
+   a. On the sign-in screen, "Are you an insurer? Register your company". Fill in company, FSP number, contact
+      email and the first admin's name, username and password.
+   b. `superadmin` → Applications → Approve (choose the insurer id, e.g. `ins_hollard`). This creates the insurer
+      and its admin; the applicant signs in with the password they chose.
+   c. The new insurer admin → Team → add an assessor and a manager.
+   d. A newly registered customer → Covers → Link a policy → pick the insurer, enter the policy number.
+   e. The insurer admin → Policy requests → Approve (enter the plan name). The policy appears under the
+      customer's covers, and the normal claim journey (steps 1–3) works on it.
+   The superadmin never sees claims: `/claims` is 403 and every claim URL is 404 for it.
 6. **Customer again**: claim shows Paid, the decision and "Decision verified". No model internals.
 7. **Security** (Postman folders 00, 5–8, 11, 12 or the script below): no token 401, wrong password 401 with the same
    body as an unknown user, a role in the login or register body 400, customer on an insurer action 403, assessor

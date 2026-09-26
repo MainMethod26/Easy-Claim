@@ -4,7 +4,8 @@ import type { AppEnv, Role } from '../types'
 import { writeAuditEvent } from '../security/audit'
 import { JWT_ALG, MAX_TOKEN_TTL_SECONDS } from '../security/actor'
 import { dummyHash, hashPassword, verifyPassword } from '../security/password'
-import { loginSchema, registerSchema, validate } from '../security/validation'
+import { insurerApplicationSchema, loginSchema, registerSchema, validate } from '../security/validation'
+import { submitApplication } from '../onboarding/service'
 
 /**
  * Accounts and sign-in (team role model, 26 Sep 2026).
@@ -165,4 +166,14 @@ authInfo.get('/me', async (c) => {
       status: user?.status ?? null,
     },
   })
+})
+
+/**
+ * Public: an insurance company applies to join. Nothing is created until the platform operator approves
+ * (POST /admin/applications/:id/approve). Per-IP rate limited like /login; open applications are capped.
+ */
+authPublic.post('/insurer-applications', validate('json', insurerApplicationSchema), async (c) => {
+  const r = await submitApplication(c, c.req.valid('json'))
+  if (!r.ok) return c.json({ error: r.error }, r.status)
+  return c.json({ application: { id: r.value.id, status: r.value.status, companyName: r.value.companyName } }, 201)
 })

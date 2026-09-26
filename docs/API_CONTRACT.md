@@ -30,7 +30,7 @@ repositories in `frontend/lib/data/repositories/`.
 | `ASSESSOR` | required | verify, screen, review, request information on its insurer's claims; see screening signals | decide, pay, re-open appeals |
 | `MANAGER` | required | everything an assessor does + decide, pay (simulated), re-open appeals | act on another insurer's claims |
 | `INSURER_ADMIN` | required | manage its insurer's staff (create assessors, managers, admins; enable/disable), tenant stats, read its insurer's claims | move a claim, see screening signals |
-| `SUPERADMIN` | – | create insurers and insurer admins, platform stats, read all insurers' claims | move a claim, see screening signals; cannot be created through the API |
+| `SUPERADMIN` | – | platform operator: review insurer applications, create insurers and insurer admins, aggregate dashboards (overview, security, integrity, audit) | see or move any claim, evidence or screening signal; manage assessors/managers; cannot be created through the API |
 
 Error codes the app must handle:
 
@@ -68,6 +68,15 @@ Error codes the app must handle:
 
 | | |
 |---|---|
+| **POST /auth/insurer-applications** | Public: an insurance company applies to join. Nothing is created until a SUPERADMIN approves |
+| Request | `{ companyName, fspNumber ^[0-9]{1,8}$, contactEmail, adminUsername, adminDisplayName, password }` strict |
+| Response 201 | `{ application:{ id, status:'pending', companyName } }` |
+| Errors | 400, 409 `username_taken` / `application_pending` (one pending per username and per FSP number), 429 `applications_paused` |
+| Audit | `onboarding.application_submitted` |
+| Frontend | `AuthRepository.applyAsInsurer` |
+
+| | |
+|---|---|
 | **GET /auth/me** | The verified actor + profile |
 | Response | `{ actor:{ id, role, tenantId, username, displayName, status } }` (profile fields null for offline-minted tokens) |
 
@@ -90,11 +99,18 @@ HS256 secret (BACKEND-SEC-019).
 | GET `/admin/users?tenantId=` | – | `{users:[User]}` (no tenant filter = all non-customer accounts) | 403 | – | Accounts screen |
 | POST `/admin/users` | `{username, password, displayName, tenantId, role?: "INSURER_ADMIN"}` (only insurer admins; any other role → 400) | 201 `{user}` | 400, 409 `username_taken`, 422 `unknown_tenant` | `admin.user_created` | Add account |
 | PATCH `/admin/users/:userId` | `{status: active\|disabled}` | `{user}` | 404, 409 `cannot_change_own_status` / `superadmin_managed_offline` | `admin.user_status_changed` | enable/disable |
+| GET `/admin/overview?days=1..365` (default 30) | – | `PlatformOverview {generatedAt, windowDays, tenants, usersByRole, claims:{total,open,byStage}, decisions:{windowDays,approved,rejected,approvalRate,medianHoursToDecision}, payouts:{windowDays,count,totalCents}, perTenant:[PlatformTenantSummary {id,name,claims,openClaims,staff,activeAdmins,decisionsInWindow,payoutsInWindow}]}` | 400, 403 | – | Platform overview |
+| GET `/admin/security?days=` | – | `PlatformSecurity {logins:{success,denied}, deniedByAction, failuresByAction, deniedByTenant, disabledAccounts, recentDenied:[AdminAuditEvent], notMeasured:[string]}` | 400, 403 | – | Security centre |
+| GET `/admin/integrity?days=` | – | `PlatformIntegrity {decisions:{total,signed,unsigned,byKeyId}, verificationsInWindow:{STATUS:n}, screening:{NORMAL,ELEVATED,HIGH,unscreened,byExecution,byModelVersion}}` | 400, 403 | – | Integrity & crypto |
+| GET `/admin/audit?limit=1..100&before=&outcome=&action=&tenantId=` | – | `{events:[AdminAuditEvent {id,occurredAt,actorId,actorRole,action,resourceType,resourceId,outcome}], nextBefore}` (never `details`) | 400, 403 | `admin.audit_viewed` | Global audit |
+| GET `/admin/applications?status=pending\|approved\|rejected` | – | `{applications:[{id,companyName,fspNumber,contactEmail,adminUsername,adminDisplayName,status,tenantId,decisionReason,decidedAt,createdAt}]}` (never the password hash) | 400, 403 | – | Applications |
+| POST `/admin/applications/:applicationId/approve` | `{tenantId ^ins_[a-z0-9_]{2,40}$}` | `{application}` approved; creates the tenant (company name) and its INSURER_ADMIN in one batch | 400, 404, 409 `already_decided`/`tenant_exists`/`username_taken` | `onboarding.application_approved`, `admin.tenant_created`, `admin.user_created` | Approve |
+| POST `/admin/applications/:applicationId/reject` | `{reason 5..500}` | `{application}` rejected | 400, 404, 409 `already_decided` | `onboarding.application_rejected` | Reject |
 | GET `/claims?limit=&tenantId=` | – | platform-wide non-Draft list (no `user_id`) | – | – | Claims screen |
-| GET `/claims/:id`, `/timeline`, `/decision`, `/payout`, `/evidence`, `/decision/verify` | – | read-only, non-Draft | 404 | – | read-only detail |
+| GET `/claims`, `/claims/:id`, `/timeline`, `/decision`, `/payout`, `/evidence`, `/decision/verify` | – | never (27 Sep 2026): `/claims` 403, per-claim routes 404 | 403, 404 | `authz.*_denied` | – |
 
 SUPERADMIN gets 403 on every insurer action (`verify`, `screen`, `review`, `request-info`, `decide`, `pay`) and on
-`/risk-signals`, and 404 on Drafts.
+`/risk-signals`, and no read access to any claim (it sees aggregate counts on `/admin/overview` and `/admin/integrity` only).
 
 ## Tenant administration (INSURER_ADMIN, own tenant only)
 
@@ -109,14 +125,22 @@ payout, evidence, decision/verify) and gets 403 on every claim action and on `/r
 | GET `/tenant/users` | – | `{users:[User]}` own tenant | 403 | – | Team screen |
 | POST `/tenant/users` | `{username, password, displayName, role: ASSESSOR\|MANAGER\|INSURER_ADMIN}` (a `tenantId` → 400; tenant comes from the token) | 201 `{user}` | 400, 409 | `tenant.user_created` | Add staff |
 | PATCH `/tenant/users/:userId` | `{status}` | `{user}` | 404 (other tenant), 409 (self) | `tenant.user_status_changed` | enable/disable |
+| GET `/tenant/overview?days=1..365` (default 30) | – (`tenantId` → 400) | `TenantOverview {tenant, generatedAt, claims, decisions, payouts, screening:{NORMAL,ELEVATED,HIGH,unscreened}, integrity:{signed,unsigned,verificationsInWindow}, staff:{byRole,active,disabled}}` | 400, 403 | – | Insurer overview |
+| GET `/tenant/audit?limit=&before=&outcome=&action=` | – (`tenantId` → 400) | `{events:[AdminAuditEvent], nextBefore}`, own tenant's scope; actors outside the tenant shown by role only (`actorId: null`) | 400, 403 | `tenant.audit_viewed` | Insurer audit log |
+| GET `/tenant/policy-requests?status=` | – | `{requests:[{id,tenantId,insurerName,policyNumber,status,policyId,decisionReason,decidedAt,createdAt,customer:{displayName,username}}]}` own tenant | 400, 403 | – | Policy requests |
+| POST `/tenant/policy-requests/:requestId/approve` | `{planName 2..100}` | `{request}` approved; creates an Active policy for the customer | 400, 404 (other tenant), 409 `already_decided`/`policy_already_linked` | `policy.link_approved` | Approve |
+| POST `/tenant/policy-requests/:requestId/reject` | `{reason 5..500}` | `{request}` rejected | 400, 404, 409 | `policy.link_rejected` | Decline |
 
 ## Customer
 
 | Method + path | Role / tenant rule | Request | Response 200/201 | Errors | State | Audit | Frontend |
 |---|---|---|---|---|---|---|---|
-| GET `/covers/my-covers` | CUSTOMER, own policies | – | `{policies:[{id,user_id,plan_name,status,tenant_id,insurer_name}]}` | 403 | – | – | `CoversRepository.myPolicies` |
+| GET `/covers/my-covers` | CUSTOMER, own policies | – | `{policies:[{id,user_id,plan_name,status,tenant_id,policy_number,insurer_name}]}` | 403 | – | – | `CoversRepository.myPolicies` |
+| GET `/covers/insurers` | CUSTOMER | – | `{insurers:[{id,name}]}` | 403 | – | – | `CoversRepository.insurers` |
+| GET `/covers/link-requests` | CUSTOMER, own requests | – | `{requests:[{id,tenantId,insurerName,policyNumber,status,policyId,decisionReason,decidedAt,createdAt}]}` | 403 | – | – | `CoversRepository.linkRequests` |
+| POST `/covers/link-requests` | CUSTOMER | `{tenantId, policyNumber ^[A-Za-z0-9-]{4,32}$}` | 201 `{request}` pending | 400, 403, 404 `unknown_insurer`, 409 `request_pending`/`policy_already_linked` | – | `cover.link_requested` | `CoversRepository.requestLink` |
 | GET `/covers/market-catalog` | any | – | `{catalog:[{id,provider,name,premium}]}` (static) | – | – | – | not used (UI keeps its static insurer list) |
-| GET `/claims?limit=` | CUSTOMER: own. ASSESSOR / MANAGER / INSURER_ADMIN: own tenant, no Drafts, no `user_id`. SUPERADMIN: all tenants, no Drafts, optional `tenantId` | – | `{claims:[{id,policy_id,tenant_id,stage,status,category,claimed_amount_cents,created_at,updated_at}]}` | 403 | – | denied only | `ClaimsRepository.list`, `InsurerRepository.queue` |
+| GET `/claims?limit=` | CUSTOMER: own. ASSESSOR / MANAGER / INSURER_ADMIN: own tenant, no Drafts, no `user_id`. SUPERADMIN: 403 | – | `{claims:[{id,policy_id,tenant_id,stage,status,category,claimed_amount_cents,created_at,updated_at}]}` | 403 | – | denied only | `ClaimsRepository.list`, `InsurerRepository.queue` |
 | POST `/claims/initiate` | CUSTOMER, owns an Active policy with a tenant | `{policyId, category?: Medical\|Vehicle\|Life\|Property\|Other}` | 201 `{status:"draft_created", claimId}` | 400, 422 `policy_not_eligible` | creates Draft | `claim.created` | `ClaimsRepository.create` |
 | POST `/claims/verify-eligibility` | CUSTOMER | `{policyId}` | `{verified, context:{isIdentityValid:null,isPolicyActive,waitingPeriodCleared:null}}` | 400 | – | – | wizard step 2 |
 | PATCH `/claims/:id/screening` | owner | `{causeOfLoss (1..2000), incidentDate}` | `{status:"screening_updated", message}` | 404, 409 `claim_not_editable` | Draft or Info Needed (Info Needed → Screening) | `claim.screening_updated` | `ClaimsRepository.describe` |
@@ -125,7 +149,7 @@ payout, evidence, decision/verify) and gets 403 on every claim action and on `/r
 | GET `/claims/:id/evidence` | owner or tenant staff | – | `{evidence:[{id,display_name,mime_type,size_bytes,sha256,created_at}]}` | 404 | – | – | claim detail |
 | GET `/claims/:id/evidence/:eid/verify` | owner or tenant staff | – | `{status:"VALID"\|"TAMPERED", evidenceId, expectedHash, actualHash}` | 404 | – | `evidence.integrity_verified` | insurer detail |
 | POST `/claims/:id/submit` | owner | – | `{status:"submitted", message, claimId}` | 404, 409, 422 `screening_incomplete` | Draft → Submitted | `claim.stage_changed` | `ClaimsRepository.submit` |
-| GET `/claims/:id` | owner, tenant staff (assessor, manager, insurer admin) or SUPERADMIN (not Draft for staff) | – | `{claim:{id,policyId,planName,tenantId,insurerName,stage,status,category,causeOfLoss,incidentDate,claimedAmountCents,payoutDestination:null\|{bankName,accountLast4},createdAt,updatedAt}}` | 404 | – | denied only | `ClaimsRepository.detail` |
+| GET `/claims/:id` | owner, tenant staff (assessor, manager, insurer admin) (not Draft for staff); SUPERADMIN 404 | – | `{claim:{id,policyId,planName,tenantId,insurerName,stage,status,category,causeOfLoss,incidentDate,claimedAmountCents,payoutDestination:null\|{bankName,accountLast4},createdAt,updatedAt}}` | 404 | – | denied only | `ClaimsRepository.detail` |
 | GET `/claims/:id/timeline` | owner or tenant staff | – | `{claimId, currentStage, timeline:[{stage, date\|null, completed}]}` (6 main stages) | 404 | – | – | claim tracking |
 | GET `/claims/:id/decision` | owner or tenant staff | – | `{decision:"Approved"\|"Rejected"\|"pending", record:null\|{id,decidedAt,decidedByRole,reason,approvedAmountCents,rulesVersion,evidenceDigest}}` | 404 | – | – | decision card |
 | GET `/claims/:id/decision/verify` | owner or tenant staff | – | `{claimId, decisionId\|null, integrity:{status, alg, keyId, bundleDigest, recomputedDigest}}`; status `VALID`/`TAMPERED`/`UNSIGNED`/`UNKNOWN_KEY`/`UNAVAILABLE`/`NO_DECISION` | 404 | – | `decision.integrity_verified` | integrity card |

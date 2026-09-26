@@ -3,7 +3,8 @@ import { PolicyModel } from '../models/policyModel'
 import type { AppEnv } from '../types'
 import { requireRole } from '../security/rbac'
 import { writeAuditEvent } from '../security/audit'
-import { joinRequestSchema, validate } from '../security/validation'
+import { joinRequestSchema, linkRequestSchema, validate } from '../security/validation'
+import { listInsurers, myLinkRequests, requestPolicyLink } from '../onboarding/service'
 
 const router = new Hono<AppEnv>()
 
@@ -21,6 +22,18 @@ router.get('/my-covers', requireRole('CUSTOMER'), async (c) => {
   return c.json({ policies })
 })
 
+// Policy linking: a customer who already holds a policy asks that insurer to link it (the insurer approves).
+router.get('/insurers', requireRole('CUSTOMER'), async (c) => c.json({ insurers: await listInsurers(c.env.DB) }))
+
+router.get('/link-requests', requireRole('CUSTOMER'), async (c) => c.json({ requests: await myLinkRequests(c.env.DB, c.get('actor').id) }))
+
+router.post('/link-requests', requireRole('CUSTOMER'), validate('json', linkRequestSchema), async (c) => {
+  const { tenantId, policyNumber } = c.req.valid('json')
+  const r = await requestPolicyLink(c, tenantId, policyNumber)
+  return r.ok ? c.json({ request: r.value }, 201) : c.json({ error: r.error }, r.status)
+})
+
+// Demo marketing only: a fixed catalogue; buying cover is out of scope (see docs/MOCKED_FEATURES.md).
 router.get('/market-catalog', (c) => c.json({ catalog: MARKET_CATALOG }))
 
 router.post('/join-request', requireRole('CUSTOMER'), validate('json', joinRequestSchema), async (c) => {

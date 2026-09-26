@@ -33,11 +33,12 @@ describe('tenant isolation', () => {
     expect(row).not.toContain('user123')
   })
 
-  it('TENANT-001b a SUPERADMIN token carrying a tenant is rejected outright (401); a real superadmin reads but never acts', async () => {
+  it('TENANT-001b a SUPERADMIN token carrying a tenant is rejected outright (401); a real superadmin neither reads nor acts on claims', async () => {
     const superWithTenant = { id: 'usr_superadmin', role: 'SUPERADMIN', tenantId: 'ins_discovery' }
     expect((await call('/claims/claim_disc_101/timeline', { as: superWithTenant })).status).toBe(401)
     expect((await call('/claims', { as: superWithTenant })).status).toBe(401)
-    expect((await call('/claims/claim_disc_101/timeline', { as: superadmin })).status).toBe(200)
+    // Platform operator (27 Sep 2026): aggregates only, never claim contents; 404 like any outsider.
+    expect((await call('/claims/claim_disc_101/timeline', { as: superadmin })).status).toBe(404)
     expect((await call('/claims/claim_disc_101/verify', { method: 'POST', as: superadmin })).status).toBe(403)
     expect((await call('/claims/claim_disc_101/risk-signals', { as: superadmin })).status).toBe(403)
     expect(await claimStage('claim_disc_101')).toMatchObject({ stage: 'Review' })
@@ -121,14 +122,9 @@ describe('tenant isolation', () => {
     const mine = (await (await call('/claims', { as: customerA })).json()) as { claims: { id: string }[] }
     expect(mine.claims.map((c) => c.id).sort()).toEqual(await idsWhere('user_id = ?', 'user123'))
     expect(JSON.stringify(mine.claims)).not.toContain('user_id')
-    // SUPERADMIN: platform-wide, read-only, Drafts excluded, no user_id, optional tenant filter
-    const all = (await (await call('/claims', { as: superadmin })).json()) as { claims: { id: string; tenant_id: string }[] }
-    expect(all.claims.map((c) => c.id).sort()).toEqual(
-      (await env.DB.prepare("SELECT id FROM claims WHERE stage <> 'Draft' ORDER BY id").all<{ id: string }>()).results.map((r) => r.id)
-    )
-    expect(JSON.stringify(all.claims)).not.toContain('user_id')
-    const onlyB = (await (await call('/claims?tenantId=ins_sanlam', { as: superadmin })).json()) as { claims: { id: string }[] }
-    expect(onlyB.claims.map((c) => c.id).sort()).toEqual(b.claims.map((c) => c.id).sort())
+    // SUPERADMIN: no claim list at all (platform operator sees aggregates on /admin/overview)
+    expect((await call('/claims', { as: superadmin })).status).toBe(403)
+    expect((await call('/claims?tenantId=ins_sanlam', { as: superadmin })).status).toBe(403)
     expect((await call('/claims?limit=500', { as: managerA })).status).toBe(400)
   })
 

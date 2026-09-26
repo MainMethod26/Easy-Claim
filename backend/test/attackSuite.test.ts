@@ -239,8 +239,9 @@ describe('role model: platform operator, insurer admin and tenant boundaries', (
     expect((await auditRows('authz.role_denied')).length).toBe(before + 7)
     expect((await claimStage(submitted))!.stage).toBe('Submitted')
     expect((await claimStage('claim_disc_101'))!.stage).toBe('Review')
-    // read-only access still works, Drafts stay private
-    expect((await call(`/claims/${submitted}`, { as: superadmin })).status).toBe(200)
+    // no read access either (platform operator, 27 Sep 2026); Drafts stay private
+    expect((await call(`/claims/${submitted}`, { as: superadmin })).status).toBe(404)
+    expect((await call(`/claims/${submitted}/evidence`, { as: superadmin })).status).toBe(404)
     const draft = await json(await call('/claims/initiate', { method: 'POST', as: customerA, json: { policyId: 'pol_disc_001' } }))
     expect((await call(`/claims/${draft.claimId}`, { as: superadmin })).status).toBe(404)
   })

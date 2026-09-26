@@ -67,6 +67,38 @@ Assessors deliberately cannot decide or pay (Phase 3 resolved that question). Th
 and pay — separation of duties is DECISION REQUIRED (`BACKEND-SEC-015`). Withdrawn and Expired exist in the state
 machine but have no endpoint or job yet.
 
+## 4b. Onboarding journeys (added 27 Sep 2026)
+
+**A new insurer joins.**
+1. The company fills in "Register your company" on the sign-in screen: name, FSP licence number, contact email,
+   and its first admin's username and password. Only a pending application is stored, with the password as a
+   PBKDF2 hash. No account exists yet.
+2. The platform operator (SUPERADMIN) reviews it and approves or rejects it with a reason.
+3. Approval creates the insurer and its INSURER_ADMIN in one database batch and clears the stored hash.
+   The admin signs in and adds assessors and managers.
+
+Gates:
+- one pending application per username and per FSP number;
+- a cap on open applications;
+- only a SUPERADMIN decides;
+- a decision happens once (a second one gets 409);
+- every step is audited.
+
+**A customer brings an existing policy.**
+1. The customer picks the insurer and enters the policy number.
+2. That insurer's admin approves (with the plan name from its own records) or declines (with a reason).
+3. Approval creates the policy for that customer. The claim journey in section 3 then works on it.
+
+Gates:
+- the user comes from the token, never the request;
+- another insurer's admin gets 404;
+- assessors, managers and the superadmin get 403;
+- a policy number can be linked once per insurer;
+- every step is audited.
+
+**The platform operator never sees a claim.** SUPERADMIN gets aggregate counts only (overview, security,
+integrity, audit). Every claim, evidence and signature URL returns 404, and `/claims` returns 403.
+
 ## 5. Attacker journeys and what stops them
 
 | Attack | Where it hits | Result | Proof |

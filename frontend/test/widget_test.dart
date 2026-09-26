@@ -4,12 +4,11 @@ import 'package:easyclaim/data/models/api_models.dart';
 import 'package:easyclaim/screens/auth_screen.dart';
 import 'package:easyclaim/screens/easy_claim_home_screen.dart';
 import 'package:easyclaim/screens/admin/insurer_claim_details_screen.dart';
-import 'package:easyclaim/screens/admin/insurer_dashboard_screen.dart';
 import 'package:easyclaim/screens/admin/insurer_team_screen.dart';
 import 'package:easyclaim/screens/register_screen.dart';
 import 'package:easyclaim/screens/superadmin/superadmin_accounts_screen.dart';
 import 'package:easyclaim/screens/superadmin/superadmin_dashboard_screen.dart';
-import 'package:easyclaim/screens/superadmin/superadmin_shell.dart';
+import 'package:easyclaim/screens/console/role_consoles.dart';
 import 'package:easyclaim/screens/splash_screen.dart';
 import 'package:easyclaim/widgets/claims_wizard_modal.dart';
 import 'package:easyclaim/widgets/easy_claim_nav_bar.dart';
@@ -84,9 +83,10 @@ void main() {
         await tester.enterText(find.byKey(const Key('field-Password')), '1234567');
         await tester.tap(find.text('Sign In to EasyClaim'));
         await _settle(tester);
-        expect(find.byType(InsurerDashboardScreen), findsOneWidget, reason: role);
+        expect(find.byType(ClaimStaffConsole), findsOneWidget, reason: role);
         expect(find.text('Team'), findsNothing, reason: role);
-        expect(find.textContaining('Claim queue'), findsOneWidget, reason: role);
+        expect(find.text('Overview'), findsNothing, reason: role);
+        expect(find.text('My queue'), findsWidgets, reason: role);
       }
     });
 
@@ -96,27 +96,34 @@ void main() {
       backend.on('GET /tenant', {'tenant': {'id': 'ins_discovery', 'name': 'Discovery'}});
       backend.on('GET /tenant/stats', {'tenantId': 'ins_discovery', 'claims': {'total': 0, 'byStage': {}}});
       backend.on('GET /tenant/users', {'users': []});
+      backend.on('GET /tenant/overview', {'tenant': {'id': 'ins_discovery', 'name': 'Discovery Health'}, 'claims': {'total': 0, 'open': 0, 'byStage': {}}});
       await tester.pumpWidget(_app(const AuthScreen()));
       await tester.enterText(find.byKey(const Key('field-Username')), 'admin_discovery');
       await tester.enterText(find.byKey(const Key('field-Password')), '1234567');
       await tester.tap(find.text('Sign In to EasyClaim'));
       await _settle(tester);
-      expect(find.byType(InsurerDashboardScreen), findsOneWidget);
-      expect(find.text('No submitted claims for your insurer yet.'), findsOneWidget);
-      expect(find.text('Team'), findsOneWidget);
-      expect(find.textContaining('Claims (read-only)'), findsOneWidget);
+      expect(find.byType(InsurerAdminConsole), findsOneWidget);
+      expect(find.text('Discovery Health'), findsOneWidget);
+      for (final dest in ['Overview', 'Claims', 'Team', 'Audit log']) {
+        expect(find.text(dest), findsWidgets, reason: dest);
+      }
+      expect(find.text('Security'), findsNothing);
     });
 
     testWidgets('superadmin is routed to the platform portal', (tester) async {
       backend.on('POST /auth/login', loginBody('usr_superadmin', 'superadmin', 'SUPERADMIN', name: 'EasyClaim Platform Admin'));
-      backend.on('GET /admin/stats', {'tenants': 5, 'usersByRole': {'CUSTOMER': 3, 'INSURER_ADMIN': 2, 'SUPERADMIN': 1}, 'claims': {'total': 5, 'byStage': {'Review': 1, 'Submitted': 1}}, 'perTenant': []});
+      backend.on('GET /admin/overview', {'tenants': 5, 'windowDays': 30, 'usersByRole': {'CUSTOMER': 3, 'INSURER_ADMIN': 2, 'SUPERADMIN': 1}, 'claims': {'total': 5, 'open': 2, 'byStage': {'Review': 1, 'Submitted': 1}}, 'perTenant': []});
       await tester.pumpWidget(_app(const AuthScreen()));
       await tester.enterText(find.byKey(const Key('field-Username')), 'superadmin');
       await tester.enterText(find.byKey(const Key('field-Password')), '1234567');
       await tester.tap(find.text('Sign In to EasyClaim'));
       await _settle(tester);
-      expect(find.byType(SuperadminShell), findsOneWidget);
-      expect(find.textContaining('Platform overview'), findsOneWidget);
+      expect(find.byType(SuperadminConsole), findsOneWidget);
+      expect(find.text('Platform overview'), findsOneWidget);
+      for (final dest in ['Applications', 'Insurers', 'Insurer admins', 'Security', 'Integrity', 'Audit log']) {
+        expect(find.text(dest), findsWidgets, reason: dest);
+      }
+      expect(find.text('Team'), findsNothing);
     });
 
     testWidgets('register screen validates locally, then posts to /auth/register and shows backend errors', (tester) async {

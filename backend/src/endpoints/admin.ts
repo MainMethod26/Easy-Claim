@@ -6,7 +6,16 @@ import { requireRole } from '../security/rbac'
 import { hashPassword } from '../security/password'
 import {
   adminCreateUserSchema,
+  applicationIdParam,
+  applicationStatusQuerySchema,
+  approveApplicationSchema,
+  approveLinkSchema,
+  linkRequestIdParam,
+  rejectSchema,
   createTenantSchema,
+  metricsQuerySchema,
+  platformAuditQuerySchema,
+  tenantAuditQuerySchema,
   tenantCreateUserSchema,
   tenantQuerySchema,
   userIdParam,
@@ -14,12 +23,21 @@ import {
   validate,
 } from '../security/validation'
 import { findUserById, findUserByUsername, publicUser, type UserRow } from './auth'
+import {
+  approveApplication,
+  approvePolicyLink,
+  listApplications,
+  rejectApplication,
+  rejectPolicyLink,
+  tenantLinkRequests,
+} from '../onboarding/service'
+import { auditPage, platformIntegrity, platformOverview, platformSecurity, tenantOverview } from '../admin/metrics'
 
 /**
  * Platform and tenant administration (team role model, 26 Sep 2026).
  *
  * /api/v1/admin/*   SUPERADMIN only: insurers (tenants), insurer-admin accounts, platform statistics.
- *                   Read-only on claims (the claim routes enforce that). SUPERADMIN accounts are never
+ *                   No claim access at all (platform operator: aggregates, onboarding, security). SUPERADMIN accounts are never
  *                   created or re-enabled through the API (bootstrap: scripts/seed-demo-users.mjs).
  * /api/v1/tenant/*  INSURER_ADMIN only: staff accounts (ASSESSOR, MANAGER, INSURER_ADMIN) and statistics
  *                   of its own tenant. The tenant is always the token's tenant_id; a tenantId in the body
@@ -126,9 +144,10 @@ superadmin.post('/tenants', validate('json', createTenantSchema), async (c) => {
 
 superadmin.get('/users', validate('query', tenantQuerySchema), async (c) => {
   const { tenantId } = c.req.valid('query')
+  // The platform operator manages insurer admins only; each insurer admin manages its own staff.
   const users = tenantId
-    ? await listUsers(c.env.DB, 'WHERE tenant_id = ?', [tenantId])
-    : await listUsers(c.env.DB, "WHERE role <> 'CUSTOMER'", [])
+    ? await listUsers(c.env.DB, "WHERE role = 'INSURER_ADMIN' AND tenant_id = ?", [tenantId])
+    : await listUsers(c.env.DB, "WHERE role IN ('INSURER_ADMIN', 'SUPERADMIN')", [])
   return c.json({ users })
 })
 
@@ -143,7 +162,52 @@ superadmin.patch('/users/:userId', validate('param', userIdParam), validate('jso
   if (!user) return c.json(notFound, 404)
   // Platform accounts are managed outside the API; customers are not administered here.
   if (user.role === 'SUPERADMIN' && user.id !== c.get('actor').id) return c.json({ error: 'superadmin_managed_offline' }, 409)
+  // Assessors, managers and customers are not the platform operator's to manage.
+  if (user.role !== 'INSURER_ADMIN' && user.role !== 'SUPERADMIN') return c.json(notFound, 404)
   return setUserStatus(c, user, c.req.valid('json').status, 'admin.user_status_changed')
+})
+
+// Read-only dashboards (src/admin/metrics.ts, docs/admin/METRICS.md). Handlers stay thin: scope
+// comes from the verified actor, the service only runs SELECTs and returns DTOs.
+superadmin.get('/overview', validate('query', metricsQuerySchema), async (c) =>
+  c.json(await platformOverview(c.env.DB, c.req.valid('query').days))
+)
+
+superadmin.get('/security', validate('query', metricsQuerySchema), async (c) =>
+  c.json(await platformSecurity(c.env.DB, c.req.valid('query').days))
+)
+
+superadmin.get('/integrity', validate('query', metricsQuerySchema), async (c) =>
+  c.json(await platformIntegrity(c.env.DB, c.req.valid('query').days))
+)
+
+superadmin.get('/audit', validate('query', platformAuditQuerySchema), async (c) => {
+  const q = c.req.valid('query')
+  const page = await auditPage(c.env.DB, null, q)
+  // Reading the audit trail is itself recorded (who looked, with which filters).
+  await writeAuditEvent(c, {
+    action: 'admin.audit_viewed',
+    resourceType: 'audit_log',
+    resourceId: q.tenantId ?? 'platform',
+    outcome: 'success',
+    details: { outcome: q.outcome ?? null, action: q.action ?? null, rows: page.events.length },
+  })
+  return c.json(page)
+})
+
+// Insurer onboarding: review applications from the public form (src/onboarding/service.ts).
+superadmin.get('/applications', validate('query', applicationStatusQuerySchema), async (c) =>
+  c.json({ applications: await listApplications(c.env.DB, c.req.valid('query').status) })
+)
+
+superadmin.post('/applications/:applicationId/approve', validate('param', applicationIdParam), validate('json', approveApplicationSchema), async (c) => {
+  const r = await approveApplication(c, c.req.valid('param').applicationId, c.req.valid('json').tenantId)
+  return r.ok ? c.json({ application: r.value }) : c.json({ error: r.error }, r.status)
+})
+
+superadmin.post('/applications/:applicationId/reject', validate('param', applicationIdParam), validate('json', rejectSchema), async (c) => {
+  const r = await rejectApplication(c, c.req.valid('param').applicationId, c.req.valid('json').reason)
+  return r.ok ? c.json({ application: r.value }) : c.json({ error: r.error }, r.status)
 })
 
 superadmin.get('/stats', async (c) => {
@@ -185,4 +249,37 @@ tenantAdmin.patch('/users/:userId', validate('param', userIdParam), validate('js
 
 tenantAdmin.get('/stats', async (c) => {
   return c.json({ tenantId: c.get('actor').tenantId, claims: await claimsByStage(c.env.DB, c.get('actor').tenantId) })
+})
+
+tenantAdmin.get('/overview', validate('query', metricsQuerySchema), async (c) =>
+  c.json(await tenantOverview(c.env.DB, c.get('actor').tenantId as string, c.req.valid('query').days))
+)
+
+tenantAdmin.get('/audit', validate('query', tenantAuditQuerySchema), async (c) => {
+  const q = c.req.valid('query')
+  const tenantId = c.get('actor').tenantId as string
+  const page = await auditPage(c.env.DB, tenantId, q)
+  await writeAuditEvent(c, {
+    action: 'tenant.audit_viewed',
+    resourceType: 'audit_log',
+    resourceId: tenantId,
+    outcome: 'success',
+    details: { outcome: q.outcome ?? null, action: q.action ?? null, rows: page.events.length },
+  })
+  return c.json(page)
+})
+
+// Policy linking: customers' requests to link an existing policy at this insurer. Tenant from the token.
+tenantAdmin.get('/policy-requests', validate('query', applicationStatusQuerySchema), async (c) =>
+  c.json({ requests: await tenantLinkRequests(c.env.DB, c.get('actor').tenantId as string, c.req.valid('query').status) })
+)
+
+tenantAdmin.post('/policy-requests/:requestId/approve', validate('param', linkRequestIdParam), validate('json', approveLinkSchema), async (c) => {
+  const r = await approvePolicyLink(c, c.get('actor').tenantId as string, c.req.valid('param').requestId, c.req.valid('json').planName)
+  return r.ok ? c.json({ request: r.value }) : c.json({ error: r.error }, r.status)
+})
+
+tenantAdmin.post('/policy-requests/:requestId/reject', validate('param', linkRequestIdParam), validate('json', rejectSchema), async (c) => {
+  const r = await rejectPolicyLink(c, c.get('actor').tenantId as string, c.req.valid('param').requestId, c.req.valid('json').reason)
+  return r.ok ? c.json({ request: r.value }) : c.json({ error: r.error }, r.status)
 })

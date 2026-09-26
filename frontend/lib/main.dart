@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'core/theme/ec_theme.dart';
 import 'screens/splash_screen.dart';
 import 'services/config_service.dart';
 
@@ -35,17 +35,9 @@ class EasyClaimApp extends StatelessWidget {
     return MaterialApp(
       title: 'EasyClaim',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: Colors.white,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFFF5500),
-          surface: Colors.white,
-        ),
-        textTheme: GoogleFonts.plusJakartaSansTextTheme(
-          ThemeData.light().textTheme,
-        ),
-      ),
+      // One theme for every role (docs/admin/DESIGN_BRIEF.md). Customer screens keep their own
+      // white surfaces; staff consoles use the theme's neutral page background.
+      theme: EcTheme.light().copyWith(scaffoldBackgroundColor: Colors.white),
       home: initialScreen ?? const SplashScreen(autoAdvance: false),
     );
   }

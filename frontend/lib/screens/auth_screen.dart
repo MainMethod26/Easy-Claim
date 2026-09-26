@@ -5,10 +5,10 @@ import '../data/repositories/repositories.dart';
 import '../widgets/easy_claim_logo.dart';
 import '../widgets/neumorphic_button.dart';
 import '../widgets/picture_background.dart';
-import 'admin/insurer_dashboard_screen.dart';
 import 'main_navigation_screen.dart';
+import 'insurer_application_screen.dart';
 import 'register_screen.dart';
-import 'superadmin/superadmin_shell.dart';
+import 'console/role_consoles.dart';
 
 /// Demo accounts seeded into a LOCAL backend (docs/DEMO_RUNBOOK.md). Shown as a hint only;
 /// the app never stores or sends anything but what the user types.
@@ -25,10 +25,15 @@ const demoAccountHints = <(String, String)>[
 ];
 
 /// Where each role lands after signing in. Routing is UX only; the backend authorizes every call.
+/// This is the app's single role router: one sign-in, one session, one API client, and one
+/// shell per role (docs/admin/ROLE_MATRIX.md).
 Widget homeFor(AuthActor actor) {
-  if (actor.isSuperadmin) return const SuperadminShell();
-  if (actor.isInsurerAdmin || actor.isClaimStaff) return const InsurerDashboardScreen();
-  return const MainNavigationScreen();
+  if (actor.isSuperadmin) return const SuperadminConsole();
+  if (actor.isInsurerAdmin) return const InsurerAdminConsole();
+  if (actor.isClaimStaff) return const ClaimStaffConsole();
+  if (actor.isCustomer) return const MainNavigationScreen();
+  // Unknown role: no screens at all.
+  return const AuthScreen();
 }
 
 class AuthScreen extends StatefulWidget {
@@ -195,6 +200,13 @@ class _AuthScreenState extends State<AuthScreen> {
             onPressed: _busy ? null : _openRegister,
             child: const Text('New to EasyClaim? Create account',
                 style: TextStyle(color: Color(0xFFFF5500), fontWeight: FontWeight.w700)),
+          ),
+        ),
+        Center(
+          child: TextButton(
+            key: const Key('insurer-apply'),
+            onPressed: _busy ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InsurerApplicationScreen())),
+            child: const Text('Are you an insurer? Register your company', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
           ),
         ),
       ],

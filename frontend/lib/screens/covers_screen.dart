@@ -5,6 +5,7 @@ import '../providers/covers_provider.dart';
 import '../services/logo_dev_service.dart';
 import '../widgets/aurora_background.dart';
 import 'admin/insurer_profile_screen.dart';
+import 'link_policy_screen.dart';
 import 'policy_details_screen.dart';
 
 /// Covers Screen
@@ -171,16 +172,22 @@ class _CoversScreenState extends State<CoversScreen> {
     );
   }
 
+  /// Link an existing policy (the insurer approves), then refresh the list.
+  Future<void> _openLinkPolicy() async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const LinkPolicyScreen()));
+    await _provider.refresh();
+  }
+
   Widget _buildMyCoversView() {
     if (_provider.isLoading && _provider.myPolicies.isEmpty) return const LoadingView(message: 'Loading your policies…');
     if (_provider.error != null) return ErrorView(error: _provider.error!, onRetry: _provider.refresh);
     final policies = _provider.myPolicies;
     if (policies.isEmpty) {
       return EmptyView(
-        message: "You don't have any policies on EasyClaim yet.",
+        message: "You don't have any policies on EasyClaim yet. Already insured? Link your policy.",
         icon: Icons.shield_outlined,
-        actionLabel: 'See partner insurers',
-        onAction: () => _provider.setTabIndex(1),
+        actionLabel: 'Link a policy',
+        onAction: _openLinkPolicy,
       );
     }
     return RefreshIndicator(
@@ -189,7 +196,15 @@ class _CoversScreenState extends State<CoversScreen> {
         physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
-          const Text('Your policies', style: TextStyle(color: Color(0xFF0F172A), fontSize: 18, fontWeight: FontWeight.w800)),
+          Row(children: [
+            const Expanded(child: Text('Your policies', style: TextStyle(color: Color(0xFF0F172A), fontSize: 18, fontWeight: FontWeight.w800))),
+            TextButton.icon(
+              key: const Key('link-policy'),
+              onPressed: _openLinkPolicy,
+              icon: const Icon(Icons.link, size: 18),
+              label: const Text('Link a policy'),
+            ),
+          ]),
           const SizedBox(height: 10),
           ...policies.map(_buildPolicyCard),
         ],
