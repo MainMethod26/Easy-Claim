@@ -15,6 +15,8 @@ describe('object property authorization (mass assignment)', () => {
     { decision: 'approve' },
     { approvedBy: 'manager1' },
     { user_id: 'user456' },
+    { tenantId: 'ins_sanlam' },
+    { tenant_id: 'ins_sanlam' },
   ])('screening rejects privileged field %o', async (extra) => {
     const claimId = await newDraft()
     const res = await call(`/claims/${claimId}/screening`, {
@@ -23,17 +25,23 @@ describe('object property authorization (mass assignment)', () => {
       json: { causeOfLoss: 'Accident', incidentDate: '2026-01-10', ...extra },
     })
     expect(res.status).toBe(400)
-    const row = await env.DB.prepare('SELECT stage, status, user_id FROM claims WHERE id = ?').bind(claimId).first()
-    expect(row).toEqual({ stage: 'Draft', status: 'Pending', user_id: 'user123' })
+    const row = await env.DB.prepare('SELECT stage, status, user_id, tenant_id FROM claims WHERE id = ?').bind(claimId).first()
+    expect(row).toEqual({ stage: 'Draft', status: 'Pending', user_id: 'user123', tenant_id: 'ins_discovery' })
   })
 
-  it('initiate rejects client-set stage/userId', async () => {
-    const res = await call('/claims/initiate', {
-      method: 'POST',
-      as: customerA,
-      json: { policyId: 'pol_disc_001', stage: 'Paid', userId: 'user456' },
-    })
+  it.each([
+    { stage: 'Paid', userId: 'user456' },
+    { tenantId: 'ins_sanlam' },
+    { tenant_id: 'ins_sanlam' },
+  ])('initiate rejects client-set %o', async (extra) => {
+    const res = await call('/claims/initiate', { method: 'POST', as: customerA, json: { policyId: 'pol_disc_001', ...extra } })
     expect(res.status).toBe(400)
+  })
+
+  it('initiate derives tenant_id from the policy, never from the request', async () => {
+    const claimId = await newDraft()
+    const row = await env.DB.prepare('SELECT tenant_id FROM claims WHERE id = ?').bind(claimId).first()
+    expect(row).toEqual({ tenant_id: 'ins_discovery' })
   })
 
   it('join-request rejects a client-supplied userId and does not echo the body', async () => {

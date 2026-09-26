@@ -62,6 +62,21 @@ describe('API hardening', () => {
     expect(res.status).toBe(429)
   })
 
+  it('rate limits per IP before auth and per actor after auth', async () => {
+    const keys: string[] = []
+    const recording = { limit: async ({ key }: { key: string }) => ((keys.push(key), { success: true })) } as unknown as RateLimit
+    await call('/covers/market-catalog', { as: customerA, env: { RATE_LIMITER: recording } })
+    expect(keys).toEqual(['unknown', 'actor:CUSTOMER:user123'])
+
+    // an authenticated actor over their own limit is refused even when the IP limit passes
+    const denyActor = { limit: async ({ key }: { key: string }) => ({ success: !key.startsWith('actor:') }) } as unknown as RateLimit
+    expect((await call('/covers/market-catalog', { as: customerA, env: { RATE_LIMITER: denyActor } })).status).toBe(429)
+    // unauthenticated requests never reach the actor limiter
+    keys.length = 0
+    await call('/covers/market-catalog', { env: { RATE_LIMITER: recording } })
+    expect(keys).toEqual(['unknown'])
+  })
+
   it('rate limit binding is configured', () => {
     expect(env.RATE_LIMITER).toBeDefined()
   })

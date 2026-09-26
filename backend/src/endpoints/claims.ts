@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import type { AppEnv } from '../types'
+import { INSURER_ROLES, type AppEnv } from '../types'
 import { requireRole } from '../security/rbac'
 import { writeAuditEvent } from '../security/audit'
 import { loadAuthorizedClaim, transitionClaim } from '../security/claimAccess'
@@ -8,24 +8,57 @@ import {
   appealSchema,
   claimIdParam,
   initiateClaimSchema,
+  listQuerySchema,
   screeningSchema,
   validate,
   verifyEligibilitySchema,
 } from '../security/validation'
 
+// Customer-side claim routes. Insurer-side transitions live in claimsInsurer.ts.
 const router = new Hono<AppEnv>()
 
 const notFound = { error: 'not_found' } as const
 
 async function findOwnedPolicy(db: D1Database, policyId: string, userId: string) {
   return db
-    .prepare('SELECT id, status FROM policies WHERE id = ? AND user_id = ?')
+    .prepare('SELECT id, status, tenant_id FROM policies WHERE id = ? AND user_id = ?')
     .bind(policyId, userId)
-    .first<{ id: string; status: string }>()
+    .first<{ id: string; status: string; tenant_id: string | null }>()
 }
 
 // General status check
 router.get('/status', (c) => c.json({ status: 'active' }))
+
+// List claims visible to the actor: a customer sees their own, insurer staff see their tenant's.
+router.get('/', validate('query', listQuerySchema), async (c) => {
+  const actor = c.get('actor')
+  const { limit } = c.req.valid('query')
+
+  if (actor.role === 'CUSTOMER') {
+    const { results } = await c.env.DB.prepare(
+      `SELECT id, policy_id, tenant_id, stage, status, category, created_at, updated_at
+       FROM claims WHERE user_id = ? ORDER BY created_at DESC, id LIMIT ?`
+    )
+      .bind(actor.id, limit)
+      .all()
+    return c.json({ claims: results })
+  }
+
+  if (INSURER_ROLES.includes(actor.role) && actor.tenantId !== null) {
+    // Drafts are not yet shared with the insurer. user_id is a platform-wide customer id
+    // and is not exposed to tenant staff (DECISION REQUIRED: per-tenant claimant reference).
+    const { results } = await c.env.DB.prepare(
+      `SELECT id, policy_id, tenant_id, stage, status, category, created_at, updated_at
+       FROM claims WHERE tenant_id = ? AND stage <> 'Draft' ORDER BY created_at DESC, id LIMIT ?`
+    )
+      .bind(actor.tenantId, limit)
+      .all()
+    return c.json({ claims: results })
+  }
+
+  await writeAuditEvent(c, { action: 'authz.role_denied', resourceType: 'route', resourceId: 'GET /claims', outcome: 'denied' })
+  return c.json({ error: 'forbidden' }, 403)
+})
 
 // Wizard Step 2: Verification Check
 // Only policy ownership + Active status can be verified today. Identity and
@@ -47,13 +80,20 @@ router.post('/initiate', requireRole('CUSTOMER'), validate('json', initiateClaim
   const { policyId, category } = c.req.valid('json')
 
   const policy = await findOwnedPolicy(c.env.DB, policyId, actor.id)
-  if (!policy || policy.status !== 'Active') {
+  const reason = !policy
+    ? 'policy_not_owned'
+    : policy.status !== 'Active'
+      ? 'policy_not_active'
+      : policy.tenant_id === null
+        ? 'policy_missing_tenant'
+        : null
+  if (!policy || reason) {
     await writeAuditEvent(c, {
       action: 'claim.initiate_rejected',
       resourceType: 'policy',
       resourceId: policyId,
       outcome: 'denied',
-      details: { reason: policy ? 'policy_not_active' : 'policy_not_owned' },
+      details: { reason },
     })
     return c.json({ error: 'policy_not_eligible' }, 422)
   }
@@ -61,11 +101,12 @@ router.post('/initiate', requireRole('CUSTOMER'), validate('json', initiateClaim
   // Unguessable ID (previously claim_${Date.now()}, which was enumerable).
   const claimId = `claim_${crypto.randomUUID()}`
   const now = new Date().toISOString()
+  // tenant_id is copied from the policy's insurer, never taken from the client.
   await c.env.DB.prepare(
-    `INSERT INTO claims (id, user_id, policy_id, stage, status, category, created_at, updated_at)
-     VALUES (?, ?, ?, 'Draft', 'Pending', ?, ?, ?)`
+    `INSERT INTO claims (id, user_id, policy_id, tenant_id, stage, status, category, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'Draft', 'Pending', ?, ?, ?)`
   )
-    .bind(claimId, actor.id, policyId, category ?? null, now, now)
+    .bind(claimId, actor.id, policyId, policy.tenant_id, category ?? null, now, now)
     .run()
 
   await writeAuditEvent(c, {
@@ -73,7 +114,7 @@ router.post('/initiate', requireRole('CUSTOMER'), validate('json', initiateClaim
     resourceType: 'claim',
     resourceId: claimId,
     outcome: 'success',
-    details: { policyId },
+    details: { policyId, tenantId: policy.tenant_id },
   })
   return c.json({ status: 'draft_created', claimId }, 201)
 })
@@ -93,9 +134,14 @@ router.patch(
     }
 
     const { causeOfLoss, incidentDate } = c.req.valid('json')
-    await c.env.DB.prepare('UPDATE claims SET cause_of_loss = ?, incident_date = ?, updated_at = ? WHERE id = ?')
+    // The stage precondition is repeated in SQL so a concurrent transition cannot slip in
+    // between the read above and this write.
+    const written = await c.env.DB.prepare(
+      "UPDATE claims SET cause_of_loss = ?, incident_date = ?, updated_at = ? WHERE id = ? AND stage IN ('Draft', 'Info Needed')"
+    )
       .bind(causeOfLoss, incidentDate, new Date().toISOString(), claim.id)
       .run()
+    if (written.meta.changes !== 1) return c.json({ error: 'claim_not_editable' }, 409)
     await writeAuditEvent(c, {
       action: 'claim.screening_updated',
       resourceType: 'claim',
@@ -175,6 +221,8 @@ router.get('/:claimId/timeline', validate('param', claimIdParam), async (c) => {
     if (to) reachedAt.set(to, row.occurred_at)
   }
 
+  // A stage counts as completed when the audit trail shows it was reached, or when the claim
+  // is currently at or beyond it on the main path (seeded claims have no audit history).
   const currentIndex = MAIN_PATH.indexOf(claim.stage as (typeof MAIN_PATH)[number])
   return c.json({
     claimId: claim.id,
@@ -182,7 +230,7 @@ router.get('/:claimId/timeline', validate('param', claimIdParam), async (c) => {
     timeline: MAIN_PATH.map((stage, i) => ({
       stage,
       date: reachedAt.get(stage) ?? null,
-      completed: currentIndex >= 0 && i <= currentIndex,
+      completed: reachedAt.has(stage) || (currentIndex >= 0 && i <= currentIndex),
     })),
   })
 })

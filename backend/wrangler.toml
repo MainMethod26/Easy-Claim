@@ -30,3 +30,8 @@ namespace_id = "1001"
 [vars]
 # No cross-origin browser access unless explicitly listed (comma-separated).
 ALLOWED_ORIGINS = ""
+# Expected JWT issuer / audience (see src/security/actor.ts). Change per environment.
+JWT_ISSUER = "easyclaim-dev"
+JWT_AUDIENCE = "easyclaim-api"
+# JWT_SECRET is a SECRET, never a var: `wrangler secret put JWT_SECRET` (deployed)
+# or backend/.dev.vars (local, gitignored). The API refuses every request without it.

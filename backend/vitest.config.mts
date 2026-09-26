@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-plugin'
 import { defineConfig } from 'vitest/config'
@@ -15,8 +16,11 @@ export default defineConfig(async () => {
           bindings: {
             TEST_MIGRATIONS: migrations,
             TEST_SEED_SQL: seedSql,
-            // Tests exercise authorization through the dev actor stub.
-            ALLOW_DEV_ACTOR_HEADERS: 'true',
+            // Fresh test-only signing secret per run; tests mint real HS256 tokens with it
+            // (test/helpers.ts reads env.JWT_SECRET), so no secret-shaped literal is committed.
+            JWT_SECRET: randomBytes(32).toString('hex'),
+            JWT_ISSUER: 'easyclaim-test',
+            JWT_AUDIENCE: 'easyclaim-api',
             ALLOWED_ORIGINS: 'http://localhost:5173',
           },
         },

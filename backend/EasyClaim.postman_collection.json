@@ -1,141 +1,33 @@
 {
   "info": {
     "_postman_id": "b3e34b5c-43f5-46b5-827c-473d092d603a",
-    "name": "EasyClaim Microservices API (SA Edition)",
-    "description": "Postman collection testing the full 6-stage EasyClaim wizard and Home UI components.",
+    "name": "EasyClaim API (Phase 1: bearer tokens + tenants)",
+    "description": "Local demo collection. Setup:\n1. cd backend && npm run setup:local && npm run db:migrate:local && npm run db:seed:local && npm run dev\n2. npm run token -- --postman   (writes backend/postman/EasyClaim.local.postman_environment.json, gitignored)\n3. Import that file in Postman as an environment and select it. It holds baseUrl and one token per demo actor.\nTokens are signed locally with the JWT_SECRET from backend/.dev.vars; the secret itself never enters Postman.\nFolders 0, 5, 6 and 7 are attack demonstrations; each request description states the expected response.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
-  "item": [
+  "variable": [
     {
-      "name": "1. Gateway & BFF Service",
-      "item": [
-        {
-          "name": "Get Home Data",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/client/home",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "client",
-                "home"
-              ]
-            },
-            "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              }
-            ]
-          }
-        },
-        {
-          "name": "Get Most Visited",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/client/services/most-visited",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "client",
-                "services",
-                "most-visited"
-              ]
-            },
-            "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              }
-            ]
-          }
-        },
-        {
-          "name": "Get Notifications",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/client/notifications",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "client",
-                "notifications"
-              ]
-            },
-            "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              }
-            ]
-          }
-        },
-        {
-          "name": "Get Recent Activity",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/client/activity/recent",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "client",
-                "activity",
-                "recent"
-              ]
-            },
-            "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              }
-            ]
-          }
-        }
-      ]
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8787"
     },
     {
-      "name": "2. Policy Service",
+      "key": "claimId",
+      "value": "claim_disc_101"
+    }
+  ],
+  "item": [
+    {
+      "name": "0 - Unauthenticated (expect 401)",
+      "description": "No token, or the retired Phase 0 dev headers. Every /api/v1 route must answer 401.",
+      "auth": {
+        "type": "noauth"
+      },
       "item": [
         {
-          "name": "Get My Covers",
+          "name": "GET my-covers without a token",
           "request": {
             "method": "GET",
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/covers/my-covers",
               "host": [
@@ -148,23 +40,104 @@
                 "my-covers"
               ]
             },
-            "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              }
-            ]
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Expected: 401 {\"error\":\"unauthenticated\"}"
           }
         },
         {
-          "name": "Market Catalog",
+          "name": "GET my-covers with retired X-Dev-Actor headers",
           "request": {
             "method": "GET",
+            "header": [
+              {
+                "key": "X-Dev-Actor-Id",
+                "value": "user123"
+              },
+              {
+                "key": "X-Dev-Actor-Role",
+                "value": "MANAGER"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/covers/my-covers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "covers",
+                "my-covers"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Expected: 401 - dev headers are no longer honoured"
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 - Customer A (user123)",
+      "description": "Platform-level customer; owns claim_disc_101 (Discovery) and claim_sanlam_102 (Sanlam). Token: {{token_customer_a}}.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token_customer_a}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "GET home",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/client/home",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "client",
+                "home"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET my covers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/covers/my-covers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "covers",
+                "my-covers"
+              ]
+            },
+            "description": "Expected: only user123 policies"
+          }
+        },
+        {
+          "name": "GET market catalog",
+          "request": {
+            "method": "GET",
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/covers/market-catalog",
               "host": [
@@ -176,43 +149,19 @@
                 "covers",
                 "market-catalog"
               ]
-            },
-            "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              }
-            ]
+            }
           }
         },
         {
-          "name": "Join Request",
+          "name": "POST join request",
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"planId\": \"cat_02\"\n}"
-            },
             "url": {
               "raw": "{{baseUrl}}/api/v1/covers/join-request",
               "host": [
@@ -224,55 +173,48 @@
                 "covers",
                 "join-request"
               ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": \"cat_02\"\n}"
             }
           }
-        }
-      ]
-    },
-    {
-      "name": "3. Claims Wizard (6-Stage Flow)",
-      "item": [
+        },
         {
-          "name": "Step 1: Initiate (Category)",
+          "name": "GET my claims",
           "request": {
-            "method": "POST",
+            "method": "GET",
+            "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/claims/initiate",
+              "raw": "{{baseUrl}}/api/v1/claims?limit=20",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "claims",
-                "initiate"
+                "claims"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
               ]
             },
+            "description": "Expected: claims owned by user123 across all insurers"
+          }
+        },
+        {
+          "name": "POST verify eligibility",
+          "request": {
+            "method": "POST",
             "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"policyId\": \"pol_disc_001\"\n}"
-            }
-          }
-        },
-        {
-          "name": "Step 2: Verification Check",
-          "request": {
-            "method": "POST",
             "url": {
               "raw": "{{baseUrl}}/api/v1/claims/verify-eligibility",
               "host": [
@@ -285,21 +227,6 @@
                 "verify-eligibility"
               ]
             },
-            "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"policyId\": \"pol_disc_001\"\n}"
@@ -307,11 +234,17 @@
           }
         },
         {
-          "name": "Step 3: Screening Context",
+          "name": "POST initiate claim (Draft)",
           "request": {
-            "method": "PATCH",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/screening",
+              "raw": "{{baseUrl}}/api/v1/claims/initiate",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -319,25 +252,39 @@
                 "api",
                 "v1",
                 "claims",
-                "claim_disc_101",
-                "screening"
+                "initiate"
               ]
             },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"policyId\": \"pol_disc_001\",\n  \"category\": \"Medical\"\n}"
+            },
+            "description": "Expected: 201 with a new claimId - copy it into the claimId variable for the wizard steps below"
+          }
+        },
+        {
+          "name": "PATCH screening",
+          "request": {
+            "method": "PATCH",
             "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/screening",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "screening"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"causeOfLoss\": \"Hospital admission after a fall\",\n  \"incidentDate\": \"2026-01-10\"\n}"
@@ -345,11 +292,12 @@
           }
         },
         {
-          "name": "Step 4: Evidence Upload (OCR)",
+          "name": "POST evidence (queues OCR event)",
           "request": {
             "method": "POST",
+            "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/evidence-ocr",
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/evidence-ocr",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -357,29 +305,19 @@
                 "api",
                 "v1",
                 "claims",
-                "claim_disc_101",
+                "{{claimId}}",
                 "evidence-ocr"
               ]
-            },
-            "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              }
-            ]
+            }
           }
         },
         {
-          "name": "Step 5: Submit for Review",
+          "name": "POST submit",
           "request": {
             "method": "POST",
+            "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/submit",
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/submit",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -387,27 +325,448 @@
                 "api",
                 "v1",
                 "claims",
-                "claim_disc_101",
+                "{{claimId}}",
                 "submit"
               ]
             },
-            "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              }
-            ]
+            "description": "Expected: 200 Draft -> Submitted; a second call answers 409"
           }
         },
         {
-          "name": "Step 6: Status Timeline",
+          "name": "GET timeline",
           "request": {
             "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/timeline",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "timeline"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET decision",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/decision",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "decision"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST appeal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/appeal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "appeal"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"New evidence available\"\n}"
+            },
+            "description": "Expected: 200 only for a Rejected decision, else 409"
+          }
+        },
+        {
+          "name": "GET profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET consent",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profile/consent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profile",
+                "consent"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST cancel mandate",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/profile/mandates/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profile",
+                "mandates",
+                "cancel"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET activity history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/activities/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activities",
+                "history"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 - Assessor, tenant A (ins_discovery)",
+      "description": "Insurer staff of Discovery. Sees only submitted Discovery claims. Token: {{token_assessor_a}}.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token_assessor_a}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "GET tenant claims",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims?limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Expected: only tenant_id = ins_discovery, no drafts, no user_id"
+          }
+        },
+        {
+          "name": "GET timeline of a tenant claim",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/timeline",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "timeline"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST verify (Submitted -> Verified)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "verify"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST screen (Verified -> Screening)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/screen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "screen"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST request info (-> Info Needed)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/request-info",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "request-info"
+              ]
+            },
+            "description": "Expected: the customer answers with PATCH screening"
+          }
+        },
+        {
+          "name": "POST review (Screening -> Review)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/review",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "review"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST OCR process (insurer only)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ocr/process",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ocr",
+                "process"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 - Manager, tenant A (ins_discovery)",
+      "description": "Manager of Discovery: decides and pays. Token: {{token_manager_a}}.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token_manager_a}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "POST decide Approved (Review -> Decision)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/decide",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "decide"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"Approved\"\n}"
+            }
+          }
+        },
+        {
+          "name": "POST pay (Decision -> Paid, MANAGER only)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/{{claimId}}/pay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "{{claimId}}",
+                "pay"
+              ]
+            },
+            "description": "Expected: 200 when Approved; 409 not_approved when Rejected"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 - Assessor, tenant B (ins_sanlam)",
+      "description": "Insurer staff of Sanlam. Token: {{token_assessor_b}}.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token_assessor_b}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "GET tenant claims",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims?limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Expected: only claim_sanlam_102 (and other Sanlam claims)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5 - Cross-tenant attack (expect 404)",
+      "description": "Tenant B staff use a VALID token to reach a tenant A claim by id. The API must answer 404 (identical to a non-existent claim) and write an audit event.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token_assessor_b}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Assessor B reads Discovery claim timeline",
+          "request": {
+            "method": "GET",
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/timeline",
               "host": [
@@ -421,160 +780,375 @@
                 "timeline"
               ]
             },
-            "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              }
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "4. Identity & Audit Services",
-      "item": [
-        {
-          "name": "Get Profile",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/profile",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "profile"
-              ]
-            },
-            "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              }
-            ]
+            "description": "Expected: 404 {\"error\":\"not_found\"}"
           }
         },
         {
-          "name": "Get Consents",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/profile/consent",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "profile",
-                "consent"
-              ]
-            },
-            "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              }
-            ]
-          }
-        },
-        {
-          "name": "Cancel Mandate",
+          "name": "Assessor B tries to verify a Discovery claim",
           "request": {
             "method": "POST",
+            "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/profile/mandates/cancel",
+              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/verify",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "profile",
-                "mandates",
-                "cancel"
+                "claims",
+                "claim_disc_101",
+                "verify"
               ]
             },
-            "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              }
-            ]
+            "description": "Expected: 404, stage unchanged"
           }
         },
         {
-          "name": "Audit History",
+          "name": "Manager B tries to decide a Discovery claim",
           "request": {
-            "method": "GET",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/activities/history",
+              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/decide",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "activities",
-                "history"
+                "claims",
+                "claim_disc_101",
+                "decide"
               ]
             },
-            "header": [
-              {
-                "key": "X-Dev-Actor-Id",
-                "value": "{{actorId}}",
-                "description": "DEV STUB ONLY - not authentication. Requires ALLOW_DEV_ACTOR_HEADERS=true in .dev.vars."
-              },
-              {
-                "key": "X-Dev-Actor-Role",
-                "value": "{{actorRole}}"
-              }
-            ]
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"Approved\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_manager_b}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 404, stage unchanged"
+          }
+        },
+        {
+          "name": "Manager B tries to pay a Discovery claim",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/pay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_disc_101",
+                "pay"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_manager_b}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 404"
           }
         }
       ]
-    }
-  ],
-  "variable": [
-    {
-      "key": "baseUrl",
-      "value": "https://easy-claim-backend.pasekamabitsela22.workers.dev",
-      "type": "string"
     },
     {
-      "key": "actorId",
-      "value": "user123"
+      "name": "6 - Role attacks (expect 403)",
+      "description": "Valid tokens with the wrong role for the operation.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token_customer_a}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Customer calls insurer verify",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_disc_101",
+                "verify"
+              ]
+            },
+            "description": "Expected: 403 {\"error\":\"forbidden\"}"
+          }
+        },
+        {
+          "name": "Customer calls OCR process",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ocr/process",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ocr",
+                "process"
+              ]
+            },
+            "description": "Expected: 403"
+          }
+        },
+        {
+          "name": "Customer sets a decision",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/decide",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_disc_101",
+                "decide"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"Approved\"\n}"
+            },
+            "description": "Expected: 403"
+          }
+        },
+        {
+          "name": "Assessor B pays a Sanlam claim (MANAGER only)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_sanlam_102/pay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_sanlam_102",
+                "pay"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_assessor_b}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 403 - correct tenant, insufficient role"
+          }
+        },
+        {
+          "name": "Admin lists claims",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 403 - admin has no claim access"
+          }
+        },
+        {
+          "name": "Customer mass-assigns stage",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims/claim_disc_101/screening",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims",
+                "claim_disc_101",
+                "screening"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"causeOfLoss\": \"x\",\n  \"incidentDate\": \"2026-01-01\",\n  \"stage\": \"Paid\"\n}"
+            },
+            "description": "Expected: 400 unrecognized_keys (strict schema)"
+          }
+        }
+      ]
     },
     {
-      "key": "actorRole",
-      "value": "CUSTOMER"
-    },
-    {
-      "key": "claimId",
-      "value": "claim_disc_101"
+      "name": "7 - Token attacks (expect 401)",
+      "description": "Forged or altered credentials.",
+      "auth": {
+        "type": "noauth"
+      },
+      "item": [
+        {
+          "name": "Tampered signature",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/covers/my-covers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "covers",
+                "my-covers"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_customer_a}}x",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 401"
+          }
+        },
+        {
+          "name": "alg=none token claiming MANAGER",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/claims",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "claims"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhZG1pbjEiLCJyb2xlIjoiTUFOQUdFUiIsInRlbmFudF9pZCI6Imluc19kaXNjb3ZlcnkiLCJpc3MiOiJlYXN5Y2xhaW0tZGV2IiwiYXVkIjoiZWFzeWNsYWltLWFwaSIsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjo0MTAyNDQ0ODAwfQ.",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Expected: 401"
+          }
+        },
+        {
+          "name": "Basic auth instead of Bearer",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Basic dXNlcjEyMzpwYXNzd29yZA=="
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/covers/my-covers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "covers",
+                "my-covers"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Expected: 401"
+          }
+        }
+      ]
     }
   ]
 }

@@ -1,9 +1,12 @@
-# Copy to .dev.vars for LOCAL development only. .dev.vars is gitignored.
+# LOCAL development only. `.dev.vars` is gitignored; this example file holds placeholders.
+# Easiest setup: `npm run setup:local` (creates .dev.vars with a freshly generated secret).
 #
-# WARNING: ALLOW_DEV_ACTOR_HEADERS makes the API trust the spoofable
-# X-Dev-Actor-Id / X-Dev-Actor-Role headers. It is NOT authentication.
-# Never set it in wrangler.toml, `wrangler secret`, or any deployed environment.
-ALLOW_DEV_ACTOR_HEADERS=true
+# HS256 signing secret for local tokens (>= 32 characters). The API refuses every
+# request until a real value is set. Generate one with `npm run secret`.
+# Deployed environments use `wrangler secret put JWT_SECRET`, never wrangler.toml.
+JWT_SECRET=CHANGE_ME
 
 # Comma-separated browser origins allowed by CORS (e.g. a local frontend).
 ALLOWED_ORIGINS=http://localhost:5173
+
+# JWT_ISSUER / JWT_AUDIENCE come from wrangler.toml [vars]; override here only if needed.
