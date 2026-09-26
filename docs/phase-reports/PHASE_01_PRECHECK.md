@@ -1,5 +1,7 @@
 # Phase 1 Precheck: does the repository match the Phase 0 report?
 
+> Layout note: this report was recorded at commit `cb2588a`, when the Worker lived under `backend/`. The backend team later moved it to the repository root on `main`; on 2026-09-26 every path in this document was rewritten to that root layout (`backend/src/...` is now `src/...`).
+
 Date: 2026-09-26
 Branch: `cyber`
 HEAD at precheck: `1468897` (Phase 0 implementation commit: `c73f3e1`; base `main`: `efb6cc3`)
@@ -10,7 +12,7 @@ Method: five independent read-only verifiers each checked a group of Phase 0 cla
 actual code, migrations, tests and docs. One verifier re-ran the tool chain. Nothing was modified.
 The repository is the source of truth; where it disagrees with the report, the repository wins.
 
-## 1. Tool chain re-run (backend/, HEAD 1468897)
+## 1. Tool chain re-run (Worker at HEAD 1468897, then under `backend/`)
 
 | Command | Result |
 |---|---|
@@ -28,13 +30,13 @@ Versions: node v24.19.0, hono 4.13.9, typescript 7.0.2, wrangler 4.141.0, zod 4.
 
 | Phase 0 claim | Verdict | Evidence |
 |---|---|---|
-| Cloudflare Worker + Hono + TypeScript + D1 + Queue | MATCHES | `backend/wrangler.toml`, `backend/package.json`, `backend/src/index.ts` |
+| Cloudflare Worker + Hono + TypeScript + D1 + Queue | MATCHES | `wrangler.toml`, `package.json`, `src/index.ts` |
 | 24 backend endpoints | MATCHES | 14 GET, 8 POST, 2 PATCH across 6 routers; `index.ts` defines no leaf routes |
 | 85 tests, 9 files, 85/85 pass | MATCHES | re-run above |
 | typecheck passes | MATCHES | re-run above |
 | npm audit checked | MATCHES | 0 vulnerabilities |
-| Authentication is NOT real; `resolveActor()` is a local-only dev header mechanism | MATCHES | `backend/src/security/actor.ts` L18-21: `X-Dev-Actor-Id` / `X-Dev-Actor-Role` honoured only when `ALLOW_DEV_ACTOR_HEADERS === 'true'`; not set in `wrangler.toml`; set in `.dev.vars` and `vitest.config.mts` |
-| Insurer roles lack tenant scoping | MATCHES | grep for tenant/org/organisation in `backend/src` and `backend/migrations`: zero hits except the ignored `:tenantId` path param on the identity stub (`identity.ts` L11) |
+| Authentication is NOT real; `resolveActor()` is a local-only dev header mechanism | MATCHES | `src/security/actor.ts` L18-21: `X-Dev-Actor-Id` / `X-Dev-Actor-Role` honoured only when `ALLOW_DEV_ACTOR_HEADERS === 'true'`; not set in `wrangler.toml`; set in `.dev.vars` and `vitest.config.mts` |
+| Insurer roles lack tenant scoping | MATCHES | grep for tenant/org/organisation in `src` and `migrations`: zero hits except the ignored `:tenantId` path param on the identity stub (`identity.ts` L11) |
 | verify / screen / decide / pay not implemented as endpoints | MATCHES | state machine permits the transitions, but no HTTP route exercises them; covered only by `test/stateMachine.test.ts` |
 | Claim state transitions centralized | MATCHES | `claimStateMachine.ts` (18 legal edges) + `claimAccess.ts` `transitionClaim()` with conditional `UPDATE ... WHERE stage = ?` |
 | `audit_events` exists, append-only | MATCHES | `migrations/0002_security.sql`; UPDATE/DELETE triggers |
@@ -84,7 +86,7 @@ Also noted: `SECURITY_TEST_PLAN.md:64` says "12 legal transitions allowed" — t
 - Import path: `import { sign, verify } from 'hono/jwt'`.
 
 ### Test infrastructure
-- Tests inject actors via `test/helpers.ts` `call({ as })`, which sets the dev headers; `vitest.config.mts` sets `ALLOW_DEV_ACTOR_HEADERS` and `ALLOWED_ORIGINS` as miniflare bindings. The plugin also loads the untracked `backend/.dev.vars` if present.
+- Tests inject actors via `test/helpers.ts` `call({ as })`, which sets the dev headers; `vitest.config.mts` sets `ALLOW_DEV_ACTOR_HEADERS` and `ALLOWED_ORIGINS` as miniflare bindings. The plugin also loads the untracked `.dev.vars` if present.
 - Test actors: `customerA=user123`, `customerB=user456`, `assessor=assessor1`, `manager=manager1`, `admin=admin1`.
 - The rate-limit middleware passes silently when the `RATE_LIMITER` binding is absent; tests inject a denying stub to test 429.
 
@@ -93,9 +95,9 @@ Also noted: `SECURITY_TEST_PLAN.md:64` says "12 legal transitions allowed" — t
 `docs/security/README.md` (4, 10), `BACKEND_SECURITY_HANDOFF.md` (10, 22-25), `SECURITY_IMPLEMENTATION_PLAN.md` (9-10),
 `SECURITY_TEST_PLAN.md` (11, 13, auth section), `ATTACK_SCENARIOS.md` (curl examples), `SECURITY_CHECKLIST.md`,
 `API_SECURITY_MATRIX.md`, `RBAC_MATRIX.md`, `THREAT_MODEL.md`, `docs/architecture/BACKEND_ARCHITECTURE.md`,
-`backend/src/security/actor.ts`, `backend/src/types.ts`, `backend/src/index.ts` (CORS allow-headers),
-`backend/.dev.vars.example`, `backend/vitest.config.mts`, `backend/test/helpers.ts`, `backend/test/actor.test.ts`,
-`backend/EasyClaim.postman_collection.json`.
+`src/security/actor.ts`, `src/types.ts`, `src/index.ts` (CORS allow-headers),
+`.dev.vars.example`, `vitest.config.mts`, `test/helpers.ts`, `test/actor.test.ts`,
+`EasyClaim.postman_collection.json`.
 
 ## 6. Conclusion
 

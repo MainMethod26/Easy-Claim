@@ -12,23 +12,23 @@
 
 | Module | What it gives you |
 |---|---|
-| `backend/src/types.ts` | `Role`, `Actor { id, role, tenantId }`, `ID_PATTERN`, `Bindings` (incl. `JWT_SECRET`, `JWT_ISSUER`, `JWT_AUDIENCE`), `AppEnv` |
-| `backend/src/security/actor.ts` | `requireActor` middleware; `resolveActor()` verifies `Authorization: Bearer <JWT>` (HS256 pinned, iss/aud/exp/iat, bounded TTL); `validateClaims()` role/tenant rules. Swap point for an IdP: `hono/jwt` `verifyWithJwks` |
-| `backend/src/security/rbac.ts` | `requireRole(...roles)` (resource-independent gate, audited) |
-| `backend/src/security/claimAccess.ts` | `loadAuthorizedClaim(c, id, 'read' \| 'owner-write' \| 'insurer')` with tenant boundary, `isTenantInsurer()`, `transitionClaim(c, claim, to, { status?, details? })` (owner/tenant guard, state machine, one D1 batch: conditional UPDATE + audit INSERT gated on `changes() = 1`) |
-| `backend/src/security/claimStateMachine.ts` | `TRANSITIONS`, `checkTransition()` (unchanged in Phase 1) |
-| `backend/src/security/audit.ts` | `writeAuditEvent(c, event)`, `auditStatement(c, event, { onlyIfPreviousChanged })`; rows carry `actor_tenant_id` and a server-generated `request_id` |
-| `backend/src/security/validation.ts` | strict zod schemas (`decideSchema`, `listQuerySchema`, …) + `validate('json' \| 'param' \| 'query', schema)` |
-| `backend/src/endpoints/claimsInsurer.ts` | `POST /claims/:claimId/verify`, `/screen`, `/review`, `/request-info`, `/decide`, `/pay` — thin wrappers over `transitionClaim()` |
-| `backend/src/endpoints/claims.ts` | `GET /claims` (owner / tenant scoped, no drafts and no `user_id` for insurers) |
-| `backend/migrations/0002_security.sql`, `0003_tenants.sql` | claim columns, `audit_events` (append-only), `evidence` table (unused), `tenants`, `policies.tenant_id`, `claims.tenant_id`, `audit_events.actor_tenant_id` |
-| `backend/scripts/mint-token.mjs`, `setup-dev-vars.mjs` | local tokens (`npm run token -- --demo \| --postman`), local secret setup (`npm run setup:local`) |
-| `backend/test/*.test.ts` | 183 tests + 1 todo, 12 files (`npm test`) |
+| `src/types.ts` | `Role`, `Actor { id, role, tenantId }`, `ID_PATTERN`, `Bindings` (incl. `JWT_SECRET`, `JWT_ISSUER`, `JWT_AUDIENCE`), `AppEnv` |
+| `src/security/actor.ts` | `requireActor` middleware; `resolveActor()` verifies `Authorization: Bearer <JWT>` (HS256 pinned, iss/aud/exp/iat, bounded TTL); `validateClaims()` role/tenant rules. Swap point for an IdP: `hono/jwt` `verifyWithJwks` |
+| `src/security/rbac.ts` | `requireRole(...roles)` (resource-independent gate, audited) |
+| `src/security/claimAccess.ts` | `loadAuthorizedClaim(c, id, 'read' \| 'owner-write' \| 'insurer')` with tenant boundary, `isTenantInsurer()`, `transitionClaim(c, claim, to, { status?, details? })` (owner/tenant guard, state machine, one D1 batch: conditional UPDATE + audit INSERT gated on `changes() = 1`) |
+| `src/security/claimStateMachine.ts` | `TRANSITIONS`, `checkTransition()` (unchanged in Phase 1) |
+| `src/security/audit.ts` | `writeAuditEvent(c, event)`, `auditStatement(c, event, { onlyIfPreviousChanged })`; rows carry `actor_tenant_id` and a server-generated `request_id` |
+| `src/security/validation.ts` | strict zod schemas (`decideSchema`, `listQuerySchema`, …) + `validate('json' \| 'param' \| 'query', schema)` |
+| `src/endpoints/claimsInsurer.ts` | `POST /claims/:claimId/verify`, `/screen`, `/review`, `/request-info`, `/decide`, `/pay` — thin wrappers over `transitionClaim()` |
+| `src/endpoints/claims.ts` | `GET /claims` (owner / tenant scoped, no drafts and no `user_id` for insurers) |
+| `migrations/0002_security.sql`, `0003_tenants.sql` | claim columns, `audit_events` (append-only), `evidence` table (unused), `tenants`, `policies.tenant_id`, `claims.tenant_id`, `audit_events.actor_tenant_id` |
+| `scripts/mint-token.mjs`, `setup-dev-vars.mjs` | local tokens (`npm run token -- --demo \| --postman`), local secret setup (`npm run setup:local`) |
+| `test/*.test.ts` | 183 tests + 1 todo, 12 files (`npm test`) |
 
 ## Requirements
 
 ### BACKEND-SEC-001 — Real authentication
-- **Requirement (Phase 0):** Replace the body of `resolveActor()` in `backend/src/security/actor.ts` with verified identity (e.g. `hono/jwt` HS256 with pinned `alg`, `JWT_SECRET` via `wrangler secret put`, required `sub`, `role`, `exp`; or a managed IdP). Return `null` on any failure.
+- **Requirement (Phase 0):** Replace the body of `resolveActor()` in `src/security/actor.ts` with verified identity (e.g. `hono/jwt` HS256 with pinned `alg`, `JWT_SECRET` via `wrangler secret put`, required `sub`, `role`, `exp`; or a managed IdP). Return `null` on any failure.
 - **Why:** Identity came from spoofable headers (OWASP API2).
 - **Status:** IMPLEMENTED (Phase 1) as app-verified HS256 (`actor.ts`: pinned alg, required `iss`/`aud`/`exp`/`iat`, TTL cap 24 h customer / 8 h staff, role–tenant rules, no token in logs, no pre-auth DB writes). The dev header stub is removed. Identity-provider integration (asymmetric keys, JWKS) is PLANNED, see 019.
 - **Acceptance:** met — `test/auth.test.ts` AUTH-001…014, `test/actor.test.ts`; live: `docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log` ATTACK-P1-001…004, 009, 010.
@@ -41,7 +41,7 @@
 
 ### BACKEND-SEC-003 — Insurer workflow endpoints through the state machine
 - **Requirement (Phase 0):** New endpoints for verify, screen, info-needed, review, decide, pay MUST use `requireRole(...)`, `loadAuthorizedClaim(c, id, 'insurer')` and `transitionClaim()`. Never `UPDATE claims SET stage` directly.
-- **Status:** IMPLEMENTED (Phase 1) in `backend/src/endpoints/claimsInsurer.ts`. `transitionClaim()` now also refuses to move a claim the actor may not touch (owner / tenant guard), so a route that forgets `loadAuthorizedClaim` still cannot cross a tenant — but it would leak existence via 403 instead of 404, so keep calling `loadAuthorizedClaim` first.
+- **Status:** IMPLEMENTED (Phase 1) in `src/endpoints/claimsInsurer.ts`. `transitionClaim()` now also refuses to move a claim the actor may not touch (owner / tenant guard), so a route that forgets `loadAuthorizedClaim` still cannot cross a tenant — but it would leak existence via 403 instead of 404, so keep calling `loadAuthorizedClaim` first.
 - **Acceptance:** met — `test/tenant.test.ts` STATE-001…006; live happy path and ATTACK-P1-007/008.
 
 ### BACKEND-SEC-004 — Strict schemas on every new endpoint

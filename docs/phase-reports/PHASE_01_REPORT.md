@@ -1,5 +1,7 @@
 # EasyClaim Phase 1 Report
 
+> Layout note: this report was recorded at commit `cb2588a`, when the Worker lived under `backend/`. The backend team later moved it to the repository root on `main`; on 2026-09-26 every path in this document was rewritten to that root layout (`backend/src/...` is now `src/...`).
+
 Date: 2026-09-26 · Branch: `cyber` · Base commit: `1468897` (Phase 0) · Phase 1 changes: **uncommitted working tree** (see §21)
 
 Status vocabulary: IMPLEMENTED · PARTIAL · NOT IMPLEMENTED · PLANNED · BLOCKED · TESTED/PASSED · NOT TESTED · DECISION REQUIRED.
@@ -22,15 +24,15 @@ insurer transitions existed only in the state machine, not over HTTP.
 
 | Area | Change | Where |
 |---|---|---|
-| Authentication | Bearer JWT verified with `hono/jwt` (HS256 pinned; `iss`, `aud`, `exp`, `iat` required; TTL cap; fail-closed config; no token in logs); dev header stub deleted | `backend/src/security/actor.ts`, `backend/src/index.ts` |
-| Actor model | `Actor { id, role, tenantId }`; tenant required for ASSESSOR/MANAGER, forbidden for CUSTOMER, optional for ADMIN | `backend/src/types.ts` |
-| Tenants | `tenants` table, `policies.tenant_id`, `claims.tenant_id`, `audit_events.actor_tenant_id`; seed updated; safe backfill by seed id | `backend/migrations/0003_tenants.sql`, `backend/seed_sa_data.sql` |
-| Authorization | `loadAuthorizedClaim` gains `'insurer'` mode and the tenant boundary; drafts and NULL-tenant claims hidden from insurers; `transitionClaim` re-asserts owner/tenant and writes state change + audit in one D1 batch | `backend/src/security/claimAccess.ts`, `audit.ts` |
-| Insurer operations | `POST /claims/:id/verify`, `/screen`, `/review`, `/request-info`, `/decide`, `/pay` through the state machine; `GET /claims` scoped list | `backend/src/endpoints/claimsInsurer.ts`, `claims.ts` |
-| Hardening | server-generated request ids in audit rows; per-actor rate limit after auth; screening write repeats the stage precondition in SQL; timeline honours side states | `backend/src/index.ts`, `claims.ts` |
-| Local tooling | `npm run setup:local` (random secret into `.dev.vars`), `npm run token` (mint demo tokens / Postman environment) | `backend/scripts/*.mjs`, `backend/package.json` |
-| Postman | bearer-token collection with 8 folders (unauthenticated, customer, tenant A assessor/manager, tenant B, cross-tenant attack, role attacks, token attacks); tokens come from a generated, gitignored environment file | `backend/EasyClaim.postman_collection.json` |
-| Tests | 85 → 183 tests (+1 todo) in 12 files | `backend/test/` |
+| Authentication | Bearer JWT verified with `hono/jwt` (HS256 pinned; `iss`, `aud`, `exp`, `iat` required; TTL cap; fail-closed config; no token in logs); dev header stub deleted | `src/security/actor.ts`, `src/index.ts` |
+| Actor model | `Actor { id, role, tenantId }`; tenant required for ASSESSOR/MANAGER, forbidden for CUSTOMER, optional for ADMIN | `src/types.ts` |
+| Tenants | `tenants` table, `policies.tenant_id`, `claims.tenant_id`, `audit_events.actor_tenant_id`; seed updated; safe backfill by seed id | `migrations/0003_tenants.sql`, `seed_sa_data.sql` |
+| Authorization | `loadAuthorizedClaim` gains `'insurer'` mode and the tenant boundary; drafts and NULL-tenant claims hidden from insurers; `transitionClaim` re-asserts owner/tenant and writes state change + audit in one D1 batch | `src/security/claimAccess.ts`, `audit.ts` |
+| Insurer operations | `POST /claims/:id/verify`, `/screen`, `/review`, `/request-info`, `/decide`, `/pay` through the state machine; `GET /claims` scoped list | `src/endpoints/claimsInsurer.ts`, `claims.ts` |
+| Hardening | server-generated request ids in audit rows; per-actor rate limit after auth; screening write repeats the stage precondition in SQL; timeline honours side states | `src/index.ts`, `claims.ts` |
+| Local tooling | `npm run setup:local` (random secret into `.dev.vars`), `npm run token` (mint demo tokens / Postman environment) | `scripts/*.mjs`, `package.json` |
+| Postman | bearer-token collection with 8 folders (unauthenticated, customer, tenant A assessor/manager, tenant B, cross-tenant attack, role attacks, token attacks); tokens come from a generated, gitignored environment file | `EasyClaim.postman_collection.json` |
+| Tests | 85 → 183 tests (+1 todo) in 12 files | `test/` |
 
 ## 4. Authentication Architecture
 
@@ -38,7 +40,7 @@ Decision: **Option B now, Option A later.** The backend verifies HS256 tokens it
 identity provider exists in the hackathon; the same `resolveActor()` seam switches to `hono/jwt` `verifyWithJwks` for an
 external IdP without touching authorization code. Details and diagrams: `PHASE_01_AUTH_FLOW.md`.
 
-Contract (`backend/src/security/actor.ts`): `Authorization: Bearer <JWT>` (scheme case-insensitive, token must be three
+Contract (`src/security/actor.ts`): `Authorization: Bearer <JWT>` (scheme case-insensitive, token must be three
 base64url segments). `verify(token, JWT_SECRET, { alg: 'HS256', iss: JWT_ISSUER, aud: JWT_AUDIENCE })`; then
 `validateClaims()`: `exp` and `iat` required, `exp` in the future and at most 24 h (CUSTOMER) / 8 h (staff) away,
 `sub` and `tenant_id` match `^[A-Za-z0-9_-]{1,64}$`, `role ∈ {CUSTOMER, ASSESSOR, MANAGER, ADMIN}`. Any failure → `401
@@ -89,17 +91,17 @@ Order on every resource route (`PHASE_01_SECURITY_FLOW.md`):
 
 ## 9. Files Created
 
-`backend/src/endpoints/claimsInsurer.ts` · `backend/migrations/0003_tenants.sql` · `backend/scripts/mint-token.mjs` ·
-`backend/scripts/setup-dev-vars.mjs` · `backend/test/auth.test.ts` · `backend/test/tenant.test.ts` · `backend/test/migration.test.ts` ·
+`src/endpoints/claimsInsurer.ts` · `migrations/0003_tenants.sql` · `scripts/mint-token.mjs` ·
+`scripts/setup-dev-vars.mjs` · `test/auth.test.ts` · `test/tenant.test.ts` · `test/migration.test.ts` ·
 `docs/phase-reports/PHASE_01_PRECHECK.md` · `PHASE_01_REPORT.md` (this) · `PHASE_01_AUTH_FLOW.md` · `PHASE_01_TENANT_MODEL.md` ·
 `PHASE_01_SECURITY_FLOW.md` · `PHASE_00_TO_PHASE_01.md` · `docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log` · `evidence/live-attacks.sh`
 
 ## 10. Files Modified
 
-Code: `backend/src/security/actor.ts`, `audit.ts`, `claimAccess.ts`, `validation.ts`; `backend/src/types.ts`; `backend/src/index.ts`;
-`backend/src/endpoints/claims.ts`; `backend/seed_sa_data.sql`; `backend/wrangler.toml`; `backend/.dev.vars.example`; `backend/.gitignore`;
-`.gitignore`; `backend/package.json`; `backend/vitest.config.mts`; `backend/EasyClaim.postman_collection.json`;
-tests `backend/test/actor.test.ts`, `audit.test.ts`, `hardening.test.ts`, `massAssignment.test.ts`, `helpers.ts`.
+Code: `src/security/actor.ts`, `audit.ts`, `claimAccess.ts`, `validation.ts`; `src/types.ts`; `src/index.ts`;
+`src/endpoints/claims.ts`; `seed_sa_data.sql`; `wrangler.toml`; `.dev.vars.example`; `.gitignore`;
+`.gitignore`; `package.json`; `vitest.config.mts`; `EasyClaim.postman_collection.json`;
+tests `test/actor.test.ts`, `audit.test.ts`, `hardening.test.ts`, `massAssignment.test.ts`, `helpers.ts`.
 Docs: `README.md`, `docs/BACKEND_INVENTORY.md`, `docs/architecture/BACKEND_ARCHITECTURE.md`, `docs/security/README.md`, `RBAC_MATRIX.md`,
 `API_SECURITY_MATRIX.md`, `THREAT_MODEL.md`, `CLAIM_STATE_SECURITY.md`, `AUDIT_SECURITY.md`, `DECISION_SECURITY.md`, `PAYOUT_SECURITY.md`,
 `SECURITY_CHECKLIST.md`, `SECURITY_TEST_PLAN.md`, `ATTACK_SCENARIOS.md`, `BACKEND_SECURITY_HANDOFF.md`, `SECURITY_IMPLEMENTATION_PLAN.md`,
@@ -130,7 +132,6 @@ TENANT-004 (evidence resource isolation) is `it.todo` — BLOCKED: no evidence e
 ## 13. Tests Passed
 
 ```
-cd backend
 npm test          → Test Files 12 passed (12); Tests 183 passed | 1 todo (184)   (vitest 4.1.11, workerd + D1)
 npm run typecheck → tsc --noEmit, exit 0
 npm audit         → found 0 vulnerabilities
@@ -197,14 +198,13 @@ functions; Withdrawn/Expired endpoints or jobs; CI; the frontend.
 ## 19. Demo Instructions
 
 ```bash
-cd backend
 npm install
 npm run setup:local          # creates .dev.vars with a random JWT_SECRET (gitignored)
 npm run db:migrate:local && npm run db:seed:local
 npm run dev                  # http://127.0.0.1:8787
 npm run token -- --postman   # writes postman/EasyClaim.local.postman_environment.json (gitignored)
 ```
-Import `backend/EasyClaim.postman_collection.json` and the generated environment into Postman. Folders: 0 unauthenticated (401),
+Import `EasyClaim.postman_collection.json` and the generated environment into Postman. Folders: 0 unauthenticated (401),
 1 customer, 2 assessor tenant A, 3 manager tenant A, 4 assessor tenant B, 5 cross-tenant attack (404), 6 role attacks (403),
 7 token attacks (401). Wizard: run "initiate" in folder 1, paste the returned id into the `claimId` variable, then screening →
 submit → (folder 2) verify → screen → review → (folder 3) decide → pay. Command line: `TOKEN=$(npm run -s token -- --sub user123 --role CUSTOMER)`
@@ -213,7 +213,7 @@ then `curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8787/api/v1/claims
 ## 20. Verification Commands
 
 ```bash
-cd backend && npm run typecheck && npm test && npm audit
+npm run typecheck && npm test && npm audit
 npm run db:migrate:local
 bash ../docs/phase-reports/evidence/live-attacks.sh     # against a running `npm run dev`
 git -C .. diff --check
@@ -221,9 +221,24 @@ git -C .. diff --check
 
 ## 21. Git Commit / Branch Information
 
-Branch `cyber` (tracking `origin/cyber`, PR #1 open for Phase 0). Phase 1 is **not committed and not pushed** — the working tree
-holds the changes (see the final `git status` / `git diff --stat` in the delivery message). Recommended commit message when approved:
+Branch `cyber` (PR #1 open). The cyber session made **no commit and no push** for Phase 1; it recommended the message
+`feat(security): add authenticated actor and tenant isolation`. While the session was paused, the Phase 1 working tree was
+committed by the team as **`cb2588a` "feat: complete phase 1 claims security and tenant flow"** (author identity ChumaMike,
+2026-09-26 02:19 SAST) and pushed; `origin/cyber` then received 16 further commits from the backend team's `main` work and the
+merge `0e75d6a` "merge: update phase 1 branch with latest main". The local checkout is 17 commits behind `origin/cyber`; the
+remaining uncommitted local changes are documentation only (`git status --short` in the delivery message).
 
-```
-feat(security): add authenticated actor and tenant isolation
-```
+### Post-merge verification of `origin/cyber` (`0e75d6a`), read-only worktree
+
+Re-verified on `main` at `0a9b6ca` (2026-09-26, worktree `Easy-Claim-main`): `src/`, `test/`, `migrations/`, `wrangler.toml` unchanged since `0e75d6a`; `npm run typecheck` exit 0; `npx vitest run` 12 files, 183 passed, 1 todo; `npm audit` 0 vulnerabilities. The Phase 1 documentation update was applied to `main` in this same step.
+
+| Check | Result |
+|---|---|
+| Layout | backend moved from `backend/` to the repository root (`src/`, `test/`, `migrations/`, `wrangler.toml` at root); frontend deleted; Python helper scripts and `openapi.json` added. **On 2026-09-26 every `backend/...` path in this report and the Phase 1 docs was rewritten to the root layout (`src/`, `test/`, `migrations/`, ...).** |
+| Security modules | `src/security/{actor,audit,claimAccess,claimStateMachine,rbac,validation}.ts` present and unchanged in role; `transitionClaim` remains the only stage writer (no `UPDATE claims SET stage` elsewhere) |
+| `npm run typecheck` | exit 0 |
+| `npm test` | 12 files, 183 passed, 1 todo — same as pre-merge |
+| `npm audit` | **2 high** (`marked <= 4.0.9`, pulled in by the new OpenAPI/Swagger tooling; not present before the merge) — NEEDS ACTION by the backend team |
+| `npm audit` re-run on `main` `0a9b6ca` (2026-09-26) | **0 vulnerabilities** — resolved upstream by pinning `postman-to-openapi` to `^1.2.0`, which drops `marked`. RESOLVED |
+| New MVC layer (`src/routes`, `src/controllers`, `src/services`) | present but **not mounted** (`src/index.ts` still mounts only `src/endpoints/*`); dead code today. If it is mounted later it must be wired behind `requireActor` and use `loadAuthorizedClaim` / `transitionClaim`, otherwise it bypasses every Phase 1 control |
+| SA-ID `POST /login` (`identityRoutes.ts` → `IdentityService.login`) | not mounted; compares against a hard-coded ID number and does **not** mint JWTs. If mounted under `/api/v1` it would be unreachable (behind `requireActor`); a real login must live outside `requireActor`, be rate-limited, and issue tokens with the same secret/issuer/audience/claim rules as `actor.ts` (BACKEND-SEC-019) |

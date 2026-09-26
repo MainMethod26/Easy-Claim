@@ -1,9 +1,11 @@
 # Phase 1 Security Flow: what happens to a request, in the order the code does it
 
+> Layout note: this report was recorded at commit `cb2588a`, when the Worker lived under `backend/`. The backend team later moved it to the repository root on `main`; on 2026-09-26 every path in this document was rewritten to that root layout (`backend/src/...` is now `src/...`).
+
 Date: 2026-09-26
 Branch: `cyber` (Phase 1 work is UNCOMMITTED in the working tree; this report describes the working tree, not git HEAD)
-Backend: Cloudflare Worker, Hono 4.13.9, TypeScript, D1, Queue (`backend/`)
-Verified while writing: `npx vitest run` = 12 files, 175 passed, 1 todo; `npx tsc --noEmit` = exit 0.
+Backend: Cloudflare Worker, Hono 4.13.9, TypeScript, D1, Queue (repository root)
+Verified while writing (re-run 2026-09-26 by the checker): `npx vitest run` = 12 files, 183 passed, 1 todo (184); `npx tsc --noEmit` = exit 0.
 
 Every file, function, route, error code and audit action named below exists in the working tree at the path given.
 Where the code disagrees with an older document or a source comment, the code wins and the disagreement is listed in section 11.
@@ -14,20 +16,20 @@ The brief's canonical order is Request → Authentication → Validation → Ten
 
 | Stage | Status | Where | Tested by |
 |---|---|---|---|
-| Request hardening (server-generated request id, `secureHeaders()`, CORS allowlist, 64 KiB body limit) | IMPLEMENTED | `backend/src/index.ts` L21-41 | `test/hardening.test.ts` |
-| Per-IP rate limit (before auth) and per-actor rate limit (after auth) | IMPLEMENTED (approximate by design) | `backend/src/index.ts` L46-53, L60-67; `wrangler.toml` `[[ratelimits]]` 100 / 60 s | `test/hardening.test.ts` "rate limits per IP before auth and per actor after auth" |
-| Authentication (Bearer JWT, HS256 pinned, iss/aud, required exp/iat/sub, role-based TTL cap, tenant rule per role) | IMPLEMENTED (shared secret); external IdP via `hono/jwt` `verifyWithJwks` PLANNED, documented only; revocation NOT IMPLEMENTED | `backend/src/security/actor.ts` `resolveActor()`, `validateClaims()`, `requireActor` | `test/auth.test.ts`, `test/actor.test.ts` |
-| Validation (zod `.strict()` on every data-bearing route; bounded list `limit`) | IMPLEMENTED for claims/covers routes; PARTIAL overall (stubs `PATCH /profile`, `GET /profile/mandates/:tenantId/check` have no schema) | `backend/src/security/validation.ts` `validate()` | `test/massAssignment.test.ts`, `test/tenant.test.ts` "decide rejects invalid or extra fields" |
-| Coarse RBAC (route-level, resource-independent) | IMPLEMENTED | `backend/src/security/rbac.ts` `requireRole()`; inline role branch in `GET /claims` (`claims.ts` L37-60) | `test/rbac.test.ts`, `tenant.test.ts` RBAC-001/002 |
-| Tenant check (insurer staff only see/act on claims of their own tenant, never Drafts, never claims with NULL tenant) | IMPLEMENTED for claims; evidence BLOCKED (no evidence endpoint); ADMIN tenant semantics DECISION REQUIRED | `backend/src/security/claimAccess.ts` `isTenantInsurer()`, `loadAuthorizedClaim()`; `claims.ts` `GET /` and `POST /initiate` | `test/tenant.test.ts` TENANT-001..007, `test/migration.test.ts` |
+| Request hardening (server-generated request id, `secureHeaders()`, CORS allowlist, 64 KiB body limit) | IMPLEMENTED | `src/index.ts` L21-41 | `test/hardening.test.ts` |
+| Per-IP rate limit (before auth) and per-actor rate limit (after auth) | IMPLEMENTED (approximate by design) | `src/index.ts` L46-53, L60-67; `wrangler.toml` `[[ratelimits]]` 100 / 60 s | `test/hardening.test.ts` "rate limits per IP before auth and per actor after auth" |
+| Authentication (Bearer JWT, HS256 pinned, iss/aud, required exp/iat/sub, role-based TTL cap, tenant rule per role) | IMPLEMENTED (shared secret); external IdP via `hono/jwt` `verifyWithJwks` PLANNED, documented only; revocation NOT IMPLEMENTED | `src/security/actor.ts` `resolveActor()`, `validateClaims()`, `requireActor` | `test/auth.test.ts`, `test/actor.test.ts` |
+| Validation (zod `.strict()` on every JSON body schema; `claimIdParam` and `listQuerySchema` are plain `z.object` so unknown param/query keys are stripped, not rejected; list `limit` bounded 1..50) | IMPLEMENTED for claims/covers routes; PARTIAL overall (stubs `PATCH /profile`, `GET /profile/mandates/:tenantId/check` have no schema) | `src/security/validation.ts` `validate()` | `test/massAssignment.test.ts`, `test/tenant.test.ts` "decide rejects invalid or extra fields" |
+| Coarse RBAC (route-level, resource-independent) | IMPLEMENTED | `src/security/rbac.ts` `requireRole()`; inline role branch in `GET /claims` (`claims.ts` L37-60) | `test/rbac.test.ts`, `tenant.test.ts` RBAC-001/002 |
+| Tenant check (insurer staff only see/act on claims of their own tenant, never Drafts, never claims with NULL tenant) | IMPLEMENTED for claims; evidence BLOCKED (no evidence endpoint); ADMIN tenant semantics DECISION REQUIRED | `src/security/claimAccess.ts` `isTenantInsurer()`, `loadAuthorizedClaim()`; `claims.ts` `GET /` and `POST /initiate` | `test/tenant.test.ts` TENANT-001..007, `test/migration.test.ts` |
 | Ownership check (customers only see/act on `claims.user_id = actor.id`; policies by `policies.user_id`) | IMPLEMENTED | `claimAccess.ts` `loadAuthorizedClaim()` (`isOwner`); `claims.ts` `findOwnedPolicy()`; `models/policyModel.ts` `PolicyModel.getMyCovers()` | `test/bola.test.ts` |
-| Per-transition RBAC + state machine | IMPLEMENTED (18 legal edges; 11 exposed over HTTP; `Withdrawn` has no route; `Info Needed → Expired` has no scheduler) | `backend/src/security/claimStateMachine.ts` `TRANSITIONS`, `checkTransition()`; `claimAccess.ts` `transitionClaim()` | `test/stateMachine.test.ts`, `tenant.test.ts` STATE-001..006, `test/claimLifecycle.test.ts` |
+| Per-transition RBAC + state machine | IMPLEMENTED (18 legal edges; 11 exposed over HTTP; `Withdrawn` has no route; `Info Needed → Expired` has no scheduler) | `src/security/claimStateMachine.ts` `TRANSITIONS`, `checkTransition()`; `claimAccess.ts` `transitionClaim()` | `test/stateMachine.test.ts`, `tenant.test.ts` STATE-001..006, `test/claimLifecycle.test.ts` |
 | Database change (conditional `UPDATE ... WHERE id = ? AND stage = ?` inside one D1 batch) | IMPLEMENTED | `claimAccess.ts` `transitionClaim()` L140-163 | `test/audit.test.ts` "same transaction", `claimLifecycle.test.ts` "double submit is rejected (replay)" |
-| Audit (append-only table with UPDATE/DELETE triggers; success row gated on `changes() = 1`; a row per denial) | IMPLEMENTED; triggers droppable by anyone with D1 admin access = open risk | `backend/src/security/audit.ts` `auditStatement()`, `writeAuditEvent()`; `migrations/0002_security.sql`, `0003_tenants.sql` | `test/audit.test.ts`, `tenant.test.ts` AUDIT-001 |
+| Audit (append-only table with UPDATE/DELETE triggers; success row gated on `changes() = 1`; a row per denial) | IMPLEMENTED; triggers droppable by anyone with D1 admin access = open risk | `src/security/audit.ts` `auditStatement()`, `writeAuditEvent()`; `migrations/0002_security.sql`, `0003_tenants.sql` | `test/audit.test.ts`, `tenant.test.ts` AUDIT-001 |
 
 ## 2. The real per-request order (flowchart)
 
-This is the order the middleware and handlers actually run in, from `backend/src/index.ts` through a claim route. Exit codes and the audit event written at each denial are on the diagram; section 7 lists them in a table.
+This is the order the middleware and handlers actually run in, from `src/index.ts` through a claim route. Exit codes and the audit event written at each denial are on the diagram; section 7 lists them in a table.
 
 Points where the code differs from the canonical list:
 
@@ -50,9 +52,9 @@ flowchart TD
     RL2 -- denied --> R429B["429 rate_limited<br/>no audit"]
     RL2 -- ok --> MATCH{"router match<br/>index.ts L69-75 app.route(...)"}
     MATCH -- "no route" --> R404A["404 not_found<br/>app.notFound, no audit"]
-    MATCH -- route --> ROLE{"rbac.ts requireRole(...roles)<br/>reads actor.role and c.req.routePath only<br/>(no DB access, no claimId)"}
+    MATCH -- route --> ROLE{"rbac.ts requireRole(...roles)<br/>decides from actor.role, c.req.method and c.req.routePath only<br/>(no DB read, no claimId; the only D1 access is the audit INSERT on denial)"}
     ROLE -- "role not listed" --> R403A["403 forbidden<br/>audit authz.role_denied<br/>resource_type route, resource_id = METHOD + route pattern"]
-    ROLE -- ok --> VAL{"validation.ts validate(param / json / query)<br/>zod .strict() schemas"}
+    ROLE -- ok --> VAL{"validation.ts validate(param / json / query)<br/>zod schemas, .strict() on every JSON body"}
     VAL -- "schema fails" --> R400A["400 validation_failed + issues (path, code, message)<br/>input is never echoed, no audit"]
     VAL -- "malformed JSON body" --> R400B["400 (hono validator throws HTTPException,<br/>rendered by index.ts app.onError), no audit"]
     VAL -- ok --> LOAD["claimAccess.ts loadAuthorizedClaim(c, claimId, mode)<br/>SELECT * FROM claims WHERE id = ?"]
@@ -93,11 +95,11 @@ Routes outside the claim flow that still pass through `requireActor`: `covers/*`
 
 ## 3. Why the coarse role gate runs first, and why that is not an information leak
 
-`requireRole()` in `backend/src/security/rbac.ts` is nine lines. It reads two things: `c.get('actor').role`, which came from the verified token, and `c.req.routePath`, which is the matched route pattern (for example `/api/v1/claims/:claimId/verify`, not the concrete id). It does not touch D1, does not read the `:claimId` parameter, and does not read the body.
+`requireRole()` in `src/security/rbac.ts` (L6-20) decides from two inputs: `c.get('actor').role`, which came from the verified token, and the route, `c.req.method` plus `c.req.routePath`, which is the matched route pattern (for example `/api/v1/claims/:claimId/verify`, not the concrete id; hono merges the `app.route('/api/v1/claims', ...)` prefix into the registered path, `hono-base.js` `route()` / `#addRoute()`). Its decision reads nothing from D1, does not read the `:claimId` parameter, and does not read the body; its only D1 access is the `authz.role_denied` audit INSERT on denial.
 
 Consequences:
 
-1. Its answer is a pure function of (role, route). A `CUSTOMER` calling `POST /claims/<anything>/verify` gets `403 forbidden` for an existing claim, a missing claim, another customer's claim and another insurer's claim alike (`tenant.test.ts` RBAC-001). The 403 tells the caller only what their own token already says: this role may not use this route.
+1. Its answer is a pure function of (role, route). A `CUSTOMER` calling `POST /claims/<anything>/verify` gets `403 forbidden` for an existing claim, a missing claim, another customer's claim and another insurer's claim alike, because the id is never read. `tenant.test.ts` RBAC-001 covers the existing-claim case (`claim_disc_101`, six insurer routes) and asserts that no `authz.claim_access_denied` row was added, i.e. the claim was never loaded; the missing-claim and foreign-claim cases follow from the code and are NOT TESTED separately. The 403 tells the caller only what their own token already says: this role may not use this route.
 2. Because it runs before `validate('param')`, a malformed claim id also gets 403 from a wrong-role caller instead of 400. That removes one distinguishing signal rather than adding one.
 3. The audit row it writes (`authz.role_denied`, `resource_type = 'route'`, `resource_id = "POST /api/v1/claims/:claimId/verify"`) records the route pattern, so a denied caller's guessed ids are not persisted either.
 4. Insurer staff of the wrong tenant pass the coarse gate (their role is allowed on the route) and are then refused by `loadAuthorizedClaim()` with `404 not_found`, the same status and body a non-existent claim returns (`tenant.test.ts` TENANT-003b, `bola.test.ts` "denied and non-existent claims look identical"). The tenant/ownership decision is the only place where the claim row is consulted, and it never distinguishes "exists but not yours" from "does not exist" in the response.
@@ -126,11 +128,11 @@ flowchart TD
 
 Tenant rule per role (`types.ts` `Actor`): `CUSTOMER` tenantId is always `null` (platform-level; the seed shows `user123` holding Discovery, Sanlam and Old Mutual policies); `ASSESSOR`/`MANAGER` tenantId is required; `ADMIN` may carry or omit it, and no code path uses an ADMIN tenant today (DECISION REQUIRED: platform admin vs tenant admin; `tenant.test.ts` TENANT-001b shows an ADMIN token with a tenant still gets no claim or list access).
 
-Configuration: `JWT_SECRET` is a secret binding only (`backend/.dev.vars` locally, created by `npm run setup:local` = `scripts/setup-dev-vars.mjs`; `wrangler secret put JWT_SECRET` when deployed). `JWT_ISSUER` and `JWT_AUDIENCE` are `[vars]` in `wrangler.toml` (`easyclaim-dev` / `easyclaim-api`). Local tokens: `npm run token` = `scripts/mint-token.mjs`, which mirrors the server's claim rules and refuses to mint a token the server would reject. The Phase 0 `X-Dev-Actor-*` header stub has no code path left; `auth.test.ts` AUTH-011 and `actor.test.ts` assert the headers are ignored even with the old flag set. What is NOT IMPLEMENTED: token revocation (bounded lifetime and secret rotation are the compensating controls) and asymmetric keys / JWKS (documented as the future IdP path via `hono/jwt` `verifyWithJwks`).
+Configuration: `JWT_SECRET` is a secret binding only (`.dev.vars` locally, created by `npm run setup:local` = `scripts/setup-dev-vars.mjs`; `wrangler secret put JWT_SECRET` when deployed). `JWT_ISSUER` and `JWT_AUDIENCE` are `[vars]` in `wrangler.toml` (`easyclaim-dev` / `easyclaim-api`). Local tokens: `npm run token` = `scripts/mint-token.mjs`, which mirrors the server's claim rules and refuses to mint a token the server would reject. The Phase 0 `X-Dev-Actor-*` header stub has no code path left; `auth.test.ts` AUTH-011 and `actor.test.ts` assert the headers are ignored even with the old flag set. What is NOT IMPLEMENTED: token revocation (bounded lifetime and secret rotation are the compensating controls) and asymmetric keys / JWKS (documented as the future IdP path via `hono/jwt` `verifyWithJwks`).
 
 ## 5. Object-level authorization: `loadAuthorizedClaim()` decision
 
-`backend/src/security/claimAccess.ts` L50-82. One `SELECT * FROM claims WHERE id = ?`, then:
+`src/security/claimAccess.ts` L50-82. One `SELECT * FROM claims WHERE id = ?`, then:
 
 | Input | Computed as |
 |---|---|
@@ -190,7 +192,7 @@ flowchart LR
 ```mermaid
 flowchart TD
     A["transitionClaim() holds the row as read:<br/>claim.id, claim.stage (= from), target to, optional opts.status"] --> U["Statement 1 (claimAccess.ts L141-150)<br/>UPDATE claims SET stage = ?, (status = ?,) updated_at = ?<br/>WHERE id = ? AND stage = ? (bound to the stage that was read)"]
-    U --> I["Statement 2 (audit.ts auditStatement, onlyIfPreviousChanged)<br/>INSERT INTO audit_events (id, occurred_at, actor_id, actor_role, actor_tenant_id,<br/>action, resource_type, resource_id, outcome, request_id, details)<br/>SELECT ?, ?, ?, ?, ?, 'claim.stage_changed', 'claim', ?, 'success', ?, ?<br/>WHERE changes() = 1"]
+    U --> I["Statement 2 (audit.ts auditStatement, onlyIfPreviousChanged)<br/>INSERT INTO audit_events (id, occurred_at, actor_id, actor_role, actor_tenant_id,<br/>action, resource_type, resource_id, outcome, request_id, details)<br/>SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE changes() = 1<br/>bound: uuid, now, actor id / role / tenantId, 'claim.stage_changed', 'claim',<br/>claim.id, 'success', requestId, JSON details"]
     I --> B["c.env.DB.batch of update then audit<br/>one transaction, statements run in order"]
     B -- "row still at from: UPDATE changes 1 row" --> OK["changes() = 1, audit row inserted<br/>both commit together<br/>transitionClaim returns ok, route answers 200"]
     B -- "row moved on (concurrent request or replay): UPDATE changes 0 rows" --> NO["changes() = 0, the INSERT selects no row<br/>batch commits with no change to either table"]
@@ -201,7 +203,7 @@ flowchart TD
 Properties this gives, and where they are tested:
 
 - A stage change and its audit row always exist together, or neither does (`audit.test.ts` "a stage-change audit row is written only when the stage change applied (same transaction)" replays the exact batch with a stale and then a fresh precondition).
-- Two concurrent or replayed requests cannot both apply: the second sees `changes = 0` and gets 409 `stale_state` (over HTTP the observable case is `claimLifecycle.test.ts` "double submit is rejected (replay)", where the second request is refused by the state machine as `illegal_transition` because the first already committed; a true same-instant race producing `stale_state` is NOT TESTED).
+- Two concurrent or replayed requests cannot both apply. A sequential replay is refused earlier by the state machine as `illegal_transition` because the first request already committed (`claimLifecycle.test.ts` "double submit is rejected (replay)"). A concurrent pair is exercised by `audit.test.ts` "concurrent submits of the same claim: exactly one applies, one is rejected, one stage_changed row (real transitionClaim path)", which fires two `POST /submit` calls with `Promise.all` and asserts exactly one 200, one 409, one `claim.stage_changed` row and one `claim.transition_rejected` row; the loser's error is accepted as either `stale_state` or `illegal_transition`, so the `stale_state` branch specifically is NOT TESTED deterministically over HTTP (its mechanism is covered by the "same transaction" test above).
 - `PATCH /screening` uses the same pattern for its data write (`WHERE id = ? AND stage IN ('Draft','Info Needed')`, `claims.ts` L139-144) but audits with a separate `writeAuditEvent` call afterwards, so that path is sequential, not batched (PARTIAL relative to the transition path).
 - The audit `details` for `claim.stage_changed` are `{ from, to, ...opts.details }`; `GET /claims/:claimId/timeline` reads these rows back (`claims.ts` L210-222) and exposes only `to` and `occurred_at`, so the audit table is also the customer-visible timeline source. `opts.details` is typed as identifiers and state names only (`TransitionOptions` in `claimAccess.ts`), and `audit.test.ts` asserts no `causeOfLoss` text, header or token ever lands in a row.
 
@@ -248,7 +250,7 @@ sequenceDiagram
     H-->>C: 200 {status transitioned, claimId, from Review, to Decision, outcome Approved}
 ```
 
-Denied variants of the same call, for contrast: an `ASSESSOR` of the same tenant passes steps 7-18 and is accepted (Review → Decision is open to both insurer roles); a `MANAGER` of `ins_sanlam` fails at step 14 (`cross_tenant`, 404); a `CUSTOMER` fails at step 7 (403, `authz.role_denied`); an `ADMIN` fails at step 7 as well; a `MANAGER` of the right tenant on a claim still in `Submitted` fails at step 19 (`illegal_transition`, 409); `{outcome: 'Paid'}` or an extra `amount` field fails at step 9 (400).
+Denied variants of the same call, for contrast: an `ASSESSOR` of the same tenant passes every step, because `TRANSITIONS.Review.Decision` is `INSURER` (both roles); no test sends `/decide` as an ASSESSOR over HTTP (every decide in `tenant.test.ts` uses `managerA`), so that acceptance is NOT TESTED and `BACKEND_SECURITY_HANDOFF.md` BACKEND-SEC-005 marks it DECISION REQUIRED. A `MANAGER` of `ins_sanlam` fails at step 14 (`cross_tenant`, 404, TENANT-002b); a `CUSTOMER` fails at step 7 (403, `authz.role_denied`, RBAC-001); an `ADMIN` fails at step 7 as well (RBAC-002); a `MANAGER` of the right tenant on a claim still in `Submitted` fails at step 19 (`checkTransition` returns `illegal_transition`, 409, STATE-004); `{outcome: 'Paid'}` or an extra `amount` field fails at step 9 (400, "decide rejects invalid or extra fields").
 
 ## 7. Exit codes, where they come from, and what is audited
 
@@ -268,7 +270,7 @@ Denied variants of the same call, for contrast: an `ASSESSOR` of the same tenant
 | 409 | `not_appealable` | `claims.ts` `POST /appeal` precondition | none | `claimLifecycle.test.ts` "an approved decision cannot be appealed", "a rejected decision can be appealed exactly once" |
 | 409 | `not_approved` | `claimsInsurer.ts` `POST /pay` precondition | `claim.transition_rejected` (`reason: 'not_approved'`) | STATE-005 |
 | 409 | `illegal_transition` | `transitionClaim()` after `checkTransition()` = `illegal_transition` or `unknown_stage` | `claim.transition_rejected` | STATE-004; `claimLifecycle.test.ts` "double submit is rejected (replay)" |
-| 409 | `stale_state` | `transitionClaim()` batch `meta.changes !== 1` | `claim.transition_rejected` (`reason: 'stale_state'`) | mechanism in `audit.test.ts`; HTTP race NOT TESTED |
+| 409 | `stale_state` | `transitionClaim()` batch `meta.changes !== 1` | `claim.transition_rejected` (`reason: 'stale_state'`) | mechanism in `audit.test.ts` "same transaction"; concurrent HTTP submits in `audit.test.ts` "concurrent submits of the same claim" (loser may get `stale_state` or `illegal_transition`, so this branch is NOT TESTED deterministically) |
 | 413 | `payload_too_large` | `index.ts` `bodyLimit` (runs before auth) | none | `hardening.test.ts` |
 | 422 | `policy_not_eligible` | `claims.ts` `POST /initiate` | `claim.initiate_rejected` (`reason`: `policy_not_owned` / `policy_not_active` / `policy_missing_tenant`) | `bola.test.ts`, `claimLifecycle.test.ts`, TENANT-007 |
 | 422 | `screening_incomplete` | `claims.ts` `POST /submit` | none | `claimLifecycle.test.ts` "cannot submit before screening is complete" |
@@ -276,11 +278,11 @@ Denied variants of the same call, for contrast: an `ASSESSOR` of the same tenant
 | 429 | `rate_limited` | `index.ts` per-IP (`/api/*`, before auth) and per-actor (`/api/v1/*`, after auth) | none | `hardening.test.ts` |
 | 500 | `internal_error` + `requestId` | `index.ts` `app.onError` (stack traces never returned) | none | `hardening.test.ts` "internal errors return a generic 500 without stack traces" |
 
-Which denials are deliberately not audited: 401 (no pre-auth DB write, so an unauthenticated flood cannot fill the audit table), 429, 400, 413, route-level 404 and 500. Every authorization denial (role, ownership, tenant, per-transition role, illegal or stale transition, unapproved payout) writes a row.
+Which denials are not audited: 401 (no pre-auth DB write, so an unauthenticated flood cannot fill the audit table), 429, 400, 413, route-level 404, 500, and the handler preconditions 409 `claim_not_editable` / `not_appealable` and 422 `screening_incomplete` / `unknown_plan`. Every authorization denial (role, ownership, tenant, per-transition role, illegal or stale transition, unapproved payout) and the ineligible-policy 422 write a row.
 
 ## 8. Every audit action emitted today
 
-Grep basis: `action: '` across `backend/src` (the `action` keys in `gateway.ts` are static response fields, not audit events). Ten distinct actions. No code path emits outcome `failure` yet, although the CHECK constraint allows it.
+Grep basis: `action: '` across `src` (the `action` keys in `gateway.ts` are static response fields, not audit events). Ten distinct actions. No code path emits outcome `failure` yet, although the CHECK constraint allows it.
 
 | Action | Outcome | resource_type | Source (file → function or route) | `details` keys |
 |---|---|---|---|---|
@@ -295,7 +297,7 @@ Grep basis: `action: '` across `backend/src` (the `action` keys in `gateway.ts` 
 | `cover.join_requested` | success | `catalog_plan` | `src/endpoints/policy.ts` → `POST /join-request` | none |
 | `mandate.cancel_requested` | success | `mandate` | `src/endpoints/identity.ts` → `POST /mandates/cancel` (stub route) | none |
 
-Row shape (`audit.ts` `COLUMNS`, `migrations/0002_security.sql` + `0003_tenants.sql`): `id` (UUID), `occurred_at`, `actor_id`, `actor_role`, `actor_tenant_id` (NULL for customers), `action`, `resource_type`, `resource_id`, `outcome` (CHECK in `success | denied | failure`), `request_id` (the server-generated `X-Request-Id`), `details` (JSON of identifiers and state names only). Triggers `audit_events_no_update` / `audit_events_no_delete` abort UPDATE and DELETE (`audit.test.ts`). The Phase 1 additions to this table are the `actor_tenant_id` column and the `changes() = 1` gating; everything else predates Phase 1.
+Row shape (`audit.ts` `COLUMNS`, `migrations/0002_security.sql` + `0003_tenants.sql`): `id` (UUID), `occurred_at`, `actor_id`, `actor_role`, `actor_tenant_id` (NULL for customers), `action`, `resource_type`, `resource_id`, `outcome` (CHECK in `success | denied | failure`), `request_id` (the server-generated `X-Request-Id`), `details` (JSON of identifiers and state names only). Triggers `audit_events_no_update` / `audit_events_no_delete` abort UPDATE and DELETE (`audit.test.ts`). The Phase 1 additions are the `actor_tenant_id` column (`0003_tenants.sql`) and, on the write path, `auditStatement()` with the `changes() = 1` gating; the table, its triggers and `writeAuditEvent()` predate Phase 1 (`0002_security.sql`).
 
 ## 9. Rate limiting placement
 
@@ -304,7 +306,7 @@ Two `RATE_LIMITER.limit()` calls share one binding (`wrangler.toml`: 100 request
 1. `index.ts` L46-53, path `/api/*`, key `cf-connecting-ip` (falls back to the literal `unknown`), before `requireActor`. Throttles unauthenticated floods without touching the token.
 2. `index.ts` L60-67, path `/api/v1/*`, key `actor:${role}:${id}`, after `requireActor`. One credential cannot spread its budget across addresses. `hardening.test.ts` asserts the key order `['unknown', 'actor:CUSTOMER:user123']` and that an unauthenticated request never reaches the actor limiter.
 
-When the binding is absent (for example a local config without `[[ratelimits]]`) both middlewares pass through silently; `hardening.test.ts` "rate limit binding is configured" guards the test config. No route-specific stricter limits exist (BACKEND-SEC-012 remains PARTIAL).
+When the binding is absent (for example a local config without `[[ratelimits]]`) both middlewares pass through silently; `hardening.test.ts` "rate limit binding is configured" guards the test config. No route-specific stricter limits exist (`BACKEND_SECURITY_HANDOFF.md` BACKEND-SEC-012 is IMPLEMENTED for the per-actor limiter; stricter limits for upload/OCR routes are PLANNED with those routes).
 
 ## 10. What this flow does not cover (open after Phase 1)
 
@@ -314,49 +316,49 @@ When the binding is absent (for example a local config without `[[ratelimits]]`)
 | Decision record (amount, reason, evidence hashes) | NOT IMPLEMENTED | `POST /decide` writes only `claims.status`; `GET /decision` reads it |
 | Payout execution, idempotency key, destination verification, second approver | NOT IMPLEMENTED | `POST /pay` is a state transition; state machine already restricts it to MANAGER and the route to status `Approved` |
 | Withdraw route, expiry scheduler | NOT IMPLEMENTED | 7 of 18 legal edges have no HTTP or scheduled path |
-| Audit triggers droppable by a D1 admin (`wrangler d1 execute`) | open, accepted risk | `docs/security/AUDIT_SECURITY.md` L57 |
-| Queue consumer not firing under `wrangler dev` | open, pre-existing | logic covered by `test/queue.test.ts` only |
-| Rate limiting approximate; no per-route limits | PARTIAL | section 9 |
-| Token revocation, external IdP / JWKS | NOT IMPLEMENTED / PLANNED | section 4 |
-| ADMIN tenant semantics | DECISION REQUIRED | `types.ts` L17, `actor.test.ts` "admin may omit tenant" |
-| Per-tenant claimant reference (insurer list hides platform `user_id`, so tenant staff have no claimant identifier at all) | DECISION REQUIRED | `claims.ts` L48-49 |
+| Audit triggers droppable by a D1 admin (`wrangler d1 execute`) | NOT IMPLEMENTED (no in-code mitigation; recorded as an accepted, still-open risk) | `docs/security/AUDIT_SECURITY.md` L78 |
+| Queue consumer under `wrangler dev` | NOT TESTED in automation (runtime observation only; Phase 0 saw it not fire, `BACKEND_SECURITY_HANDOFF.md` BACKEND-SEC-011 records it firing in the Phase 1 live run, so the behaviour is intermittent) | consumer logic covered by `test/queue.test.ts` only |
+| Rate limiting approximate; no per-route limits | PARTIAL (per-IP and per-actor limiters IMPLEMENTED; stricter per-route limits PLANNED) | section 9 |
+| Token revocation, external IdP / JWKS | NOT IMPLEMENTED / PLANNED | section 4, BACKEND-SEC-019 |
+| ADMIN tenant semantics | DECISION REQUIRED | `types.ts` L17, `actor.test.ts` "admin may omit tenant", BACKEND-SEC-020 |
+| Per-tenant claimant reference (insurer list hides platform `user_id`, so tenant staff have no claimant identifier at all) | DECISION REQUIRED | `claims.ts` L48-49, BACKEND-SEC-017 |
 | Stub routes without schemas or real data (`PATCH /profile`, `GET /profile/mandates/:tenantId/check`, `client/*`, `activities/*`) | PARTIAL (behind `requireActor` only) | BACKEND-SEC-010 |
 | CI running `npm test` / `typecheck` / `audit` | NOT IMPLEMENTED | BACKEND-SEC-014 |
 
 ## 11. Discrepancies found while writing this report (documentation only; no code was changed)
 
-1. `backend/src/endpoints/claimsInsurer.ts` L14-20 (header comment) lists "2. validate params/body" before "3. coarse role gate", but every route in that file is registered as `insurerOnly, validate('param', ...)`, so the role gate runs first. The diagram in section 2 follows the registered order. The comment should be reordered in the Phase 1 doc pass.
-2. `README.md` L12, L114-118 and L176-185, `docs/security/README.md` L3-4, L10, L13 and L22, and `docs/security/BACKEND_SECURITY_HANDOFF.md` statuses for BACKEND-SEC-001, -002, -003, -012 and -013 still describe the Phase 0 state (dev header stub, no tenant scoping, no insurer routes, sequential audit writes). Each of those is now IMPLEMENTED (or PARTIAL for -012) as shown above.
+1. `src/endpoints/claimsInsurer.ts` L14-20 (header comment) lists "2. validate params/body" before "3. coarse role gate", but every route in that file is registered as `insurerOnly, validate('param', ...)`, so the role gate runs first. The diagram in section 2 follows the registered order. The comment should be reordered in the Phase 1 doc pass.
+2. `README.md` (L12-13 authentication and tenants, L114 test count), `docs/security/README.md` (L3-13 token model, L17-24 posture table) and `docs/security/BACKEND_SECURITY_HANDOFF.md` (BACKEND-SEC-001, -002, -003, -012, -013 marked IMPLEMENTED (Phase 1)) have already been updated to the Phase 1 state in the working tree and agree with the code as described here; an earlier draft of this report listed them as stale, which the checker found no longer true. One residual disagreement: `BACKEND_SECURITY_HANDOFF.md` BACKEND-SEC-011 records the queue consumer firing under `wrangler dev` during the Phase 1 live run, whereas the Phase 0 handoff said it did not; this report cannot verify either statically (section 10).
 3. `docs/security/API_SECURITY_MATRIX.md`, `RBAC_MATRIX.md`, `SECURITY_TEST_PLAN.md`, `ATTACK_SCENARIOS.md` and `docs/architecture/BACKEND_ARCHITECTURE.md` were flagged in `PHASE_01_PRECHECK.md` section 5 as mentioning the dev stub; they were not re-audited here.
 
 ## 12. Files and functions referenced
 
 Source
-- `backend/src/index.ts`: request-id middleware, `secureHeaders()`, `cors()`, `bodyLimit()`, per-IP and per-actor `RATE_LIMITER` middlewares, `app.use('/api/v1/*', requireActor)`, `app.route(...)` mounts, `app.notFound`, `app.onError`, `queue` export
-- `backend/src/types.ts`: `ROLES`, `Role`, `INSURER_ROLES`, `ID_PATTERN`, `Actor`, `Bindings`, `AppEnv`
-- `backend/src/security/actor.ts`: `JWT_ALG`, `MIN_SECRET_BYTES`, `MAX_TOKEN_TTL_SECONDS`, `BEARER_TOKEN`, `resolveActor()`, `ClaimRejectReason`, `validateClaims()`, `actorFromClaims()`, `requireActor`
-- `backend/src/security/rbac.ts`: `requireRole()`
-- `backend/src/security/validation.ts`: `claimIdParam`, `initiateClaimSchema`, `verifyEligibilitySchema`, `screeningSchema`, `appealSchema`, `joinRequestSchema`, `decideSchema`, `listQuerySchema`, `validate()`
-- `backend/src/security/claimAccess.ts`: `ClaimRow`, `ClaimAccessMode`, `isTenantInsurer()`, `loadAuthorizedClaim()`, `TransitionOutcome`, `TransitionOptions`, `transitionClaim()`
-- `backend/src/security/claimStateMachine.ts`: `CLAIM_STAGES`, `ClaimStage`, `MAIN_PATH`, `TransitionActor`, `TRANSITIONS`, `isClaimStage()`, `checkTransition()`
-- `backend/src/security/audit.ts`: `AuditEvent`, `COLUMNS`, `auditStatement()`, `writeAuditEvent()`
-- `backend/src/endpoints/claims.ts`: `findOwnedPolicy()`, `GET /status`, `GET /`, `POST /verify-eligibility`, `POST /initiate`, `PATCH /:claimId/screening`, `POST /:claimId/evidence-ocr`, `POST /:claimId/submit`, `GET /:claimId/timeline`, `GET /:claimId/decision`, `POST /:claimId/appeal`
-- `backend/src/endpoints/claimsInsurer.ts`: `insurerOnly`, `respond()`, `POST /:claimId/verify`, `/screen`, `/review`, `/request-info`, `/decide`, `/pay`
-- `backend/src/endpoints/policy.ts`: `GET /my-covers`, `GET /market-catalog`, `POST /join-request`
-- `backend/src/endpoints/identity.ts`: `POST /mandates/cancel` and stubs
-- `backend/src/endpoints/ocr.ts`: `POST /process`, `processQueueBatch()`
-- `backend/src/endpoints/gateway.ts`, `backend/src/endpoints/audit.ts`: static stubs
-- `backend/src/models/policyModel.ts`: `PolicyModel.getMyCovers()`
+- `src/index.ts`: request-id middleware, `secureHeaders()`, `cors()`, `bodyLimit()`, per-IP and per-actor `RATE_LIMITER` middlewares, `app.use('/api/v1/*', requireActor)`, `app.route(...)` mounts, `app.notFound`, `app.onError`, `queue` export
+- `src/types.ts`: `ROLES`, `Role`, `INSURER_ROLES`, `ID_PATTERN`, `Actor`, `Bindings`, `AppEnv`
+- `src/security/actor.ts`: `JWT_ALG`, `MIN_SECRET_BYTES`, `MAX_TOKEN_TTL_SECONDS`, `BEARER_TOKEN`, `resolveActor()`, `ClaimRejectReason`, `validateClaims()`, `actorFromClaims()`, `requireActor`
+- `src/security/rbac.ts`: `requireRole()`
+- `src/security/validation.ts`: `claimIdParam`, `initiateClaimSchema`, `verifyEligibilitySchema`, `screeningSchema`, `appealSchema`, `joinRequestSchema`, `decideSchema`, `listQuerySchema`, `validate()`
+- `src/security/claimAccess.ts`: `ClaimRow`, `ClaimAccessMode`, `isTenantInsurer()`, `loadAuthorizedClaim()`, `TransitionOutcome`, `TransitionOptions`, `transitionClaim()`
+- `src/security/claimStateMachine.ts`: `CLAIM_STAGES`, `ClaimStage`, `MAIN_PATH`, `TransitionActor`, `TRANSITIONS`, `isClaimStage()`, `checkTransition()`
+- `src/security/audit.ts`: `AuditEvent`, `COLUMNS`, `auditStatement()`, `writeAuditEvent()`
+- `src/endpoints/claims.ts`: `findOwnedPolicy()`, `GET /status`, `GET /`, `POST /verify-eligibility`, `POST /initiate`, `PATCH /:claimId/screening`, `POST /:claimId/evidence-ocr`, `POST /:claimId/submit`, `GET /:claimId/timeline`, `GET /:claimId/decision`, `POST /:claimId/appeal`
+- `src/endpoints/claimsInsurer.ts`: `insurerOnly`, `respond()`, `POST /:claimId/verify`, `/screen`, `/review`, `/request-info`, `/decide`, `/pay`
+- `src/endpoints/policy.ts`: `GET /my-covers`, `GET /market-catalog`, `POST /join-request`
+- `src/endpoints/identity.ts`: `POST /mandates/cancel` and stubs
+- `src/endpoints/ocr.ts`: `POST /process`, `processQueueBatch()`
+- `src/endpoints/gateway.ts`, `src/endpoints/audit.ts`: static stubs
+- `src/models/policyModel.ts`: `PolicyModel.getMyCovers()`
 
 Configuration, migrations, scripts
-- `backend/wrangler.toml` (`[[ratelimits]]`, `[vars]` `JWT_ISSUER` / `JWT_AUDIENCE`), `backend/.dev.vars.example`, `backend/package.json` scripts `token`, `setup:local`, `secret`
-- `backend/migrations/0001_init.sql`, `0002_security.sql`, `0003_tenants.sql`; `backend/seed_sa_data.sql`
-- `backend/scripts/mint-token.mjs`, `backend/scripts/setup-dev-vars.mjs`
+- `wrangler.toml` (`[[ratelimits]]`, `[vars]` `JWT_ISSUER` / `JWT_AUDIENCE`), `.dev.vars.example`, `package.json` scripts `token`, `setup:local`, `secret`
+- `migrations/0001_init.sql`, `0002_security.sql`, `0003_tenants.sql`; `seed_sa_data.sql`
+- `scripts/mint-token.mjs`, `scripts/setup-dev-vars.mjs`
 
 Tests
-- `backend/test/helpers.ts` (`mintToken()`, `call()`, `auditRows()`, `claimStage()`, `createReadyDraft()`, `createSubmittedClaim()`), `setup.ts`, `env.d.ts`, `vitest.config.mts`
-- `backend/test/actor.test.ts`, `auth.test.ts`, `tenant.test.ts`, `migration.test.ts`, `bola.test.ts`, `rbac.test.ts`, `massAssignment.test.ts`, `claimLifecycle.test.ts`, `hardening.test.ts`, `audit.test.ts`, `queue.test.ts`, `stateMachine.test.ts`
+- `test/helpers.ts` (`mintToken()`, `call()`, `auditRows()`, `claimStage()`, `createReadyDraft()`, `createSubmittedClaim()`), `setup.ts`, `env.d.ts`, `vitest.config.mts`
+- `test/actor.test.ts`, `auth.test.ts`, `tenant.test.ts`, `migration.test.ts`, `bola.test.ts`, `rbac.test.ts`, `massAssignment.test.ts`, `claimLifecycle.test.ts`, `hardening.test.ts`, `audit.test.ts`, `queue.test.ts`, `stateMachine.test.ts`
 
 Documents consulted
 - `docs/phase-reports/PHASE_01_PRECHECK.md`, `docs/security/BACKEND_SECURITY_HANDOFF.md`, `docs/security/README.md`, `docs/security/AUDIT_SECURITY.md`, `README.md`
-- `backend/node_modules/hono/dist/request.js` (`routePath` getter), `dist/validator/validator.js` (malformed JSON → `HTTPException(400)`), `dist/middleware/body-limit/index.js` (Content-Length check before streaming)
+- `node_modules/hono/dist/request.js` (`routePath` getter), `dist/validator/validator.js` (malformed JSON → `HTTPException(400)`), `dist/middleware/body-limit/index.js` (Content-Length check before streaming)

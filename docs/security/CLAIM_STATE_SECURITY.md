@@ -2,7 +2,7 @@
 
 ## Original implementation (before the `cyber` branch)
 
-There was no state. Every `/claims/*` route in `backend/src/endpoints/claims.ts` returned fixed JSON:
+There was no state. Every `/claims/*` route in `src/endpoints/claims.ts` returned fixed JSON:
 
 - `initiate` returned `claim_${Date.now()}` (enumerable) and wrote nothing.
 - `submit` returned `submitted` for **any** claim ID, any number of times.
@@ -13,7 +13,7 @@ Nothing prevented a client from "submitting" someone else's claim or skipping st
 
 ## Implemented state machine
 
-The source is `backend/src/security/claimStateMachine.ts` (`TRANSITIONS`, `checkTransition`). Anything not listed below is illegal.
+The source is `src/security/claimStateMachine.ts` (`TRANSITIONS`, `checkTransition`). Anything not listed below is illegal.
 
 | From | To | Allowed actor |
 |---|---|---|
@@ -48,7 +48,7 @@ Every rejection writes a `claim.transition_rejected` audit event.
 **Phase 1 update:** the state machine table above is unchanged in Phase 1. Two further rejections are produced by the API layer rather than by `checkTransition`, and both are audited as `claim.transition_rejected` with the reason named:
 
 - `stale_state` → HTTP 409, from `transitionClaim` when the conditional UPDATE changed 0 rows (see "Replay and race protection")
-- `not_approved` → HTTP 409, from `POST /claims/:claimId/pay` when the claim is in `Decision` but `status` is not `Approved` (`backend/src/endpoints/claimsInsurer.ts`)
+- `not_approved` → HTTP 409, from `POST /claims/:claimId/pay` when the claim is in `Decision` but `status` is not `Approved` (`src/endpoints/claimsInsurer.ts`)
 
 ## Design decisions
 
@@ -57,12 +57,12 @@ Every rejection writes a `claim.transition_rejected` audit event.
 - **ADMIN has no transitions**, for separation of duties.
 - **Paid is MANAGER-only.** `SYSTEM` is used only for scheduled expiry and can never be a request actor, because `resolveActor` only accepts the four real roles.
 - **`status`** (Pending/Approved/Rejected) is the decision outcome, is server-set, and can't be written by clients (strict schemas).
-  - **Phase 1 update:** `status` is now set by exactly one route, `POST /claims/:claimId/decide`, whose strict body is `{ outcome: 'Approved' | 'Rejected' }` (`decideSchema` in `backend/src/security/validation.ts`). The value is passed to `transitionClaim(..., { status: outcome })` and written in the same `UPDATE` statement as the stage change, so a claim can never be in `Decision` with an unset outcome. Any other key (`amount`, `status`, `approvedBy`) or value (`Paid`) is rejected with 400 (TESTED/PASSED: `test/tenant.test.ts` "decide rejects invalid or extra fields").
-- **Phase 1: tenant boundary on top of role.** Insurer roles may act on a claim only when `actor.tenantId === claim.tenant_id` (non-null) and the claim is no longer a `Draft` (`isTenantInsurer()` in `backend/src/security/claimAccess.ts`). The role table above therefore reads "ASSESSOR/MANAGER **of the claim's tenant**". Customers are platform-level and are matched by `claims.user_id` only.
+  - **Phase 1 update:** `status` is written as `'Pending'` by `POST /claims/initiate` at creation and is changed afterwards by exactly one route, `POST /claims/:claimId/decide`, whose strict body is `{ outcome: 'Approved' | 'Rejected' }` (`decideSchema` in `src/security/validation.ts`). The value is passed to `transitionClaim(..., { status: outcome })` and written in the same `UPDATE` statement as the stage change, so a claim can never be in `Decision` with an unset outcome. An out-of-range value (`outcome: 'Paid'`) or an extra key (`amount`) is rejected with 400 (TESTED/PASSED: `test/tenant.test.ts` "decide rejects invalid or extra fields"); other extra keys such as `status` or `approvedBy` are rejected by the same `.strict()` schema but are NOT TESTED on this route.
+- **Phase 1: tenant boundary on top of role.** Insurer roles may act on a claim only when `actor.tenantId === claim.tenant_id` (non-null) and the claim is no longer a `Draft` (`isTenantInsurer()` in `src/security/claimAccess.ts`). The role table above therefore reads "ASSESSOR/MANAGER **of the claim's tenant**". Customers are platform-level and are matched by `claims.user_id` only.
 
 ## Replay and race protection
 
-`transitionClaim` (`backend/src/security/claimAccess.ts`) runs:
+`transitionClaim` (`src/security/claimAccess.ts`) runs:
 
 ```sql
 UPDATE claims SET stage = ?, updated_at = ? WHERE id = ? AND stage = ?
@@ -78,14 +78,14 @@ The final `stage = ?` is the stage the caller read. If another request already m
 2. **State machine.** `checkTransition(claim.stage, to, actor.role)`; failures map to 403/409 as listed above and are audited as `claim.transition_rejected`.
 3. **One D1 batch (a transaction) with two statements:**
    - `UPDATE claims SET stage = ?, updated_at = ? WHERE id = ? AND stage = ?` (or, when `opts.status` is given by `/decide`, `UPDATE claims SET stage = ?, status = ?, updated_at = ? WHERE id = ? AND stage = ?`), bound to the stage the caller read;
-   - `INSERT INTO audit_events (...) SELECT ... WHERE changes() = 1` for the `claim.stage_changed` row (`auditStatement(..., { onlyIfPreviousChanged: true })` in `backend/src/security/audit.ts`). SQLite's `changes()` refers to the statement immediately before it in the same batch, so the audit row exists only when the stage change applied, and the stage change never applies without its audit row.
+   - `INSERT INTO audit_events (...) SELECT ... WHERE changes() = 1` for the `claim.stage_changed` row (`auditStatement(..., { onlyIfPreviousChanged: true })` in `src/security/audit.ts`). SQLite's `changes()` refers to the statement immediately before it in the same batch, so the audit row exists only when the stage change applied, and the stage change never applies without its audit row.
 4. **Lost race / replay.** If the UPDATE reports `meta.changes !== 1`, the gated INSERT has already written nothing; the function then writes a `claim.transition_rejected` row with `reason: 'stale_state'` and returns 409 `stale_state`.
 
 TESTED/PASSED: `test/audit.test.ts` "a stage-change audit row is written only when the stage change applied (same transaction)" reproduces the batch with a stale and a fresh precondition. This closes Phase 0 handoff BACKEND-SEC-013.
 
 ### Phase 1 update: screening write precondition in SQL
 
-`PATCH /claims/:claimId/screening` (`backend/src/endpoints/claims.ts`) checks the stage after `loadAuthorizedClaim` (409 `claim_not_editable` unless `Draft` or `Info Needed`) **and** repeats the precondition in the write itself:
+`PATCH /claims/:claimId/screening` (`src/endpoints/claims.ts`) checks the stage after `loadAuthorizedClaim` (409 `claim_not_editable` unless `Draft` or `Info Needed`) **and** repeats the precondition in the write itself:
 
 ```sql
 UPDATE claims SET cause_of_loss = ?, incident_date = ?, updated_at = ? WHERE id = ? AND stage IN ('Draft', 'Info Needed')
@@ -99,7 +99,7 @@ Phase 0 state (kept for history): only `submit`, `screening` (Info Needed → Sc
 
 ### Phase 1 update: route → transition → role
 
-All routes are under `/api/v1/claims` (mounted in `backend/src/index.ts`; customer routes in `backend/src/endpoints/claims.ts`, insurer routes in `backend/src/endpoints/claimsInsurer.ts`). Every row below goes through `requireActor` → coarse `requireRole` → strict zod validation → `loadAuthorizedClaim` (load → tenant → ownership → mode) → `transitionClaim` → audit. "Role" is what the state machine enforces; the coarse gate in front of the insurer routes is `requireRole('ASSESSOR', 'MANAGER')` and is resource-independent, so a 403 from it cannot be used as a cross-tenant existence oracle.
+All routes are under `/api/v1/claims` (mounted in `src/index.ts`; customer routes in `src/endpoints/claims.ts`, insurer routes in `src/endpoints/claimsInsurer.ts`). Every row below goes through `requireActor` → coarse `requireRole` → strict zod validation → `loadAuthorizedClaim` (load → tenant → ownership → mode) → `transitionClaim` → audit. "Role" is what the state machine enforces; the coarse gate in front of the insurer routes is `requireRole('ASSESSOR', 'MANAGER')` and is resource-independent, so a 403 from it cannot be used as a cross-tenant existence oracle.
 
 | Route | Transition | Role | Access mode | Extra precondition |
 |---|---|---|---|---|
@@ -118,7 +118,7 @@ All routes are under `/api/v1/claims` (mounted in `backend/src/index.ts`; custom
 
 ADMIN reaches none of these: the insurer routes and `GET /claims` return 403 (audited `authz.role_denied`), and the read routes (`timeline`, `decision`) return 404 via `loadAuthorizedClaim` (reason `role`). TESTED/PASSED: `test/tenant.test.ts` TENANT-001b, RBAC-002.
 
-Live evidence for the full `Submitted → Verified → Screening → Review → Decision → Paid` path, the 409 for `pay` before a decision, the 403 for an assessor `pay`, and the 409 replay of `pay` is in `docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log` ("Happy path", ATTACK-P1-006, ATTACK-P1-008).
+Live evidence for the full `Submitted → Verified → Screening → Review → Decision → Paid` path, the 409 `illegal_transition` for `pay` before a decision, the 403 for an assessor `pay`, and the 409 replay of `pay` is in the "Happy path" block of `docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log`; ATTACK-P1-008 in the same log repeats the assessor `pay` → 403 on tenant B's claim, and ATTACK-P1-006 shows cross-tenant `verify` / `decide` → 404 with the stage unchanged.
 
 ## Open decisions (DECISION REQUIRED)
 
@@ -131,13 +131,13 @@ Live evidence for the full `Submitted → Verified → Screening → Review → 
 
 ## Test coverage (TESTED/PASSED)
 
-- `backend/test/stateMachine.test.ts` covers:
+- `test/stateMachine.test.ts` covers:
   - 12 legal transitions
   - 8 illegal jumps, including Submitted→Paid, Screening→Paid, Screening→Decision (skipping review) and exiting terminal states
   - 7 role violations, including CUSTOMER→Decision, CUSTOMER→Paid, ASSESSOR→Paid and ADMIN→anything
   - unknown stages
   - invariants that ADMIN appears nowhere and Paid is MANAGER-only
-- `backend/test/claimLifecycle.test.ts` covers:
+- `test/claimLifecycle.test.ts` covers:
   - end-to-end initiate → screening → submit, with audit rows written
   - submit before screening returns 422
   - double submit returns 409
@@ -146,9 +146,9 @@ Live evidence for the full `Submitted → Verified → Screening → Review → 
   - appealing a Rejected decision succeeds once, then returns 409
   - a non-active policy returns 422
 
-### Phase 1 update (TESTED/PASSED, `cd backend && npm test`: 12 files, 175 passed, 1 todo)
+### Phase 1 update (TESTED/PASSED, `npm test`: 12 files, 183 passed, 1 todo, re-run 2026-09-26)
 
-- `backend/test/tenant.test.ts` (over HTTP with verified JWTs):
+- `test/tenant.test.ts` (over HTTP with verified JWTs):
   - STATE-001: full path Submitted → Verified → Screening → Review → Decision (Approved) → Paid with the right tenant and roles; six `claim.stage_changed` rows in order, each carrying a `request_id`; timeline shows every stage completed with a date
   - STATE-002: correct role, wrong tenant → 404 and stage unchanged
   - STATE-003: correct tenant, ASSESSOR calls `/pay` → 403, audited `role_not_permitted`
@@ -157,6 +157,6 @@ Live evidence for the full `Submitted → Verified → Screening → Review → 
   - STATE-006: `request-info` → Info Needed; customer `PATCH /screening` → back to Screening
   - TENANT-002 / TENANT-002b: every insurer route on another tenant's claim → 404, zero `claim.stage_changed` rows, all denials audited `cross_tenant`
   - RBAC-001 / RBAC-002: CUSTOMER and ADMIN on insurer routes → 403, stage unchanged
-- `backend/test/audit.test.ts`: the batch's `changes()`-gated audit INSERT (stale precondition → 0 rows and no audit row; fresh → both land)
-- `backend/test/stateMachine.test.ts`: unchanged (state machine unchanged)
+- `test/audit.test.ts`: the batch's `changes()`-gated audit INSERT (stale precondition → 0 rows and no audit row; fresh → both land), and "concurrent submits of the same claim: exactly one applies, one is rejected, one stage_changed row (real transitionClaim path)" (two parallel `POST /submit` → one 200, one 409, exactly one `claim.stage_changed` and one `claim.transition_rejected` row)
+- `test/stateMachine.test.ts`: unchanged (state machine unchanged)
 - NOT TESTED: a dedicated double-`/decide` case (the state machine has no `Decision → Decision` edge, so it is rejected as `illegal_transition`, but no test exercises it directly); Withdrawn/Expired over HTTP (no endpoint/job exists)

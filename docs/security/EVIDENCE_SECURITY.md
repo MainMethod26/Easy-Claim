@@ -2,16 +2,16 @@
 
 ## Actual state
 
-`POST /api/v1/claims/:claimId/evidence-ocr` (`backend/src/endpoints/claims.ts`) **accepts no file**. It:
+`POST /api/v1/claims/:claimId/evidence-ocr` (`src/endpoints/claims.ts`) **accepts no file**. It:
 
 1. requires `CUSTOMER` and ownership of the claim (`loadAuthorizedClaim(..., 'owner-write')`); anyone else gets 404;
 2. requires the claim stage to be `Draft` or `Info Needed` (otherwise 409);
 3. sends `{event:'ClaimEvidenceUploaded', data:{claimId, timestamp}}` to the `CLAIM_EVENTS` queue;
 4. writes the audit event `claim.evidence_queued`.
 
-The queue consumer (`backend/src/endpoints/ocr.ts`) now validates the message and logs it. Previously this event was silently dropped. There is no storage binding (no R2) and no OCR engine.
+The queue consumer (`src/endpoints/ocr.ts`) now validates the message and logs it. Previously this event was silently dropped. There is no storage binding (no R2) and no OCR engine.
 
-The `evidence` table (`backend/migrations/0002_security.sql`: `id, claim_id, uploaded_by, storage_key, mime_type, size_bytes, sha256, created_at`) exists but **no code uses it**.
+The `evidence` table (`migrations/0002_security.sql`: `id, claim_id, uploaded_by, storage_key, mime_type, size_bytes, sha256, created_at`) exists but **no code uses it**.
 
 ## Assessment (Phase 8 checklist)
 

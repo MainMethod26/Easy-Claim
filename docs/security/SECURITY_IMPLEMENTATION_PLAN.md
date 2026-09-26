@@ -10,21 +10,21 @@ Owner: **Cyber** = delivered on branch `cyber`; **Backend** = backend team.
 
 | Item | Status | Owner | Files |
 |---|---|---|---|
-| Authentication | IMPLEMENTED (Phase 1): app-verified HS256 bearer JWT, pinned alg, required iss/aud/exp/iat, bounded TTL, fail-closed config. IdP / JWKS PLANNED | Cyber (IdP: Backend) | `backend/src/security/actor.ts`, `wrangler.toml` `[vars]`, `.dev.vars.example`, `scripts/mint-token.mjs` |
+| Authentication | IMPLEMENTED (Phase 1): app-verified HS256 bearer JWT, pinned alg, required iss/aud/exp/iat, bounded TTL, fail-closed config. IdP / JWKS PLANNED | Cyber (IdP: Backend) | `src/security/actor.ts`, `wrangler.toml` `[vars]`, `.dev.vars.example`, `scripts/mint-token.mjs` |
 | Dev actor stub | REMOVED (Phase 1); no non-token path exists | Cyber | — |
-| RBAC (function-level) | IMPLEMENTED | Cyber | `backend/src/security/rbac.ts`; applied in `src/endpoints/*.ts` |
-| Object-level authorization (claims, policies) | IMPLEMENTED | Cyber | `backend/src/security/claimAccess.ts`, `src/endpoints/claims.ts`, `src/endpoints/policy.ts` |
-| Tenant scoping for insurer staff | IMPLEMENTED (Phase 1): `tenant_id` on policies/claims, `isTenantInsurer()`, drafts and NULL-tenant claims hidden | Cyber | `backend/migrations/0003_tenants.sql`, `claimAccess.ts`, `types.ts` |
-| Property-level authorization | IMPLEMENTED (incl. `tenant_id`) | Cyber | `backend/src/security/validation.ts` |
+| RBAC (function-level) | IMPLEMENTED | Cyber | `src/security/rbac.ts`; applied in `src/endpoints/*.ts` |
+| Object-level authorization (claims, policies) | IMPLEMENTED | Cyber | `src/security/claimAccess.ts`, `src/endpoints/claims.ts`, `src/endpoints/policy.ts` |
+| Tenant scoping for insurer staff | IMPLEMENTED (Phase 1): `tenant_id` on policies/claims, `isTenantInsurer()`, drafts and NULL-tenant claims hidden | Cyber | `migrations/0003_tenants.sql`, `claimAccess.ts`, `types.ts` |
+| Property-level authorization | IMPLEMENTED (incl. `tenant_id`) | Cyber | `src/security/validation.ts` |
 | Claim state transition enforcement | IMPLEMENTED for customer AND insurer routes over HTTP (Phase 1); Withdrawn/Expired have no endpoint | Cyber | `claimStateMachine.ts`, `transitionClaim()`, `src/endpoints/claimsInsurer.ts` |
 | Evidence access control | PARTIAL (ownership on evidence-ocr route; no files) | Cyber / Backend | `src/endpoints/claims.ts` |
 | Evidence validation | NOT IMPLEMENTED (no upload) | Backend | see `EVIDENCE_SECURITY.md` |
 | Input validation | IMPLEMENTED for all routes with bodies/params/query | Cyber | `validation.ts` |
-| Secrets protection | IMPLEMENTED (`.dev.vars`, generated Postman environment gitignored; per-run test secret; no secrets in repo) | Cyber | `.gitignore`, `backend/.gitignore`, `vitest.config.mts` |
-| Audit of sensitive actions | IMPLEMENTED; rows carry `actor_tenant_id` and server-generated `request_id`; state change + audit in one batch | Cyber | `backend/src/security/audit.ts`, `migrations/0002_security.sql`, `0003_tenants.sql` |
+| Secrets protection | IMPLEMENTED (`.dev.vars`, generated Postman environment gitignored; per-run test secret; no secrets in repo) | Cyber | `.gitignore`, `.gitignore`, `vitest.config.mts` |
+| Audit of sensitive actions | IMPLEMENTED; rows carry `actor_tenant_id` and server-generated `request_id`; state change + audit in one batch | Cyber | `src/security/audit.ts`, `migrations/0002_security.sql`, `0003_tenants.sql` |
 | Basic rate/resource limits | IMPLEMENTED (per-IP before auth, per-actor after auth, 64 KB body, list limit ≤ 50) | Cyber | `wrangler.toml`, `src/index.ts` |
 | Security headers, CORS allowlist, generic errors | IMPLEMENTED | Cyber | `src/index.ts` |
-| Security tests | IMPLEMENTED (183 tests + 1 todo, 12 files) | Cyber | `backend/test/*.test.ts`, `vitest.config.mts` |
+| Security tests | IMPLEMENTED (183 tests + 1 todo, 12 files) | Cyber | `test/*.test.ts`, `vitest.config.mts` |
 
 ## P1 — Important
 

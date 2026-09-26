@@ -2,9 +2,9 @@
 
 These requirements use **OWASP API Security Top 10 2023**, **OWASP ASVS 5.0** and **NIST SSDF (SP 800-218)** as *assessment and implementation references*. EasyClaim does **not** claim to comply with any of them.
 
-Status values: IMPLEMENTED · PARTIAL · NOT IMPLEMENTED · PLANNED. Test values: a test file path (TESTED/PASSED as of the last run, 85/85) or NOT TESTED.
+Status values: IMPLEMENTED · PARTIAL · NOT IMPLEMENTED · PLANNED. Test values: a test file path (TESTED/PASSED as of the last run: Phase 0 85/85; Phase 1 183 passed + 1 todo) or NOT TESTED.
 
-All paths are relative to `backend/`.
+All paths are relative to the repository root (the Worker moved from `backend/` to the root when the backend team restructured `main`).
 
 ## OWASP API Security Top 10 2023
 
@@ -46,9 +46,9 @@ All paths are relative to `backend/`.
 | Practice | Requirement | Status | Location | Required change | Priority |
 |---|---|---|---|---|---|
 | PO.1 Define security requirements | Written requirements tied to code | IMPLEMENTED | `docs/security/` | Review each sprint | P0 |
-| PO.5 Secure environments | Secrets outside the repo | IMPLEMENTED (`.dev.vars` gitignored; no secrets found in the repo) | `backend/.gitignore` | Use `wrangler secret put` for JWT keys | P0 |
+| PO.5 Secure environments | Secrets outside the repo | IMPLEMENTED (`.dev.vars` gitignored; no secrets found in the repo) | `.gitignore` | Use `wrangler secret put` for JWT keys | P0 |
 | PS.1 Protect code | Branch protection and reviews | NOT IMPLEMENTED (repo setting) | GitHub | Require PR review on `main` | P1 |
 | PW.4 Reuse vetted components | Use framework middleware rather than custom crypto/auth | IMPLEMENTED (Hono `secure-headers`/`cors`/`body-limit`, zod) | `src/index.ts` | — | P1 |
-| PW.7/PW.8 Review and test code | Automated security tests | IMPLEMENTED (85 tests, 9 files) | `backend/test/` | Run in CI on every PR | P0 |
-| RV.1 Identify vulnerabilities | Dependency scanning | PARTIAL (`npm audit`: 0 vulnerabilities, run manually) | `backend/package.json` | Add `npm audit` and Dependabot to CI | P1 |
+| PW.7/PW.8 Review and test code | Automated security tests | IMPLEMENTED (85 tests, 9 files) | `test/` | Run in CI on every PR | P0 |
+| RV.1 Identify vulnerabilities | Dependency scanning | PARTIAL (`npm audit`: 0 vulnerabilities, run manually) | `package.json` | Add `npm audit` and Dependabot to CI | P1 |
 | RV.2 Respond to vulnerabilities | Track and retest findings | IMPLEMENTED (docs) | `docs/security/ATTACK_SCENARIOS.md` | Retest per release | P1 |

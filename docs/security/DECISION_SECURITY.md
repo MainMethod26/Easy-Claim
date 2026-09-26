@@ -6,11 +6,11 @@ Phase 0 (kept for history): no endpoint recorded a decision; outcomes existed on
 
 ### Phase 1 update: `POST /api/v1/claims/:claimId/decide` exists (outcome only)
 
-`backend/src/endpoints/claimsInsurer.ts`:
+`src/endpoints/claimsInsurer.ts`:
 
 - gate order: `requireActor` (verified JWT) → `requireRole('ASSESSOR', 'MANAGER')` (403 `forbidden`, audited `authz.role_denied`) → strict param + body validation → `loadAuthorizedClaim(c, claimId, 'insurer')` (claim must belong to the actor's tenant and not be a `Draft`, else 404 `not_found`, audited `authz.claim_access_denied`) → `transitionClaim(c, claim, 'Decision', { status: outcome, details: { outcome } })`;
-- body is `decideSchema` = `{ outcome: 'Approved' | 'Rejected' }`, `.strict()` (`backend/src/security/validation.ts`). `outcome: 'Paid'`, or any extra key such as `amount`, → 400 `validation_failed` (TESTED/PASSED `test/tenant.test.ts` "decide rejects invalid or extra fields");
-- the outcome is written to `claims.status` **in the same `UPDATE` statement as the stage change** (`UPDATE claims SET stage = 'Decision', status = ?, updated_at = ? WHERE id = ? AND stage = 'Review'`), inside the one D1 batch that also inserts the `changes()`-gated audit row `claim.stage_changed { from: 'Review', to: 'Decision', outcome }`;
+- body is `decideSchema` = `{ outcome: 'Approved' | 'Rejected' }`, `.strict()` (`src/security/validation.ts`). `outcome: 'Paid'`, or any extra key such as `amount`, → 400 `validation_failed` (TESTED/PASSED `test/tenant.test.ts` "decide rejects invalid or extra fields");
+- the outcome is written to `claims.status` **in the same `UPDATE` statement as the stage change** (`UPDATE claims SET stage = ?, status = ?, updated_at = ? WHERE id = ? AND stage = ?` in `transitionClaim`, bound to `'Decision'`, the outcome, the claim id and the `Review` stage that was read), inside the one D1 batch that also inserts the `changes()`-gated audit row `claim.stage_changed { from: 'Review', to: 'Decision', outcome }`;
 - response: `{ status: 'transitioned', claimId, from: 'Review', to: 'Decision', outcome }`;
 - what is **not** recorded: amount, reason code or note, rules/model version, evidence hashes, screening result. There is no `claim_decisions` table (PLANNED, backend). The only durable decision data is `claims.status` plus the audit row.
 
@@ -18,7 +18,7 @@ Phase 0 (kept for history): no endpoint recorded a decision; outcomes existed on
 
 Live evidence (`docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log`): `[decide Approved (manager A)]` 200; `[customer decide]` 403 (ATTACK-P1-007); `[cross-tenant decide]` 404 with stage unchanged (ATTACK-P1-006).
 
-Strict schemas still reject client-supplied `status`/`decision`/`approvedBy` on every other route (`test/massAssignment.test.ts`). The state machine (unchanged) restricts `Review → Decision` to ASSESSOR/MANAGER and forbids CUSTOMER and ADMIN (`test/stateMachine.test.ts`; over HTTP: RBAC-001, RBAC-002).
+Every other body-taking route uses a `.strict()` schema (`src/security/validation.ts`), so client-supplied `status`/`decision`/`approvedBy`/`stage`/`tenant_id` are rejected with 400; TESTED/PASSED for `PATCH /:claimId/screening` and `POST /initiate` in `test/massAssignment.test.ts`. The state machine (unchanged) restricts `Review → Decision` to ASSESSOR/MANAGER and forbids CUSTOMER and ADMIN (`test/stateMachine.test.ts`; over HTTP: RBAC-001, RBAC-002).
 
 ## Who may decide
 

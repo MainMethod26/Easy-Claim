@@ -50,7 +50,7 @@ npm.cmd run dev
 
 The upstream branch moved the backend from `backend/` to the repository root and introduced MVC/OpenAPI files. The Phase 1 Worker was moved to root and retained as the active application. The newer `src/controllers/`, `src/routes/`, and `src/services/` files remain in the repository but are not mounted by `src/index.ts`; integrate them deliberately rather than enabling their stub endpoints without Phase 1 authorization.
 
-Some inherited README and security-document path references still say `backend/...`; update those references to root-level paths as part of documentation cleanup.
+Inherited README and security-document path references that said `backend/...` were rewritten to root-level paths on 2026-09-26 (docs cleanup commit on `main`).
 
 ## Prompt for the next agent
 

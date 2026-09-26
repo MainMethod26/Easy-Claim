@@ -10,11 +10,11 @@
 - no bank-detail handling;
 - no amount anywhere in the model (no decision record).
 
-The `Paid` stage in `backend/src/security/claimStateMachine.ts` is unchanged: `Decision → Paid` is allowed **only for MANAGER**, and CUSTOMER, ASSESSOR and ADMIN are rejected (TESTED/PASSED in `test/stateMachine.test.ts`).
+The `Paid` stage in `src/security/claimStateMachine.ts` is unchanged: `Decision → Paid` is allowed **only for MANAGER**, and CUSTOMER, ASSESSOR and ADMIN are rejected (TESTED/PASSED in `test/stateMachine.test.ts`).
 
 ### Phase 1 update: `POST /api/v1/claims/:claimId/pay` (state transition only)
 
-`backend/src/endpoints/claimsInsurer.ts`, in order:
+`src/endpoints/claimsInsurer.ts`, in order:
 
 1. `requireActor` (verified JWT) → `requireRole('ASSESSOR', 'MANAGER')` (CUSTOMER/ADMIN → 403, audited `authz.role_denied`) → strict `claimId` validation.
 2. `loadAuthorizedClaim(c, claimId, 'insurer')`: claim must belong to the actor's tenant and not be a Draft, else 404 `not_found` (audited `authz.claim_access_denied`, e.g. `cross_tenant`).
@@ -24,11 +24,11 @@ The `Paid` stage in `backend/src/security/claimStateMachine.ts` is unchanged: `D
 
 `Paid` is terminal, so a replayed `/pay` gets 409 `illegal_transition`.
 
-TESTED/PASSED (`backend/test/tenant.test.ts`): STATE-001 (MANAGER pays an Approved claim → 200, audited with `request_id`), STATE-003 (ASSESSOR → 403, audited), STATE-004 (`/pay` from `Submitted` → 409), STATE-005 (Rejected decision → 409 `not_approved`), TENANT-002/002b (other tenant's MANAGER → 404, no change), RBAC-001 (CUSTOMER → 403).
+TESTED/PASSED (`test/tenant.test.ts`): STATE-001 (MANAGER pays an Approved claim → 200, audited with `request_id`), STATE-003 (ASSESSOR → 403, audited), STATE-004 (`/pay` from `Submitted` → 409), STATE-005 (Rejected decision → 409 `not_approved`), TENANT-002/002b (other tenant's MANAGER → 404, no change), RBAC-001 (CUSTOMER → 403).
 
-Live evidence (`docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log`): `[pay before decision (manager A)]` 409 `illegal_transition`; `[pay by assessor A]` 403 (ATTACK-P1-008); `[pay by manager A]` 200; `[pay again (replay)]` 409.
+Live evidence (`docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log`, "Happy path" block): `[pay before decision (manager A)]` 409 `illegal_transition`; `[pay by assessor A]` 403; `[pay by manager A]` 200; `[pay again (replay)]` 409 `illegal_transition`. ATTACK-P1-008 in the same log repeats the assessor case on tenant B's approved claim: `[assessor B pay]` 403.
 
-**Related money-adjacent stub:** `POST /api/v1/profile/mandates/cancel` (`backend/src/endpoints/identity.ts`) represents cancelling a debit-order mandate. It:
+**Related money-adjacent stub:** `POST /api/v1/profile/mandates/cancel` (`src/endpoints/identity.ts`) represents cancelling a debit-order mandate. It:
 
 - now requires `CUSTOMER`;
 - writes the audit event `mandate.cancel_requested`;

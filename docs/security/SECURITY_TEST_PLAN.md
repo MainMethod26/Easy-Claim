@@ -3,34 +3,32 @@
 Run automated tests:
 
 ```bash
-cd backend
 npm install
-npm test            # Phase 1: 12 files, 175 passed + 1 todo (TENANT-004, BLOCKED) on branch cyber (working tree)
+npm test            # Phase 1: 12 files, 183 passed + 1 todo (TENANT-004, BLOCKED) on branch cyber (working tree; re-run 2026-09-26, vitest 4.1.11)
 npm run typecheck   # tsc --noEmit, clean
 npm audit           # 0 vulnerabilities
 ```
 
 Phase 0 baseline was 9 files / 85 tests. Phase 1 added `test/auth.test.ts` (AUTH-001..014), `test/tenant.test.ts` (TENANT-001..007, STATE-001..006, RBAC-001/002, AUDIT-001) and `test/migration.test.ts`, and migrated `test/actor.test.ts` to JWT (every Phase 0 assertion kept).
 
-**Phase 1 update — manual tests.** The Phase 0 `X-Dev-Actor-*` header stub and `ALLOW_DEV_ACTOR_HEADERS` are REMOVED; every `/api/v1/*` request needs `Authorization: Bearer <JWT>` (HS256, `iss`/`aud` pinned, see `backend/src/security/actor.ts`). Local setup:
+**Phase 1 update — manual tests.** The Phase 0 `X-Dev-Actor-*` header stub and `ALLOW_DEV_ACTOR_HEADERS` are REMOVED; every `/api/v1/*` request needs `Authorization: Bearer <JWT>` (HS256, `iss`/`aud` pinned, see `src/security/actor.ts`). Local setup:
 
 ```bash
-cd backend
 npm run setup:local                 # scripts/setup-dev-vars.mjs: creates .dev.vars with a random JWT_SECRET (never overwrites)
 npm run db:migrate:local && npm run db:seed:local && npm run dev   # http://127.0.0.1:8787
 npm run token -- --demo             # scripts/mint-token.mjs: one token per demo actor (refuses out-of-policy claims)
 npm run token -- --sub user123 --role CUSTOMER
 npm run token -- --sub assessor_a1 --role ASSESSOR --tenant ins_discovery
-npm run token -- --postman          # writes backend/postman/EasyClaim.local.postman_environment.json (gitignored)
+npm run token -- --postman          # writes postman/EasyClaim.local.postman_environment.json (gitignored)
 ```
 
-Postman: `backend/EasyClaim.postman_collection.json` reads the bearer tokens from that generated environment file; folders `0 - Unauthenticated (expect 401)`, `5 - Cross-tenant attack (expect 404)`, `6 - Role attacks (expect 403)` and `7 - Token attacks (expect 401)` are attack demos. `JWT_ISSUER` / `JWT_AUDIENCE` live in `backend/wrangler.toml` `[vars]`; `JWT_SECRET` is a secret (`.dev.vars` locally, `wrangler secret put JWT_SECRET` deployed). If any of the three is missing the API answers 401 to everything (fail closed).
+Postman: `EasyClaim.postman_collection.json` reads the bearer tokens from that generated environment file; folders `0 - Unauthenticated (expect 401)`, `5 - Cross-tenant attack (expect 404)`, `6 - Role attacks (expect 403)` and `7 - Token attacks (expect 401)` are attack demos. `JWT_ISSUER` / `JWT_AUDIENCE` live in `wrangler.toml` `[vars]`; `JWT_SECRET` is a secret (`.dev.vars` locally, `wrangler secret put JWT_SECRET` deployed). If any of the three is missing the API answers 401 to everything (fail closed).
 
-Seed actors (Phase 1, see `backend/test/helpers.ts` and `scripts/mint-token.mjs` `DEMO_ACTORS`): `user123` (CUSTOMER, no tenant, owns `claim_disc_101` in Review [tenant `ins_discovery`] and `claim_sanlam_102` in Decision/Approved [tenant `ins_sanlam`]), `user456` (CUSTOMER, owns no claims), `assessor_a1` / `manager_a1` (tenant A `ins_discovery`), `assessor_b1` / `manager_b1` (tenant B `ins_sanlam`), `admin1` (ADMIN, no tenant, no claim access). `claim_mom_103` (tenant C `ins_momentum`, Submitted) is used as a third-tenant target.
+Seed actors (Phase 1, see `test/helpers.ts` and `scripts/mint-token.mjs` `DEMO_ACTORS`): `user123` (CUSTOMER, no tenant, owns `claim_disc_101` in Review [tenant `ins_discovery`] and `claim_sanlam_102` in Decision/Approved [tenant `ins_sanlam`]), `user456` (CUSTOMER, owns no claims), `assessor_a1` / `manager_a1` (tenant A `ins_discovery`), `assessor_b1` / `manager_b1` (tenant B `ins_sanlam`), `admin1` (ADMIN, no tenant, no claim access). `claim_mom_103` (tenant C `ins_momentum`, Submitted) is used as a third-tenant target.
 
 Live Phase 1 evidence (all ATTACK-P1 scenarios run against `wrangler dev`): `docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log`.
 
-Status vocabulary: TESTED/PASSED · TESTED/FAILED · PARTIAL · NOT TESTED · BLOCKED (feature missing) · DECISION REQUIRED.
+Status vocabulary: TESTED/PASSED · PARTIAL · NOT TESTED · BLOCKED (feature missing) · DECISION REQUIRED. Feature status words used in the Method column: IMPLEMENTED · NOT IMPLEMENTED · PLANNED.
 
 ## Authentication
 
@@ -43,13 +41,13 @@ Status vocabulary: TESTED/PASSED · TESTED/FAILED · PARTIAL · NOT TESTED · BL
 | AUTHN-05 | Every route (`/client/home`, `/covers/market-catalog`, `/claims`, `/claims/status`, `/profile`, `/activities/history`, `/activities/audit-trail`) requires an actor (`requireActor` is mounted on `/api/v1/*` in `src/index.ts`) | `test/actor.test.ts` "%s requires an actor" (7 routes; Phase 1 adds `GET /claims`) | TESTED/PASSED |
 | AUTHN-06 | Invalid credentials: malformed / non-JWT / wrong scheme / wrong number of segments / token in query string / two headers → 401 | Phase 1 update: `test/auth.test.ts` "AUTH-002 malformed token (%s) → 401" (7 cases), "AUTH-002b header parsing: scheme without a space, two headers, and query-string tokens are rejected", "AUTH-005b bearer scheme is case-insensitive, token is not" | TESTED/PASSED (was BLOCKED in Phase 0) |
 | AUTHN-07 | Expired token → 401; a token that was valid stops working once `exp` passes | Phase 1 update: `test/auth.test.ts` "AUTH-003 expired token → 401", "AUTH-008 token reuse after expiry → 401 (ATTACK-P1-009)"; `test/actor.test.ts` `actorFromClaims` "rejects expired" (`exp <= now`). Live: ATTACK-P1-002, ATTACK-P1-009 in `docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log` | TESTED/PASSED (was BLOCKED in Phase 0) |
-| AUTHN-08 | Bad signature / tampered payload / `alg:none` / algorithm confusion (HS512 against pinned HS256) → 401 | Phase 1 update: `test/auth.test.ts` "AUTH-004 wrong signing key → 401", "AUTH-004b tampered payload (role escalation) → 401", "AUTH-004c alg=none → 401", "AUTH-004d HS512 token against pinned HS256 → 401". Live: ATTACK-P1-001, -003, -004, -004b, -004c | TESTED/PASSED (was BLOCKED in Phase 0) |
+| AUTHN-08 | Bad signature / tampered payload / `alg:none` / algorithm confusion (HS512 against pinned HS256) → 401 | Phase 1 update: `test/auth.test.ts` "AUTH-004 wrong signing key → 401", "AUTH-004b tampered payload (role escalation) → 401", "AUTH-004c alg=none → 401 (rejected by the pinned algorithm, not merely by the header parser)", "AUTH-004d HS512 token against pinned HS256 → 401". Live: ATTACK-P1-001, -003, -004, -004b, -004c, and the "ATTACK-P1-004b (re-run)" block at the end of the log (`alg=none` with a non-empty signature reaches `verify()` and is logged as `JwtHeaderInvalid`) | TESTED/PASSED (was BLOCKED in Phase 0) |
 | AUTHN-09 | Brute-force login throttled | — (there is still no login endpoint; tokens are minted offline by `scripts/mint-token.mjs` or, later, an IdP). Per-actor request throttling after auth is covered by RATE-06 | BLOCKED (no login) |
 | AUTHN-10 | Phase 1 update — claim policy: missing/wrong `iss`, missing/wrong `aud`, missing `exp`, missing `iat`, `iat`/`nbf` in the future, missing `sub`, missing role, customer lifetime > 24 h, customer token carrying `tenant_id` → 401 | `test/auth.test.ts` "AUTH-006 rejects %s → 401" (13 cases) | TESTED/PASSED |
 | AUTHN-11 | Phase 1 update — insurer staff token without `tenant_id` → 401; staff lifetime > 8 h → 401, ≤ 8 h accepted | `test/auth.test.ts` "AUTH-006b insurer token without tenant_id → 401", "AUTH-006c staff token with a lifetime above the 8h maximum → 401". Live: ATTACK-P1-004d (9 h manager token → 401) | TESTED/PASSED |
 | AUTHN-12 | Phase 1 update — `aud` may be an array that contains the API audience | `test/auth.test.ts` "AUTH-007 audience may be an array containing the API" | TESTED/PASSED |
 | AUTHN-13 | Phase 1 update — misconfiguration fails closed: missing or < 32-byte `JWT_SECRET`, missing `JWT_ISSUER`, empty `JWT_AUDIENCE` → 401 even for a well-formed token | `test/auth.test.ts` "AUTH-009 missing or short JWT_SECRET fails closed even for a well-formed token", "AUTH-010 missing issuer/audience configuration fails closed" | TESTED/PASSED |
-| AUTHN-14 | Phase 1 update — 401 body is exactly `{"error":"unauthenticated"}`; server logs carry only the hono error class name (`token rejected: Jwt…`) and never the token | `test/auth.test.ts` "AUTH-012 401 responses reveal nothing about the token or the failure", "AUTH-013 server logs never contain the token › for a %s token" (expired, bad signature, wrong audience) | TESTED/PASSED |
+| AUTHN-14 | Phase 1 update — 401 body is exactly `{"error":"unauthenticated"}`; server logs carry only the hono error class name (`token rejected: Jwt…`) or a fixed reason token (`token rejected: claims:<reason>`, see `ClaimRejectReason` in `actor.ts`) and never the token | `test/auth.test.ts` "AUTH-012 401 responses reveal nothing about the token or the failure", "AUTH-013 server logs never contain the token › for a %s token" (4 cases: expired, bad signature, wrong audience, out-of-policy claims (customer with tenant)) | TESTED/PASSED |
 | AUTHN-15 | Phase 1 update — no audit row (no pre-auth DB write) for unauthenticated requests | `test/auth.test.ts` "AUTH-014 no audit row is written for unauthenticated requests (no pre-auth DB writes)" | TESTED/PASSED |
 | AUTHN-16 | Phase 1 update — pure claim validation matrix (`validateClaims`): exp/iat required, per-role TTL cap (24 h customer / 8 h staff, boundary accepted), sub/tenant `ID_PATTERN`, role case-sensitive, customer must not carry a tenant, ASSESSOR/MANAGER must, null/string payloads rejected | `test/actor.test.ts` "actorFromClaims (pure claim validation)": "accepts a customer without tenant", "accepts insurer staff with tenant", "rejects %s" (18 cases), "accepts a staff token at exactly the 8h maximum and a customer token at exactly 24h" | TESTED/PASSED |
 | AUTHN-17 | Phase 1 — ADMIN may omit or carry `tenant_id` | `test/actor.test.ts` "admin may omit tenant (DECISION REQUIRED: platform vs tenant admin)"; `test/tenant.test.ts` "TENANT-001b an ADMIN token carrying a tenant still gets no claim or list access" | TESTED/PASSED — semantics DECISION REQUIRED |
@@ -99,15 +97,16 @@ Seed tenants: A = `ins_discovery` (`claim_disc_101`, Review), B = `ins_sanlam` (
 
 | ID | Test | Method | Status |
 |---|---|---|---|
-| RBAC-001 | Customer calls `verify`, `screen`, `review`, `request-info`, `pay`, `decide` on their own claim → 403 (coarse `requireRole('ASSESSOR','MANAGER')` runs before the claim is loaded, so no claim data or existence leaks); stage unchanged | "RBAC-001 customers cannot call insurer transitions (403, no claim data)". Live: ATTACK-P1-007 | TESTED/PASSED |
+| RBAC-001 | Customer calls `verify`, `screen`, `review`, `request-info`, `pay`, `decide` on their own claim → 403 `{"error":"forbidden"}` (coarse `requireRole('ASSESSOR','MANAGER')` runs before the claim is loaded, so no claim data or existence leaks); stage unchanged; six new `authz.role_denied` rows and zero new `authz.claim_access_denied` rows | "RBAC-001 customers cannot call insurer transitions (403, no claim data, claim never loaded)". Live: ATTACK-P1-007 | TESTED/PASSED |
 | RBAC-002 | ADMIN calls `decide` → 403 (ADMIN is in no transition) | "RBAC-002 admin cannot transition claims". Live: ATTACK-P1-012 | TESTED/PASSED |
 
 ## Object property (mass assignment)
 
 | ID | Test | Method | Status |
 |---|---|---|---|
-| PROP-01..06 | Screening with `stage`, `status`, `riskScore`, `decision`, `approvedBy`, `user_id` → 400, row unchanged | `test/massAssignment.test.ts` | TESTED/PASSED |
-| PROP-07 | Initiate with `stage`/`userId` → 400 | `test/massAssignment.test.ts` | TESTED/PASSED |
+| PROP-01..06 | Screening with `stage`, `status`, `riskScore`, `decision`, `approvedBy`, `user_id` → 400, row unchanged. Phase 1 update: `tenantId` and `tenant_id` added (8 cases); the unchanged-row assertion now includes `tenant_id = ins_discovery` | `test/massAssignment.test.ts` "screening rejects privileged field %o" | TESTED/PASSED |
+| PROP-07 | Initiate with `stage`/`userId` → 400. Phase 1 update: `tenantId` / `tenant_id` in the body → 400 (3 cases) | `test/massAssignment.test.ts` "initiate rejects client-set %o" | TESTED/PASSED |
+| PROP-07b | Phase 1 update — `claims.tenant_id` on a new claim comes from the policy row, never from the request | `test/massAssignment.test.ts` "initiate derives tenant_id from the policy, never from the request"; `test/tenant.test.ts` TENANT-007 | TESTED/PASSED |
 | PROP-08 | Join-request with `userId` → 400; body not echoed | `test/massAssignment.test.ts` | TESTED/PASSED |
 | PROP-09 | Validation error does not echo input | `test/massAssignment.test.ts` | TESTED/PASSED |
 | PROP-10 | Phase 1 update — `POST /:claimId/decide` with `outcome: "Paid"` or an extra `amount` field → 400, stage unchanged (`decideSchema` is `.strict()`, `outcome` ∈ Approved \| Rejected) | `test/tenant.test.ts` "decide rejects invalid or extra fields (mass assignment)" | TESTED/PASSED |
@@ -116,7 +115,7 @@ Seed tenants: A = `ins_discovery` (`claim_disc_101`, Review), B = `ins_sanlam` (
 
 | ID | Test | Method | Status |
 |---|---|---|---|
-| STATE-01 | 12 legal transitions allowed | `test/stateMachine.test.ts` | TESTED/PASSED |
+| STATE-01 | 12 legal transitions allowed (a sample of the 18 edges in `TRANSITIONS`, `claimStateMachine.ts`; unchanged in Phase 1) | `test/stateMachine.test.ts` "allows %s -> %s by %s" | TESTED/PASSED |
 | STATE-02 | Illegal: Submitted→Paid, Screening→Paid, Screening→Decision (skip review), Verified→Review (skip screening), terminal states | `test/stateMachine.test.ts` | TESTED/PASSED |
 | STATE-03 | Role: Customer→Decision, Customer→Paid, Assessor→Paid, Admin→any rejected | `test/stateMachine.test.ts` | TESTED/PASSED |
 | STATE-04 | Only MANAGER can reach Paid; ADMIN in no transition | `test/stateMachine.test.ts` | TESTED/PASSED |
@@ -129,7 +128,7 @@ Seed tenants: A = `ins_discovery` (`claim_disc_101`, Review), B = `ins_sanlam` (
 
 ### Phase 1 update — insurer transitions over HTTP (`test/tenant.test.ts`)
 
-Routes: `POST /api/v1/claims/:claimId/verify`, `/screen`, `/review`, `/request-info`, `/decide` (`{outcome: Approved|Rejected}`), `/pay` in `backend/src/endpoints/claimsInsurer.ts`. Order on every route: `requireActor` → coarse `requireRole('ASSESSOR','MANAGER')` → strict zod → `loadAuthorizedClaim(c, id, 'insurer')` → `transitionClaim` (re-asserts owner/tenant, state machine incl. per-transition role, ONE D1 batch: conditional `UPDATE … WHERE id=? AND stage=?` + audit `INSERT … WHERE changes() = 1`; 0 rows → 409 `stale_state`).
+Routes: `POST /api/v1/claims/:claimId/verify`, `/screen`, `/review`, `/request-info`, `/decide` (`{outcome: Approved|Rejected}`), `/pay` in `src/endpoints/claimsInsurer.ts`. Order on every route: `requireActor` → coarse `requireRole('ASSESSOR','MANAGER')` → strict zod → `loadAuthorizedClaim(c, id, 'insurer')` → `transitionClaim` (re-asserts owner/tenant, state machine incl. per-transition role, ONE D1 batch: conditional `UPDATE … WHERE id=? AND stage=?` + audit `INSERT … WHERE changes() = 1`; 0 rows → 409 `stale_state`).
 
 | ID | Test | Method | Status |
 |---|---|---|---|
@@ -186,15 +185,15 @@ Routes: `POST /api/v1/claims/:claimId/verify`, `/screen`, `/review`, `/request-i
 | AUD-01 | Sensitive actions produce events (created, stage_changed, transition_rejected, access_denied, role_denied) | TESTED/PASSED (`test/claimLifecycle.test.ts`, `test/bola.test.ts`, `test/rbac.test.ts`). Phase 1 update: insurer transitions and denials also covered by `test/tenant.test.ts` STATE-001, STATE-003, TENANT-001/002/005/007; live counts in the "Audit rows for this run" block of `docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log` |
 | AUD-02 | Audit rows cannot be updated/deleted | TESTED/PASSED (`test/audit.test.ts` "audit rows cannot be updated or deleted"). Residual: triggers droppable by a DB admin (open since Phase 0) |
 | AUD-03 | No narratives, dev headers or tokens in audit rows | TESTED/PASSED (`test/audit.test.ts` "audit rows do not contain free-text claim narratives, headers or tokens" — Phase 1 update: also asserts no `Bearer` / `eyJ`) |
-| AUD-04 | Every row has actor, action, outcome, request id (request ids are generated server-side in `src/index.ts`, never taken from a header) | TESTED/PASSED (`test/audit.test.ts` "every audit row records actor, action, outcome and request id") |
+| AUD-04 | Every row has actor, action, outcome, request id (request ids are generated server-side in `src/index.ts`, never taken from a header) | TESTED/PASSED (`test/audit.test.ts` "every audit row records actor, action, outcome and request id"; Phase 1 update: "request ids in audit rows are server-generated, never taken from the client" — a client-supplied `X-Request-Id` is ignored) |
 | AUD-05 | Secrets not in app logs | PARTIAL — Phase 1 update: rejected tokens are proven absent from `console.warn/error` (`test/auth.test.ts` "AUTH-013 server logs never contain the token"); other secrets NOT TESTED (manual review of `console.*` calls only) |
-| AUD-06 | Phase 1 update — stage change and its audit row are written in ONE D1 batch; a stale precondition (0 rows updated) writes no `claim.stage_changed` row | TESTED/PASSED (`test/audit.test.ts` "a stage-change audit row is written only when the stage change applied (same transaction)") |
-| AUD-07 | Phase 1 update — denials carry the actor's tenant (`actor_tenant_id`), and a denial row never names the target claim's tenant or owner | TESTED/PASSED (`test/tenant.test.ts` "AUDIT-001 every denial above produced an audit event with the actor tenant", "TENANT-001 …") |
+| AUD-06 | Phase 1 update — stage change and its audit row are written in ONE D1 batch; a stale precondition (0 rows updated) writes no `claim.stage_changed` row; two concurrent submits of one claim yield exactly one 200 + one 409 and one `claim.stage_changed` row | TESTED/PASSED (`test/audit.test.ts` "a stage-change audit row is written only when the stage change applied (same transaction)", "concurrent submits of the same claim: exactly one applies, one is rejected, one stage_changed row (real transitionClaim path)") |
+| AUD-07 | Phase 1 update — denials carry the actor's tenant (`actor_tenant_id`) and actor id, and a denial row never names the target claim's tenant or owner | TESTED/PASSED (`test/tenant.test.ts` "AUDIT-001 cross-tenant and role denials are recorded with the acting tenant / actor id", "TENANT-001 …") |
 | AUD-08 | Phase 1 update — no audit row for unauthenticated requests | TESTED/PASSED (`test/auth.test.ts` "AUTH-014 …") |
 
 ## Migration / data model (Phase 1 update)
 
-`backend/migrations/0003_tenants.sql`: `tenants` table (`ins_discovery`, `ins_sanlam`, `ins_outsurance`, `ins_momentum`, `ins_oldmutual`), `policies.tenant_id` and `claims.tenant_id REFERENCES tenants(id)`, `audit_events.actor_tenant_id`, backfill by the five seed policy ids only, indexes.
+`migrations/0003_tenants.sql`: `tenants` table (`ins_discovery`, `ins_sanlam`, `ins_outsurance`, `ins_momentum`, `ins_oldmutual`), `policies.tenant_id` and `claims.tenant_id REFERENCES tenants(id)`, `audit_events.actor_tenant_id`, backfill by the five seed policy ids only, indexes.
 
 | ID | Test | Method | Status |
 |---|---|---|---|

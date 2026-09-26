@@ -1,22 +1,24 @@
 # Phase 1 Authentication and Authorization Flow
 
+> Layout note: this report was recorded at commit `cb2588a`, when the Worker lived under `backend/`. The backend team later moved it to the repository root on `main`; on 2026-09-26 every path in this document was rewritten to that root layout (`backend/src/...` is now `src/...`).
+
 Date: 2026-09-26
-Branch: `cyber` (Phase 1 work is uncommitted in the working tree; this report describes the working tree, not git HEAD)
-Backend: Cloudflare Worker, Hono 4.13.9, TypeScript, D1, Queue (`backend/`)
-Test run at time of writing: `npx vitest run` in `backend/` — 12 files, 183 passed, 1 todo (184)
+Branch: `cyber`, HEAD `cb2588a` ("feat: complete phase 1 claims security and tenant flow"). This report describes the working tree; at the time of writing `git status` shows no uncommitted changes under `src`, `migrations` or `test` (only files under `docs/` and `README.md` are modified), so the code described here is also what HEAD contains.
+Backend: Cloudflare Worker, Hono 4.13.9, TypeScript, D1, Queue (repository root)
+Test run at time of writing: `npx vitest run` at the repository root — 12 files, 183 passed, 1 todo (184)
 
 Status summary:
 
 | Area | Status | Where |
 |---|---|---|
-| Bearer JWT verification (HS256 pinned, iss/aud, exp/iat required, per-role TTL cap) | IMPLEMENTED | `backend/src/security/actor.ts` — `resolveActor()`, `validateClaims()`, `requireActor` |
+| Bearer JWT verification (HS256 pinned, iss/aud, exp/iat required, per-role TTL cap) | IMPLEMENTED | `src/security/actor.ts` — `resolveActor()`, `validateClaims()`, `requireActor` |
 | Fail closed on missing configuration (every request 401) | IMPLEMENTED | `resolveActor()` first branch |
-| Phase 0 `X-Dev-Actor-*` header stub | IMPLEMENTED (stub removed; no code path) | verified: the only mention left in `backend/src` is the removal note in the `actor.ts` doc comment; `test/auth.test.ts` AUTH-011, `test/actor.test.ts` |
-| Actor with tenant (`Actor { id, role, tenantId }`) | IMPLEMENTED | `backend/src/types.ts` |
-| Tenant data model (`tenants`, `policies.tenant_id`, `claims.tenant_id`, `audit_events.actor_tenant_id`) | IMPLEMENTED | `backend/migrations/0003_tenants.sql` |
-| Object-level authorization by owner or tenant | IMPLEMENTED | `backend/src/security/claimAccess.ts` — `loadAuthorizedClaim()`, `isTenantInsurer()` |
-| Stage transition with per-transition role, conditional UPDATE and same-batch audit row | IMPLEMENTED | `claimAccess.ts` — `transitionClaim()`; `backend/src/security/claimStateMachine.ts` — `checkTransition()` |
-| Insurer routes `/verify`, `/screen`, `/review`, `/request-info`, `/decide`, `/pay` | IMPLEMENTED (state transitions only; `/pay` moves no money) | `backend/src/endpoints/claimsInsurer.ts` |
+| Removal of the Phase 0 `X-Dev-Actor-*` header stub | IMPLEMENTED (no code path reads the headers or `ALLOW_DEV_ACTOR_HEADERS`) | verified: the only mention left in `src` is the removal note in the `actor.ts` doc comment; `test/auth.test.ts` AUTH-011, `test/actor.test.ts` |
+| Actor with tenant (`Actor { id, role, tenantId }`) | IMPLEMENTED | `src/types.ts` |
+| Tenant data model (`tenants`, `policies.tenant_id`, `claims.tenant_id`, `audit_events.actor_tenant_id`) | IMPLEMENTED | `migrations/0003_tenants.sql` |
+| Object-level authorization by owner or tenant | IMPLEMENTED | `src/security/claimAccess.ts` — `loadAuthorizedClaim()`, `isTenantInsurer()` |
+| Stage transition with per-transition role, conditional UPDATE and same-batch audit row | IMPLEMENTED | `claimAccess.ts` — `transitionClaim()`; `src/security/claimStateMachine.ts` — `checkTransition()` |
+| Insurer routes `/verify`, `/screen`, `/review`, `/request-info`, `/decide`, `/pay` | IMPLEMENTED (state transitions only; `/pay` moves no money) | `src/endpoints/claimsInsurer.ts` |
 | Token revocation, external IdP / JWKS, key rotation, login endpoint | NOT IMPLEMENTED | see section 5 |
 | ADMIN: platform-level or tenant-level | DECISION REQUIRED | `types.ts` comment, `validateClaims()` accepts either |
 | Evidence tenant isolation test (TENANT-004) | BLOCKED (no evidence endpoint) | `test/tenant.test.ts` `it.todo` |
@@ -33,7 +35,7 @@ Client → Authorization: Bearer <JWT> → hono/jwt verify() → validateClaims(
       → transitionClaim() (per-transition role, conditional UPDATE) → audit_events row (same D1 batch)
 ```
 
-Middleware registration order in `backend/src/index.ts` (top to bottom, all `app.use`):
+Middleware registration order in `src/index.ts` (top to bottom, all `app.use`):
 
 1. `*` — server-generated `requestId` (`crypto.randomUUID()`), echoed as `X-Request-Id`
 2. `*` — `secureHeaders()`, CORS allowlist (`allowHeaders: ['Content-Type', 'Authorization']`), `bodyLimit` 64 KiB → 413 `payload_too_large`
@@ -105,7 +107,7 @@ sequenceDiagram
     H-->>Client: 200 { status: 'transitioned', claimId, from: 'Submitted', to: 'Verified' }
 ```
 
-The audit row written in step 32 (built by `auditStatement()` in `backend/src/security/audit.ts` with `onlyIfPreviousChanged: true`):
+The audit row written in step 32 (built by `auditStatement()` in `src/security/audit.ts` with `onlyIfPreviousChanged: true`):
 
 | column | value |
 |---|---|
@@ -148,7 +150,7 @@ Every path that does not reach the green node ends in `requireActor` returning `
 
 ```mermaid
 flowchart TD
-    A["requireActor calls resolveActor(c)<br/>backend/src/security/actor.ts"] --> C0{"JWT_SECRET trimmed is at least 32 bytes<br/>AND JWT_ISSUER set AND JWT_AUDIENCE set?"}
+    A["requireActor calls resolveActor(c)<br/>src/security/actor.ts"] --> C0{"JWT_SECRET trimmed is at least 32 bytes<br/>AND JWT_ISSUER set AND JWT_AUDIENCE set?"}
     C0 -- no --> L0["console.error: auth misconfigured"] --> X
     C0 -- yes --> C1{"Authorization header present?"}
     C1 -- no --> X
@@ -172,7 +174,7 @@ flowchart TD
         J6 -- yes --> J7{"payload.aud present and (string or array) contains JWT_AUDIENCE?"}
         J7 -- no --> E7["JwtPayloadRequiresAud / JwtTokenAudience"]
         J7 -- yes --> J8{"HMAC-SHA256 over header.payload verifies with JWT_SECRET?"}
-        J8 -- no --> E8["JwtTokenSignatureMismatched"]
+        J8 -- no --> E8["JwtTokenSignatureMismatched<br/>(JwtTokenInvalid when the signature segment<br/>does not base64url-decode, e.g. a 1-char segment)"]
     end
     E1 & E2 & E3 & E4 & E5 & E6 & E7 & E8 --> X
 
@@ -254,8 +256,8 @@ Interaction rule: the server applies **no clock-skew allowance**. `scripts/mint-
 
 | Setting | Kind | Local `wrangler dev` | Tests (`vitest`) | Deployed | Read by |
 |---|---|---|---|---|---|
-| `JWT_SECRET` | **secret binding** (never a `[vars]` entry) | `backend/.dev.vars` (gitignored). Created by `npm run setup:local` → `scripts/setup-dev-vars.mjs`, which writes `randomBytes(32).toString('hex')` and never overwrites an existing file. `.dev.vars.example` ships the placeholder `CHANGE_ME` | `backend/vitest.config.mts` miniflare binding, a fresh `randomBytes(32).toString('hex')` on every run (no secret-shaped literal is committed) | `wrangler secret put JWT_SECRET` per environment | `resolveActor()` (trimmed, must be >= `MIN_SECRET_BYTES` = 32 bytes, else every request 401 and `auth misconfigured` logged); `scripts/mint-token.mjs` (refuses `CHANGE_ME` or < 32 bytes) |
-| `JWT_ISSUER` | plain var | `backend/wrangler.toml` `[vars]` → `"easyclaim-dev"`; may be overridden in `.dev.vars` | miniflare binding `'easyclaim-test'` | `wrangler.toml` `[vars]`, "change per environment" | `resolveActor()` → `verify({ iss })`; `mint-token.mjs` (`.dev.vars`, then `tomlVar('JWT_ISSUER')`) |
+| `JWT_SECRET` | **secret binding** (never a `[vars]` entry) | `.dev.vars` (gitignored). Created by `npm run setup:local` → `scripts/setup-dev-vars.mjs`, which writes `randomBytes(32).toString('hex')` and never overwrites an existing file. `.dev.vars.example` ships the placeholder `CHANGE_ME` | `vitest.config.mts` miniflare binding, a fresh `randomBytes(32).toString('hex')` on every run (no secret-shaped literal is committed) | `wrangler secret put JWT_SECRET` per environment | `resolveActor()` (trimmed, must be >= `MIN_SECRET_BYTES` = 32 bytes, else every request 401 and `auth misconfigured` logged); `scripts/mint-token.mjs` (refuses `CHANGE_ME` or < 32 bytes) |
+| `JWT_ISSUER` | plain var | `wrangler.toml` `[vars]` → `"easyclaim-dev"`; may be overridden in `.dev.vars` | miniflare binding `'easyclaim-test'` | `wrangler.toml` `[vars]`, "change per environment" | `resolveActor()` → `verify({ iss })`; `mint-token.mjs` (`.dev.vars`, then `tomlVar('JWT_ISSUER')`) |
 | `JWT_AUDIENCE` | plain var | `wrangler.toml` `[vars]` → `"easyclaim-api"` | miniflare binding `'easyclaim-api'` | `wrangler.toml` `[vars]` | `resolveActor()` → `verify({ aud })`; `mint-token.mjs` |
 | `MAX_TOKEN_TTL_SECONDS` | code constant | `actor.ts` (`CUSTOMER: 86400`, staff and admin `28800`) | same | same | `validateClaims()`; mirrored as `MAX_TTL` in `mint-token.mjs` |
 | `JWT_ALG`, `MIN_SECRET_BYTES` | code constants | `actor.ts` (`'HS256'`, `32`) | same | same | `resolveActor()` |
@@ -264,7 +266,7 @@ Interaction rule: the server applies **no clock-skew allowance**. `scripts/mint-
 
 Fail-closed behaviour (AUTH-009, AUTH-010): with `JWT_SECRET` unset, shorter than 32 bytes, or `JWT_ISSUER` / `JWT_AUDIENCE` empty, `resolveActor()` returns `null` before reading the header, so a correctly signed token is also rejected. Operators see `auth misconfigured` in the log; clients see the ordinary 401.
 
-Local token minting (`npm run token` → `scripts/mint-token.mjs`): signs with `hono/jwt sign(payload, secret, 'HS256')`, payload `{ sub, role, iss, aud, iat: now - 60, exp: now + ttl }` plus `tenant_id` when given; `--demo` prints one token per seeded actor (`user123`, `user456`, `assessor_a1`/`manager_a1` in `ins_discovery`, `assessor_b1`/`manager_b1` in `ins_sanlam`, `admin1`); `--postman` writes a gitignored Postman environment (`postman/*.postman_environment.json`). The script applies the same claim-shape rules as `validateClaims()` (`ID` pattern for `sub`/`tenant`, `ROLES`, customer-without-tenant, staff-with-tenant, `MAX_TTL` cap), so a token minted with the `.dev.vars` secret and the `wrangler.toml` issuer/audience passes `validateClaims()`; the `--secret`, `--iss` and `--aud` overrides are not checked against the Worker's configuration and can still produce a token the server rejects. It is a local-only tool; there is no token-issuing endpoint in the Worker (section 5).
+Local token minting (`npm run token` → `scripts/mint-token.mjs`): signs with `hono/jwt sign(payload, secret, 'HS256')`, payload `{ sub, role, iss, aud, iat: now - 60, exp: now + ttl }` plus `tenant_id` when given; `--demo` prints one token per entry in the script's `DEMO_ACTORS` list (`user123`, `user456`, `assessor_a1`/`manager_a1` in `ins_discovery`, `assessor_b1`/`manager_b1` in `ins_sanlam`, `admin1`; none of these ids is a row of its own: `seed_sa_data.sql` inserts only `policies` and `claims`, where `user123` and `user456` appear as `user_id` values; staff and admin ids exist only inside tokens, there is no `users` table); `--postman` writes a gitignored Postman environment (`postman/*.postman_environment.json`). The script applies the same claim-shape rules as `validateClaims()` (`ID` pattern for `sub`/`tenant`, `ROLES`, customer-without-tenant, staff-with-tenant, `MAX_TTL` cap), so a token minted with the `.dev.vars` secret and the `wrangler.toml` issuer/audience passes `validateClaims()`; the `--secret`, `--iss` and `--aud` overrides are not checked against the Worker's configuration and can still produce a token the server rejects. It is a local-only tool; there is no token-issuing endpoint in the Worker (section 5).
 
 ---
 
@@ -274,21 +276,21 @@ Local token minting (`npm run token` → `scripts/mint-token.mjs`): signs with `
 
 | Item | Status | What exists instead / consequence |
 |---|---|---|
-| Token revocation / denylist | NOT IMPLEMENTED | No `jti` is read; no KV/D1 lookup in `resolveActor()`. A leaked or no-longer-wanted token stays valid until `exp` (at most 8 h staff, 24 h customer). Compensating controls: the TTL caps in `validateClaims()`, and replacing `JWT_SECRET`, which invalidates every outstanding token at once. |
-| External identity provider / JWKS | NOT IMPLEMENTED (documented only) | `hono/jwt` 4.13.9 ships `verifyWithJwks()` (asymmetric keys, `jwks_uri` or inline `keys`; it throws `JwtSymmetricAlgorithmNotAllowed` for HS*). Nothing in `backend/src` calls it. See 5.2 for the migration path. |
-| Signing-key rotation with overlap | NOT IMPLEMENTED | One secret, no `kid` handling, no previous-secret fallback. Rotation today is `wrangler secret put JWT_SECRET` with a new value → every existing token fails `JwtTokenSignatureMismatched` immediately (all sessions end). NOT TESTED as a procedure. |
+| Token revocation / denylist | NOT IMPLEMENTED (PLANNED, handoff BACKEND-SEC-019) | No `jti` is read; no KV/D1 lookup in `resolveActor()`. A leaked or no-longer-wanted token stays valid until `exp` (at most 8 h staff, 24 h customer). Compensating controls: the TTL caps in `validateClaims()`, and replacing `JWT_SECRET`, which invalidates every outstanding token at once. |
+| External identity provider / JWKS | NOT IMPLEMENTED (documented only; PLANNED, handoff BACKEND-SEC-019) | `hono/jwt` 4.13.9 ships `verifyWithJwks()` (asymmetric keys, `jwks_uri` or inline `keys`; it throws `JwtSymmetricAlgorithmNotAllowed` for HS*). Nothing in `src` calls it. See 5.2 for the migration path. |
+| Signing-key rotation with overlap | NOT IMPLEMENTED (PLANNED, handoff BACKEND-SEC-019) | One secret, no `kid` handling, no previous-secret fallback. Rotation today is `wrangler secret put JWT_SECRET` with a new value → every existing token fails `JwtTokenSignatureMismatched` immediately (all sessions end). NOT TESTED as a procedure. |
 | Login / token issuance endpoint, refresh tokens | NOT IMPLEMENTED | No `/auth/*` route exists. Tokens are minted out of band (`mint-token.mjs` locally). A deployed environment needs an issuer that is not in this repository. |
 | User directory | NOT IMPLEMENTED | No `users` table in migrations `0001`–`0003`; `Actor` is entirely token-borne. A role change or deactivation cannot take effect before the token expires. |
 | Server-side clock-skew tolerance | NOT IMPLEMENTED | See section 3; only the local mint script compensates. |
 | MFA, device or IP binding, session limits | NOT IMPLEMENTED | Out of Phase 1 scope. |
-| ADMIN tenant semantics | DECISION REQUIRED | `validateClaims()` accepts ADMIN with or without `tenant_id`; ADMIN has no claim access or transitions either way (`TRANSITIONS` has no ADMIN entry; `GET /claims` → 403; `loadAuthorizedClaim` reason `role`). TENANT-001b covers the "ADMIN with tenant still gets nothing" case. |
-| Per-tenant claimant reference in the insurer list | DECISION REQUIRED | `GET /claims` for insurer staff omits `user_id` (platform-wide id) — `claims.ts` comment. |
+| ADMIN tenant semantics | DECISION REQUIRED (handoff BACKEND-SEC-020) | `validateClaims()` accepts ADMIN with or without `tenant_id`; ADMIN has no claim access or transitions either way (`TRANSITIONS` has no ADMIN entry; `GET /claims` → 403; `loadAuthorizedClaim` reason `role`). TENANT-001b covers the "ADMIN with tenant still gets nothing" case. |
+| Per-tenant claimant reference in the insurer list | DECISION REQUIRED (handoff BACKEND-SEC-017) | `GET /claims` for insurer staff omits `user_id` (platform-wide id) — `claims.ts` comment. |
 
 ### 5.2 Decision record: Option B — application-verified HS256 now, JWKS path later
 
 **Status:** IMPLEMENTED (Option B) in Phase 1. The JWKS path is PLANNED and the choice of identity provider for it remains DECISION REQUIRED.
 
-**Context.** Phase 0 identity came from `X-Dev-Actor-Id` / `X-Dev-Actor-Role` headers behind an `ALLOW_DEV_ACTOR_HEADERS` flag. `docs/security/BACKEND_SECURITY_HANDOFF.md` BACKEND-SEC-001 required `resolveActor()` to return verified identity and named two acceptable shapes: `hono/jwt` HS256 with pinned `alg`, `JWT_SECRET` via `wrangler secret put`, required `sub`/`role`/`exp`; or a managed IdP. No IdP had been selected, the tenant model (BACKEND-SEC-002) was being introduced in the same phase, and the `docs/phase-reports/PHASE_01_PRECHECK.md` probe of `hono/jwt` had established exactly which checks the library performs and which it leaves to the caller.
+**Context.** Phase 0 identity came from `X-Dev-Actor-Id` / `X-Dev-Actor-Role` headers behind an `ALLOW_DEV_ACTOR_HEADERS` flag. `docs/security/BACKEND_SECURITY_HANDOFF.md` BACKEND-SEC-001 required `resolveActor()` to return verified identity and named two acceptable shapes: `hono/jwt` HS256 with pinned `alg`, `JWT_SECRET` via `wrangler secret put`, required `sub`/`role`/`exp`; or a managed IdP. No IdP had been selected, the tenant model (BACKEND-SEC-002) was being introduced in the same phase, and the `docs/phase-reports/PHASE_01_PRECHECK.md` section 5 probe of `hono/jwt` had established exactly which checks the library performs and which it leaves to the caller.
 
 **Options considered in this record.**
 
@@ -298,7 +300,7 @@ Local token minting (`npm run token` → `scripts/mint-token.mjs`): signs with `
 | **B — app-verified HS256 now, JWKS later (chosen)** | Worker verifies HS256 tokens with a secret binding; all claim policy lives in `validateClaims()`; the library call is the only thing the JWKS path replaces | — |
 | C — keep the header stub behind a flag until an IdP exists | Status quo | Fails BACKEND-SEC-001; a single misconfigured flag is a complete authentication bypass; every doc and test would keep describing a mechanism nobody intends to ship |
 
-**Decision.** Option B, as implemented in `backend/src/security/actor.ts`:
+**Decision.** Option B, as implemented in `src/security/actor.ts`:
 `verify(token, JWT_SECRET, { alg: 'HS256', iss: JWT_ISSUER, aud: JWT_AUDIENCE })` followed by `validateClaims()`; fail closed on missing configuration; `exp`, `iat`, `sub`, `role` required by the application because the library does not require them; per-role TTL caps; log only error class names or fixed reason tokens; no audit writes before authentication; the header stub deleted rather than disabled.
 
 **Consequences accepted.**
@@ -335,9 +337,9 @@ Local token minting (`npm run token` → `scripts/mint-token.mjs`): signs with `
 
 | Item | Status | Source |
 |---|---|---|
-| Evidence upload / storage, OCR, decision records with amounts and reasons, payout execution | NOT IMPLEMENTED | handoff BACKEND-SEC-005 … 008; `claimsInsurer.ts` header comment; `/pay` is a stage change only |
-| Audit append-only triggers (`migrations/0002_security.sql` `audit_events_no_update`, `audit_events_no_delete`) can be dropped by a database administrator | PARTIAL (triggers exist; no protection against a DB administrator) | handoff / `docs/security/AUDIT_SECURITY.md` |
-| Queue consumer (`processQueueBatch`) not firing under `wrangler dev` | NOT TESTED live in Phase 1 (pre-existing; consumer logic covered by `queue.test.ts`) | handoff BACKEND-SEC-011; `PHASE_01_PRECHECK.md` section 4 |
+| Evidence upload / storage, OCR, decision records with amounts and reasons, payout execution | NOT IMPLEMENTED (the handoff marks 005 and 006 PARTIAL because `/decide` writes `claims.status` and `/pay` is a MANAGER-only transition gated on `status = 'Approved'`; 007 and 008 NOT IMPLEMENTED) | handoff BACKEND-SEC-005 … 008; `claimsInsurer.ts` header comment; `/pay` is a stage change only |
+| Audit append-only triggers (`migrations/0002_security.sql` `audit_events_no_update`, `audit_events_no_delete`) can be dropped by a database administrator | PARTIAL (triggers exist; no protection against a DB administrator) | `docs/security/AUDIT_SECURITY.md` "accepted risk" row |
+| Queue consumer (`processQueueBatch`) under `wrangler dev` | NOT TESTED as a repeatable check. Handoff BACKEND-SEC-011 records that the consumer did fire once during the Phase 1 live run (dev-server log; that log line is not in `evidence/PHASE_01_LIVE_ATTACKS.log`), so the Phase 0 "does not fire" observation is intermittent rather than a code defect. Consumer logic is covered by `queue.test.ts` (1 case) | handoff BACKEND-SEC-011; `PHASE_01_PRECHECK.md` section 4 |
 | Rate limiting approximate and per-location | PARTIAL (approximate by design) | `wrangler.toml` comment, `index.ts` comment, BACKEND-SEC-012 (now per-IP and per-actor) |
 | Token revocation, key rotation, IdP/JWKS, login endpoint | NOT IMPLEMENTED / PLANNED | section 5 |
 | ADMIN platform vs tenant; per-tenant claimant reference | DECISION REQUIRED | `types.ts`, `claims.ts` |
@@ -346,21 +348,21 @@ Local token minting (`npm run token` → `scripts/mint-token.mjs`): signs with `
 
 ## Appendix: files and functions referenced
 
-- `backend/src/index.ts` — middleware chain (`requestId`, CORS, `bodyLimit`, per-IP `RATE_LIMITER`, `requireActor`, per-actor `RATE_LIMITER`), `app.route(...)`, `app.notFound`, `app.onError`
-- `backend/src/security/actor.ts` — `JWT_ALG`, `MIN_SECRET_BYTES`, `MAX_TOKEN_TTL_SECONDS`, `BEARER_TOKEN`, `resolveActor()`, `validateClaims()`, `ClaimRejectReason`, `actorFromClaims()`, `requireActor`
-- `backend/src/types.ts` — `ROLES`, `Role`, `INSURER_ROLES`, `ID_PATTERN`, `Actor`, `Bindings` (`JWT_SECRET`, `JWT_ISSUER`, `JWT_AUDIENCE`, `RATE_LIMITER`, `ALLOWED_ORIGINS`), `AppEnv`
-- `backend/src/security/rbac.ts` — `requireRole()`
-- `backend/src/security/validation.ts` — `validate()`, `claimIdParam`, `decideSchema`, `listQuerySchema`
-- `backend/src/security/claimAccess.ts` — `ClaimRow`, `ClaimAccessMode`, `isTenantInsurer()`, `loadAuthorizedClaim()`, `transitionClaim()`, `TransitionOutcome`, `TransitionOptions`
-- `backend/src/security/claimStateMachine.ts` — `CLAIM_STAGES`, `MAIN_PATH`, `TRANSITIONS`, `checkTransition()`, `isClaimStage()`
-- `backend/src/security/audit.ts` — `auditStatement()` (with `onlyIfPreviousChanged`), `writeAuditEvent()`
-- `backend/src/endpoints/claimsInsurer.ts` — `POST /:claimId/verify`, `/screen`, `/review`, `/request-info`, `/decide`, `/pay`; `insurerOnly`
-- `backend/src/endpoints/claims.ts` — `GET /status`, `GET /`, `POST /verify-eligibility`, `POST /initiate`, `PATCH /:claimId/screening`, `POST /:claimId/evidence-ocr`, `POST /:claimId/submit`, `GET /:claimId/timeline`, `GET /:claimId/decision`, `POST /:claimId/appeal`
-- `backend/migrations/0002_security.sql` — `audit_events_no_update`, `audit_events_no_delete` triggers
-- `backend/migrations/0003_tenants.sql` — `tenants`, `policies.tenant_id`, `claims.tenant_id`, `audit_events.actor_tenant_id`, backfill, indexes
-- `backend/wrangler.toml` — `[vars]` `JWT_ISSUER`, `JWT_AUDIENCE`, `ALLOWED_ORIGINS`; `[[ratelimits]]` `RATE_LIMITER`
-- `backend/.dev.vars.example`, `backend/scripts/setup-dev-vars.mjs` (`npm run setup:local`), `backend/scripts/mint-token.mjs` (`npm run token`), `backend/package.json` scripts
-- `backend/vitest.config.mts` — miniflare bindings for tests
-- `backend/test/helpers.ts` (`mintToken()`, `call()`), `auth.test.ts`, `actor.test.ts`, `tenant.test.ts`, `bola.test.ts`, `rbac.test.ts`, `hardening.test.ts`, `audit.test.ts`, `claimLifecycle.test.ts`, `stateMachine.test.ts`, `migration.test.ts`, `massAssignment.test.ts`, `queue.test.ts`
-- `node_modules/hono/dist/utils/jwt/jwt.js` (4.13.9) — `verify()`, `verifyWithJwks()`, `sign()`; error classes `JwtTokenInvalid`, `JwtHeaderInvalid`, `JwtAlgorithmMismatch`, `JwtTokenNotBefore`, `JwtTokenExpired`, `JwtTokenIssuedAt`, `JwtTokenIssuer`, `JwtPayloadRequiresAud`, `JwtTokenAudience`, `JwtTokenSignatureMismatched`, `JwtSymmetricAlgorithmNotAllowed`
-- `docs/security/BACKEND_SECURITY_HANDOFF.md` (BACKEND-SEC-001, 002, 011, 012, 013), `docs/phase-reports/PHASE_01_PRECHECK.md`
+- `src/index.ts` — middleware chain (`requestId`, CORS, `bodyLimit`, per-IP `RATE_LIMITER`, `requireActor`, per-actor `RATE_LIMITER`), `app.route(...)`, `app.notFound`, `app.onError`
+- `src/security/actor.ts` — `JWT_ALG`, `MIN_SECRET_BYTES`, `MAX_TOKEN_TTL_SECONDS`, `BEARER_TOKEN`, `resolveActor()`, `validateClaims()`, `ClaimRejectReason`, `actorFromClaims()`, `requireActor`
+- `src/types.ts` — `ROLES`, `Role`, `INSURER_ROLES`, `ID_PATTERN`, `Actor`, `Bindings` (`JWT_SECRET`, `JWT_ISSUER`, `JWT_AUDIENCE`, `RATE_LIMITER`, `ALLOWED_ORIGINS`), `AppEnv`
+- `src/security/rbac.ts` — `requireRole()`
+- `src/security/validation.ts` — `validate()`, `claimIdParam`, `decideSchema`, `listQuerySchema`
+- `src/security/claimAccess.ts` — `ClaimRow`, `ClaimAccessMode`, `isTenantInsurer()`, `loadAuthorizedClaim()`, `transitionClaim()`, `TransitionOutcome`, `TransitionOptions`
+- `src/security/claimStateMachine.ts` — `CLAIM_STAGES`, `MAIN_PATH`, `TRANSITIONS`, `checkTransition()`, `isClaimStage()`
+- `src/security/audit.ts` — `auditStatement()` (with `onlyIfPreviousChanged`), `writeAuditEvent()`
+- `src/endpoints/claimsInsurer.ts` — `POST /:claimId/verify`, `/screen`, `/review`, `/request-info`, `/decide`, `/pay`; `insurerOnly`
+- `src/endpoints/claims.ts` — `GET /status`, `GET /`, `POST /verify-eligibility`, `POST /initiate`, `PATCH /:claimId/screening`, `POST /:claimId/evidence-ocr`, `POST /:claimId/submit`, `GET /:claimId/timeline`, `GET /:claimId/decision`, `POST /:claimId/appeal`
+- `migrations/0002_security.sql` — `audit_events_no_update`, `audit_events_no_delete` triggers
+- `migrations/0003_tenants.sql` — `tenants`, `policies.tenant_id`, `claims.tenant_id`, `audit_events.actor_tenant_id`, backfill, indexes
+- `wrangler.toml` — `[vars]` `JWT_ISSUER`, `JWT_AUDIENCE`, `ALLOWED_ORIGINS`; `[[ratelimits]]` `RATE_LIMITER`
+- `.dev.vars.example`, `scripts/setup-dev-vars.mjs` (`npm run setup:local`), `scripts/mint-token.mjs` (`npm run token`), `package.json` scripts
+- `vitest.config.mts` — miniflare bindings for tests
+- `test/helpers.ts` (`mintToken()`, `call()`), `auth.test.ts`, `actor.test.ts`, `tenant.test.ts`, `bola.test.ts`, `rbac.test.ts`, `hardening.test.ts`, `audit.test.ts`, `claimLifecycle.test.ts`, `stateMachine.test.ts`, `migration.test.ts`, `massAssignment.test.ts`, `queue.test.ts`
+- `node_modules/hono/dist/utils/jwt/jwt.js` (4.13.9) — `verify()`, `verifyWithJwks()`, `sign()`, `isTokenHeader()`; error classes (defined in `node_modules/hono/dist/utils/jwt/types.js`, each sets `this.name` to its class name, which is what `resolveActor()` logs) `JwtTokenInvalid`, `JwtHeaderInvalid`, `JwtAlgorithmMismatch`, `JwtTokenNotBefore`, `JwtTokenExpired`, `JwtTokenIssuedAt`, `JwtTokenIssuer`, `JwtPayloadRequiresAud`, `JwtTokenAudience`, `JwtTokenSignatureMismatched`, `JwtSymmetricAlgorithmNotAllowed`, `JwtHeaderRequiresKid`
+- `docs/security/BACKEND_SECURITY_HANDOFF.md` (BACKEND-SEC-001, 002, 005 … 008, 011, 012, 013, 017, 019, 020), `docs/phase-reports/PHASE_01_PRECHECK.md` (sections 4 and 5), `docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log`

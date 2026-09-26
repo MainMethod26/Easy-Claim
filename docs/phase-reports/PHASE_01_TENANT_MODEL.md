@@ -1,9 +1,11 @@
 # Phase 1 Report: Tenant Model
 
+> Layout note: this report was recorded at commit `cb2588a`, when the Worker lived under `backend/`. The backend team later moved it to the repository root on `main`; on 2026-09-26 every path in this document was rewritten to that root layout (`backend/src/...` is now `src/...`).
+
 Date: 2026-09-26
 Branch: `cyber` (Phase 1 work is uncommitted in the working tree; this report describes the working tree, not git HEAD)
 Backend: Cloudflare Worker, Hono 4.13.9, TypeScript, D1, Queue
-Verification for this report: `npm test` in `backend/` on 2026-09-26 01:48 → Test Files 12 passed (12), Tests 183 passed | 1 todo (184), 17.69 s. (An earlier run at 01:35 reported 175 passed | 1 todo; `audit.test.ts`, `auth.test.ts`, `helpers.ts`, `massAssignment.test.ts` and `tenant.test.ts` were edited between the two runs.) Every file, function, route, column and test id named below was read in the working tree.
+Verification for this report: `npm test` at the repository root on 2026-09-26 01:48 → Test Files 12 passed (12), Tests 183 passed | 1 todo (184), 17.69 s. (An earlier run at 01:35 reported 175 passed | 1 todo; `audit.test.ts`, `auth.test.ts`, `helpers.ts`, `massAssignment.test.ts` and `tenant.test.ts` were edited between the two runs.) Re-run by the report checker on 2026-09-26 04:24 against the same working tree → Test Files 12 passed (12), Tests 183 passed | 1 todo (184), 19.13 s. Every file, function, route, column and test id named below was read in the working tree.
 
 Status vocabulary used here: IMPLEMENTED / PARTIAL / NOT IMPLEMENTED / PLANNED / BLOCKED / NOT TESTED / DECISION REQUIRED.
 
@@ -13,16 +15,16 @@ Status vocabulary used here: IMPLEMENTED / PARTIAL / NOT IMPLEMENTED / PLANNED /
 
 | Topic | Status | Where |
 |---|---|---|
-| `tenants` reference table, five demo insurers | IMPLEMENTED | `backend/migrations/0003_tenants.sql` |
+| `tenants` reference table, five demo insurers | IMPLEMENTED | `migrations/0003_tenants.sql` |
 | `policies.tenant_id`, `claims.tenant_id` (`REFERENCES tenants(id)`), `audit_events.actor_tenant_id` | IMPLEMENTED | `0003_tenants.sql`; `claims.tenant_id` written by `claims.ts` `POST /initiate`, `actor_tenant_id` by `security/audit.ts` `auditStatement()` |
-| `tenant_id` claim in the bearer token → `Actor.tenantId` | IMPLEMENTED | `backend/src/security/actor.ts` `validateClaims()`; `backend/src/types.ts` `Actor` |
+| `tenant_id` claim in the bearer token → `Actor.tenantId` | IMPLEMENTED | `src/security/actor.ts` `validateClaims()`; `src/types.ts` `Actor` |
 | Role rule: CUSTOMER must not carry a tenant, ASSESSOR/MANAGER must, ADMIN optional | IMPLEMENTED (ADMIN: DECISION REQUIRED) | `validateClaims()` reasons `customer_with_tenant`, `staff_without_tenant` |
-| Object-level tenant boundary on every `:claimId` route | IMPLEMENTED | `backend/src/security/claimAccess.ts` `loadAuthorizedClaim()`, `isTenantInsurer()` |
+| Object-level tenant boundary on every `:claimId` route | IMPLEMENTED | `src/security/claimAccess.ts` `loadAuthorizedClaim()`, `isTenantInsurer()` |
 | Tenant re-check inside every stage change | IMPLEMENTED | `claimAccess.ts` `transitionClaim()` (`transition_guard`) |
-| List scoping (customer → own, insurer → own tenant minus Draft, ADMIN → 403) | IMPLEMENTED | `backend/src/endpoints/claims.ts` `GET /` |
+| List scoping (customer → own, insurer → own tenant minus Draft, ADMIN → 403) | IMPLEMENTED | `src/endpoints/claims.ts` `GET /` |
 | Claim inherits tenant from the policy at creation; client cannot set it | IMPLEMENTED | `claims.ts` `POST /initiate`, `findOwnedPolicy()`; strict zod schemas in `security/validation.ts` |
 | Fail closed on `tenant_id IS NULL` and on `stage = 'Draft'` | IMPLEMENTED | `isTenantInsurer()`; deny reasons `tenant_unset`, `draft` |
-| Backfill of pre-existing local databases (by seed policy id only) | IMPLEMENTED | `0003_tenants.sql`; `backend/test/migration.test.ts` |
+| Backfill of pre-existing local databases (by seed policy id only) | IMPLEMENTED | `0003_tenants.sql`; `test/migration.test.ts` |
 | Token `tenant_id` checked against the `tenants` table at authentication | NOT IMPLEMENTED / NOT TESTED | `validateClaims()` only applies `ID_PATTERN` |
 | Staff directory / tenant membership stored in the database | NOT IMPLEMENTED | membership is only a token claim (see §3) |
 | Tenant administration routes (create tenant, assign staff) | NOT IMPLEMENTED / DECISION REQUIRED | none exist |
@@ -33,7 +35,7 @@ Status vocabulary used here: IMPLEMENTED / PARTIAL / NOT IMPLEMENTED / PLANNED /
 
 ## 2. What a tenant is
 
-A tenant is an insurer organisation. It is a row in `tenants` (`backend/migrations/0003_tenants.sql`):
+A tenant is an insurer organisation. It is a row in `tenants` (`migrations/0003_tenants.sql`):
 
 ```sql
 CREATE TABLE IF NOT EXISTS tenants (
@@ -52,19 +54,19 @@ Three things carry a tenant id:
 
 | Column | Meaning | Set by |
 |---|---|---|
-| `policies.tenant_id` | the insurer that underwrites the policy | seed (`backend/seed_sa_data.sql`) or the 0003 backfill; no route creates policies |
+| `policies.tenant_id` | the insurer that underwrites the policy | seed (`seed_sa_data.sql`) or the 0003 backfill; no route creates policies |
 | `claims.tenant_id` | the insurer that will assess the claim; copied from the policy | `POST /api/v1/claims/initiate` (`claims.ts`), never from the request body |
-| `audit_events.actor_tenant_id` | the tenant of the actor who caused the event (`NULL` for customers) | `auditStatement()` in `backend/src/security/audit.ts` from `actor.tenantId` |
+| `audit_events.actor_tenant_id` | the tenant of the actor who caused the event (`NULL` for customers) | `auditStatement()` in `src/security/audit.ts` from `actor.tenantId` |
 
 `tenant_id` on `policies` and `claims` is declared `REFERENCES tenants(id)`; `migration.test.ts` ("tenant_id references the tenants table") shows an insert with `'ins_nope'` is rejected by D1.
 
-`tenants` is reference data only: nothing in `backend/src` reads it. The `tenants` table is not consulted when a token is verified (§3) and not when a claim is authorised (§5); both compare the string on the token with the string on the row.
+`tenants` is reference data only: nothing in `src` reads it. The `tenants` table is not consulted when a token is verified (§3) and not when a claim is authorised (§5); both compare the string on the token with the string on the row.
 
 ---
 
 ## 3. Who has a `tenantId`
 
-`backend/src/types.ts`:
+`src/types.ts`:
 
 ```ts
 export interface Actor {
@@ -75,7 +77,7 @@ export interface Actor {
 export const INSURER_ROLES: readonly Role[] = ['ASSESSOR', 'MANAGER']
 ```
 
-The token claim is `tenant_id` (snake case); `validateClaims()` in `backend/src/security/actor.ts` maps it to `Actor.tenantId`:
+The token claim is `tenant_id` (snake case); `validateClaims()` in `src/security/actor.ts` maps it to `Actor.tenantId`:
 
 | Role | `tenant_id` on the token | Reject reason if wrong | Meaning of `tenantId` | Test |
 |---|---|---|---|---|
@@ -85,11 +87,11 @@ The token claim is `tenant_id` (snake case); `validateClaims()` in `backend/src/
 | ADMIN | OPTIONAL; accepted, copied into `audit_events.actor_tenant_id` by `auditStatement()`, never used for an authorization decision | – | undefined (DECISION REQUIRED, §10.1) | `actor.test.ts` "admin may omit tenant"; `tenant.test.ts` TENANT-001b |
 | any | must match `ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/` when present | `bad_tenant` | – | `actor.test.ts` "malformed tenant", "non-string tenant" |
 
-Why customers are platform-level (derived from the seed, `backend/seed_sa_data.sql`): `user123` holds `pol_disc_001` (Discovery), `pol_sanlam_002` (Sanlam) and `pol_oldm_005` (Old Mutual), so one customer spans three insurers and cannot be a member of one tenant. `user456` holds `pol_out_003` (OUTsurance, `Pending`), `user789` holds `pol_mom_004` (Momentum). The customer's relationship to a tenant is therefore per policy, not per identity.
+Why customers are platform-level (derived from the seed, `seed_sa_data.sql`): `user123` holds `pol_disc_001` (Discovery), `pol_sanlam_002` (Sanlam) and `pol_oldm_005` (Old Mutual), so one customer spans three insurers and cannot be a member of one tenant. `user456` holds `pol_out_003` (OUTsurance, `Pending`), `user789` holds `pol_mom_004` (Momentum). The customer's relationship to a tenant is therefore per policy, not per identity.
 
-Where tenant membership comes from: there is no users, staff or membership table. The API trusts the `tenant_id` claim of a token whose signature, `iss`, `aud`, `exp`, `iat` and role rules pass. Locally, `backend/scripts/mint-token.mjs` (`npm run token`) mints such tokens and applies the same rules (it refuses `--tenant` for CUSTOMER and requires it for ASSESSOR/MANAGER). In a deployed environment the token issuer is the identity provider (PLANNED; `hono/jwt` `verifyWithJwks` is the documented path). Consequence: whoever issues tokens defines tenant membership. See §10.3.
+Where tenant membership comes from: there is no users, staff or membership table. The API trusts the `tenant_id` claim of a token whose signature, `iss`, `aud`, `exp`, `iat` and role rules pass. Locally, `scripts/mint-token.mjs` (`npm run token`) mints such tokens and applies the same rules (it refuses `--tenant` for CUSTOMER and requires it for ASSESSOR/MANAGER). In a deployed environment the token issuer is the identity provider (PLANNED; `hono/jwt` `verifyWithJwks` is the documented path). Consequence: whoever issues tokens defines tenant membership. See §10.3.
 
-Demo actors (identical in `backend/test/helpers.ts` and `mint-token.mjs` `DEMO_ACTORS`):
+Demo actors (identical in `test/helpers.ts` and `mint-token.mjs` `DEMO_ACTORS`):
 
 | Actor id | Role | `tenant_id` | Notes |
 |---|---|---|---|
@@ -153,13 +155,13 @@ flowchart LR
 
 The red dashed edges are the cross-tenant paths. Both return exactly the body a non-existent claim returns (`{"error":"not_found"}`, `tenant.test.ts` TENANT-003b) and write one `authz.claim_access_denied` row whose `details` are `{mode, exists: true, reason: 'cross_tenant'}` and whose `actor_tenant_id` is the caller's tenant (TENANT-001). The row never names the target claim's tenant or owner.
 
-`user456` owns no claims. It is the "other customer" in `backend/test/bola.test.ts`: every customer-side `:claimId` route on `claim_disc_101` (`timeline`, `submit`, `evidence-ocr`, `screening`, `appeal`) returns 404 for it, with reason `not_owner`; the insurer-side routes stop it earlier with 403 from `requireRole` (RBAC-001). Customer isolation is by `user_id`, not by tenant.
+`user456` owns no claims. It is the "other customer" in `test/bola.test.ts`: every customer-side `:claimId` route returns 404 for it (`timeline`, `submit`, `evidence-ocr`, `screening`, `appeal` on `claim_disc_101`; `decision` on `claim_sanlam_102`). By the code in `loadAuthorizedClaim()` the audited reason is `not_owner`; `bola.test.ts` asserts the denial row's `actor_id` and `outcome`, not the reason. The insurer-side routes stop a customer earlier with 403 from `requireRole` (RBAC-001 in `tenant.test.ts`, exercised with `user123`; the gate reads only the role, never the claim). Customer isolation is by `user_id`, not by tenant.
 
 ---
 
 ## 5. How the boundary is enforced
 
-### 5.1 Middleware order (`backend/src/index.ts`)
+### 5.1 Middleware order (`src/index.ts`)
 
 ```
 requestId → secureHeaders → cors → bodyLimit(64 KiB)
@@ -169,16 +171,16 @@ requestId → secureHeaders → cors → bodyLimit(64 KiB)
 → router
 ```
 
-Per resource route: `requireRole(...)` (coarse, resource-independent, `security/rbac.ts`) → `validate(...)` (strict zod, `security/validation.ts`) → `loadAuthorizedClaim(c, claimId, mode)` → `transitionClaim(c, claim, to, opts)`.
+Per resource route: `requireRole(...)` (coarse, resource-independent, `security/rbac.ts`) → `validate(...)` (zod, `security/validation.ts`; every body schema is `.strict()`, `claimIdParam` and `listQuerySchema` are plain objects) → `loadAuthorizedClaim(c, claimId, mode)` → `transitionClaim(c, claim, to, opts)`.
 
-Note: the header comment in `backend/src/endpoints/claimsInsurer.ts` lists "2. validate params/body" before "3. coarse role gate", but the routes register `insurerOnly` before `validate('param', claimIdParam)`, so the role gate runs first. The code order is the one described in this report; the comment is a wording nit, left untouched here.
+Note: the header comment in `src/endpoints/claimsInsurer.ts` lists "2. validate params/body" before "3. coarse role gate", but the routes register `insurerOnly` before `validate('param', claimIdParam)`, so the role gate runs first. The code order is the one described in this report; the comment is a wording nit, left untouched here.
 
-### 5.2 `loadAuthorizedClaim()` decision order (`backend/src/security/claimAccess.ts`)
+### 5.2 `loadAuthorizedClaim()` decision order (`src/security/claimAccess.ts`)
 
 ```ts
-export function isTenantInsurer(actor, claim): boolean {
+export function isTenantInsurer(actor: { role: string; tenantId: string | null }, claim: ClaimRow): boolean {
   return (
-    INSURER_ROLES.includes(actor.role) &&
+    INSURER_ROLES.includes(actor.role as never) &&
     actor.tenantId !== null &&
     claim.tenant_id !== null &&
     claim.tenant_id === actor.tenantId &&
@@ -189,7 +191,7 @@ export function isTenantInsurer(actor, claim): boolean {
 
 ```mermaid
 flowchart TD
-  S["loadAuthorizedClaim(c, claimId, mode)<br/>mode is read | owner-write | insurer"] --> Q["SELECT * FROM claims WHERE id = ?"]
+  S["loadAuthorizedClaim(c, claimId, mode)<br/>mode is read / owner-write / insurer"] --> Q["SELECT * FROM claims WHERE id = ?"]
   Q --> C["isOwner = role is CUSTOMER and claim.user_id === actor.id<br/>tenantInsurer = isTenantInsurer(actor, claim)"]
   C --> M{mode}
   M -->|owner-write| A1{isOwner}
@@ -302,7 +304,7 @@ Tests: TENANT-007 (new claim has `tenant_id = 'ins_discovery'`; a policy inserte
 
 "Tenant check" names the exact mechanism. All routes below sit behind `requireActor` (`/api/v1/*`) and both rate limiters.
 
-### Claims, customer side (`backend/src/endpoints/claims.ts`, mounted at `/api/v1/claims`)
+### Claims, customer side (`src/endpoints/claims.ts`, mounted at `/api/v1/claims`)
 
 | Route | Role gate | Access mode | Tenant check | Tenant membership required | Status | Tests |
 |---|---|---|---|---|---|---|
@@ -317,7 +319,7 @@ Tests: TENANT-007 (new claim has `tenant_id = 'ins_discovery'`; a policy inserte
 | `GET /:claimId/decision` | none | `read` | owner OR `isTenantInsurer` | yes for ASSESSOR/MANAGER | IMPLEMENTED | TENANT-003 |
 | `POST /:claimId/appeal` | `requireRole('CUSTOMER')` | `owner-write` + `transitionClaim(Appeal)`; stage Decision and status Rejected | n/a | no | IMPLEMENTED | STATE-005 |
 
-### Claims, insurer side (`backend/src/endpoints/claimsInsurer.ts`, also mounted at `/api/v1/claims`)
+### Claims, insurer side (`src/endpoints/claimsInsurer.ts`, also mounted at `/api/v1/claims`)
 
 All six use `insurerOnly = requireRole('ASSESSOR', 'MANAGER')`, `validate('param', claimIdParam)`, `loadAuthorizedClaim(c, claimId, 'insurer')`, then `transitionClaim`. Tenant membership is REQUIRED on every one; a claim outside the caller's tenant is a 404.
 
@@ -363,7 +365,7 @@ A missing or short `JWT_SECRET`, or a missing `JWT_ISSUER` / `JWT_AUDIENCE`, mak
 
 ---
 
-## 8. Migration and backfill (`backend/migrations/0003_tenants.sql`)
+## 8. Migration and backfill (`migrations/0003_tenants.sql`)
 
 ```mermaid
 flowchart TD
@@ -377,17 +379,17 @@ flowchart TD
   T6 --> S["seed_sa_data.sql (fresh databases) inserts policies and claims WITH tenant_id"]
 ```
 
-Properties, each covered by `backend/test/migration.test.ts`:
+Properties, each covered by `test/migration.test.ts`:
 
 | Property | How | Test |
 |---|---|---|
 | Only the five known seed policies are re-homed, matched by id (`pol_disc_001`, `pol_sanlam_002`, `pol_out_003`, `pol_mom_004`, `pol_oldm_005`), never by `plan_name` | five explicit `UPDATE ... WHERE tenant_id IS NULL AND id = '...'` | a `legacy_disc` policy named "Discovery Health Classic" stays `NULL`; its claim stays `NULL` |
 | Claims inherit from their policy | `UPDATE claims SET tenant_id = (SELECT p.tenant_id ...) WHERE tenant_id IS NULL` | `claim_disc_101 → ins_discovery`, `claim_mom_103 → ins_momentum` |
-| Idempotent | every UPDATE is guarded by `tenant_id IS NULL` | re-running the six UPDATEs changes nothing |
+| Idempotent | every UPDATE is guarded by `tenant_id IS NULL` | re-running the six UPDATEs leaves `policies` unchanged (the test compares `SELECT id, tenant_id FROM policies` before and after; `claims` is not compared) |
 | Referential integrity | `REFERENCES tenants(id)` | insert with `ins_nope` throws |
 | Rows that already carry a tenant are untouched | `IS NULL` guard | `pol_sanlam_002` unchanged |
 
-The test database is built by `backend/test/setup.ts` from the migrations plus `seed_sa_data.sql` (which already sets `tenant_id`), so the backfill statements are extracted from `env.TEST_MIGRATIONS` and re-run explicitly against rows reset to the legacy shape. Local commands: `npm run db:migrate:local`, `npm run db:seed:local` (`backend/package.json`).
+The test database is built by `test/setup.ts` from the migrations plus `seed_sa_data.sql` (which already sets `tenant_id`), so the backfill statements are extracted from `env.TEST_MIGRATIONS` and re-run explicitly against rows reset to the legacy shape. Local commands: `npm run db:migrate:local`, `npm run db:seed:local` (`package.json`).
 
 `audit_events.actor_tenant_id` is added as a nullable column; the append-only triggers from 0002 are unchanged and remain droppable by a database administrator (open risk, unchanged from Phase 0).
 
@@ -399,11 +401,11 @@ Suite total after Phase 1: 12 files, 183 passed, 1 todo (verified by running `np
 
 | File | Tests relevant to tenancy |
 |---|---|
-| `backend/test/tenant.test.ts` | TENANT-001 (cross-tenant read → 404, audit `cross_tenant`, no target tenant/owner in the row), TENANT-001b (ADMIN with tenant still 404 / 403), TENANT-001c (Draft invisible to same-tenant staff, reason `draft`), TENANT-002 (Tenant A staff cannot transition a Tenant C claim, 11 `cross_tenant` denials, stage unchanged), TENANT-002b, TENANT-003, TENANT-003b (missing vs cross-tenant identical), TENANT-004 (`it.todo`, BLOCKED: no evidence endpoint), TENANT-005 (`tenant_unset`), TENANT-006 (list scoping, no `user_id`, `limit` bound), TENANT-007 (tenant copied from policy; tenant-less policy → 422); STATE-001..006 (role + tenant + state machine through HTTP); RBAC-001, RBAC-002; mass-assignment on `decide`; AUDIT-001 (`actor_tenant_id` on denials) |
-| `backend/test/migration.test.ts` | backfill by id, idempotence, foreign key |
-| `backend/test/actor.test.ts` | `validateClaims`: customer with tenant, assessor/manager without tenant, malformed and non-string tenant rejected; admin may omit tenant |
-| `backend/test/auth.test.ts` | AUTH-004b (forged tenant claim fails signature), AUTH-004c (`alg: none` with tenant claim), AUTH-006 "customer carrying a tenant" → 401, AUTH-006b insurer without `tenant_id` → 401, AUTH-006c staff ttl, AUTH-007 (`aud` array) |
-| `backend/test/bola.test.ts` | customer-to-customer isolation by `user_id` (reason `not_owner`), unchanged by tenancy |
+| `test/tenant.test.ts` | TENANT-001 (cross-tenant read → 404, audit `cross_tenant`, no target tenant/owner in the row), TENANT-001b (ADMIN with tenant still 404 / 403), TENANT-001c (Draft invisible to same-tenant staff, reason `draft`), TENANT-002 (Tenant A staff cannot transition a Tenant C claim, 11 `cross_tenant` denials, stage unchanged), TENANT-002b, TENANT-003, TENANT-003b (missing vs cross-tenant identical), TENANT-004 (`it.todo`, BLOCKED: no evidence endpoint), TENANT-005 (`tenant_unset`), TENANT-006 (list scoping, no `user_id`, `limit` bound), TENANT-007 (tenant copied from policy; tenant-less policy → 422); STATE-001..006 (role + tenant + state machine through HTTP); RBAC-001, RBAC-002; mass-assignment on `decide`; AUDIT-001 (`actor_tenant_id` on denials) |
+| `test/migration.test.ts` | backfill by id, idempotence, foreign key |
+| `test/actor.test.ts` | `validateClaims`: customer with tenant, assessor/manager without tenant, malformed and non-string tenant rejected; admin may omit tenant |
+| `test/auth.test.ts` | AUTH-004b (forged tenant claim fails signature), AUTH-004c (`alg: none` with tenant claim), AUTH-006 "customer carrying a tenant" → 401, AUTH-006b insurer without `tenant_id` → 401, AUTH-006c staff ttl, AUTH-007 (`aud` array) |
+| `test/bola.test.ts` | customer-to-customer isolation by `user_id` (404, denial row with `actor_id` `user456`; the reason `not_owner` follows from the code and is not asserted), unchanged by tenancy |
 
 NOT TESTED at HTTP level: a signed staff token whose `tenant_id` is not a row in `tenants` (see §10.3). Behaviour by reading the code: `validateClaims` accepts it, the `GET /claims` query returns no rows, and on the `:claimId` routes open to insurer roles (`timeline`, `decision` and the six insurer transitions) `loadAuthorizedClaim` returns 404 with reason `cross_tenant` for any claim that has a tenant (`tenant_unset` for a tenant-less claim, `missing` for an unknown id); customer-only routes answer 403 from `requireRole` as for any staff token. No data is reachable, but the condition is not detected or reported.
 
@@ -450,7 +452,7 @@ Nothing in the database says which staff belong to which tenant; membership is t
 | Insurer roles not tenant-scoped | IMPLEMENTED in Phase 1 (this report) |
 | Evidence upload, OCR, decision records, payout integration | NOT IMPLEMENTED (`/decide` writes `claims.status` only; `/pay` is a stage change only) |
 | `audit_events` append-only triggers droppable by a DB admin | NOT IMPLEMENTED (no mitigation; risk unchanged from Phase 0) |
-| Queue consumer not firing under `wrangler dev` | NOT TESTED under `wrangler dev` (pre-existing; `queue.test.ts` covers `processQueueBatch` directly) |
+| Queue consumer not firing under `wrangler dev` | NOT TESTED under `wrangler dev` (pre-existing; `queue.test.ts` calls the default export's `queue` handler with `createMessageBatch`, which runs `processQueueBatch`) |
 | Rate limiting approximate, per location | PARTIAL (the `RATE_LIMITER` binding is approximate by design; no exact accounting) |
 | `gateway.ts`, `identity.ts`, `audit.ts` endpoint stubs not actor- or tenant-scoped | NOT IMPLEMENTED |
 
@@ -459,29 +461,29 @@ Nothing in the database says which staff belong to which tenant; membership is t
 ## 12. Files and functions referenced
 
 Source
-- `backend/src/index.ts`: middleware order, `requireActor` on `/api/v1/*`, per-IP and per-actor `RATE_LIMITER`, router mounts, default export whose `queue` handler calls `processQueueBatch`
-- `backend/src/types.ts`: `ROLES`, `Role`, `INSURER_ROLES`, `ID_PATTERN`, `Actor`, `Bindings`, `AppEnv`
-- `backend/src/security/actor.ts`: `resolveActor()`, `validateClaims()`, `actorFromClaims()`, `requireActor`, `MAX_TOKEN_TTL_SECONDS`, `ClaimRejectReason`
-- `backend/src/security/claimAccess.ts`: `ClaimRow`, `ClaimAccessMode`, `isTenantInsurer()`, `loadAuthorizedClaim()`, `transitionClaim()`
-- `backend/src/security/claimStateMachine.ts`: `CLAIM_STAGES`, `MAIN_PATH`, `TRANSITIONS`, `checkTransition()`, `isClaimStage()`
-- `backend/src/security/rbac.ts`: `requireRole()`
-- `backend/src/security/audit.ts`: `auditStatement()`, `writeAuditEvent()`
-- `backend/src/security/validation.ts`: `claimIdParam`, `initiateClaimSchema`, `decideSchema`, `listQuerySchema`, `validate()`
-- `backend/src/endpoints/claims.ts`: `findOwnedPolicy()`, `GET /`, `POST /verify-eligibility`, `POST /initiate`, `PATCH /:claimId/screening`, `POST /:claimId/evidence-ocr`, `POST /:claimId/submit`, `GET /:claimId/timeline`, `GET /:claimId/decision`, `POST /:claimId/appeal`
-- `backend/src/endpoints/claimsInsurer.ts`: `insurerOnly`, `POST /:claimId/verify`, `/screen`, `/review`, `/request-info`, `/decide`, `/pay`
-- `backend/src/endpoints/policy.ts`, `backend/src/models/policyModel.ts` (`PolicyModel.getMyCovers`), `backend/src/endpoints/ocr.ts` (`processQueueBatch`), `backend/src/endpoints/gateway.ts`, `backend/src/endpoints/identity.ts`, `backend/src/endpoints/audit.ts`
+- `src/index.ts`: middleware order, `requireActor` on `/api/v1/*`, per-IP and per-actor `RATE_LIMITER`, router mounts, default export whose `queue` handler calls `processQueueBatch`
+- `src/types.ts`: `ROLES`, `Role`, `INSURER_ROLES`, `ID_PATTERN`, `Actor`, `Bindings`, `AppEnv`
+- `src/security/actor.ts`: `resolveActor()`, `validateClaims()`, `actorFromClaims()`, `requireActor`, `MAX_TOKEN_TTL_SECONDS`, `ClaimRejectReason`
+- `src/security/claimAccess.ts`: `ClaimRow`, `ClaimAccessMode`, `isTenantInsurer()`, `loadAuthorizedClaim()`, `transitionClaim()`
+- `src/security/claimStateMachine.ts`: `CLAIM_STAGES`, `MAIN_PATH`, `TRANSITIONS`, `checkTransition()`, `isClaimStage()`
+- `src/security/rbac.ts`: `requireRole()`
+- `src/security/audit.ts`: `auditStatement()`, `writeAuditEvent()`
+- `src/security/validation.ts`: `claimIdParam`, `initiateClaimSchema`, `decideSchema`, `listQuerySchema`, `validate()`
+- `src/endpoints/claims.ts`: `findOwnedPolicy()`, `GET /`, `POST /verify-eligibility`, `POST /initiate`, `PATCH /:claimId/screening`, `POST /:claimId/evidence-ocr`, `POST /:claimId/submit`, `GET /:claimId/timeline`, `GET /:claimId/decision`, `POST /:claimId/appeal`
+- `src/endpoints/claimsInsurer.ts`: `insurerOnly`, `POST /:claimId/verify`, `/screen`, `/review`, `/request-info`, `/decide`, `/pay`
+- `src/endpoints/policy.ts`, `src/models/policyModel.ts` (`PolicyModel.getMyCovers`), `src/endpoints/ocr.ts` (`processQueueBatch`), `src/endpoints/gateway.ts`, `src/endpoints/identity.ts`, `src/endpoints/audit.ts`
 
 Data
-- `backend/migrations/0001_init.sql`, `backend/migrations/0002_security.sql`, `backend/migrations/0003_tenants.sql`
-- `backend/seed_sa_data.sql`
-- `backend/wrangler.toml` (`JWT_ISSUER`, `JWT_AUDIENCE`, `RATE_LIMITER`)
+- `migrations/0001_init.sql`, `migrations/0002_security.sql`, `migrations/0003_tenants.sql`
+- `seed_sa_data.sql`
+- `wrangler.toml` (`JWT_ISSUER`, `JWT_AUDIENCE`, `RATE_LIMITER`)
 
 Tooling
-- `backend/scripts/mint-token.mjs` (`DEMO_ACTORS`, `validate()`), `backend/scripts/setup-dev-vars.mjs`, `backend/package.json` scripts
-- `backend/vitest.config.mts`, `backend/test/setup.ts`, `backend/test/helpers.ts` (`mintToken`, `call`, `auditRows`, `claimStage`, `createReadyDraft`, `createSubmittedClaim`, demo actors)
+- `scripts/mint-token.mjs` (`DEMO_ACTORS`, `validate()`), `scripts/setup-dev-vars.mjs`, `package.json` scripts
+- `vitest.config.mts`, `test/setup.ts`, `test/helpers.ts` (`mintToken`, `call`, `auditRows`, `claimStage`, `createReadyDraft`, `createSubmittedClaim`, demo actors)
 
 Tests
-- `backend/test/tenant.test.ts`, `backend/test/migration.test.ts`, `backend/test/actor.test.ts`, `backend/test/auth.test.ts`, `backend/test/bola.test.ts`, `backend/test/rbac.test.ts`
+- `test/tenant.test.ts`, `test/migration.test.ts`, `test/actor.test.ts`, `test/auth.test.ts`, `test/bola.test.ts`, `test/rbac.test.ts`
 
 Related documents
 - `docs/phase-reports/PHASE_01_PRECHECK.md`, `docs/security/BACKEND_SECURITY_HANDOFF.md` (BACKEND-SEC-002, -007, -009), `docs/security/RBAC_MATRIX.md`

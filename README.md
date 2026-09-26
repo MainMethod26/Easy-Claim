@@ -9,7 +9,7 @@ EasyClaim is a claims-orchestration platform concept for South African insurance
 - **Backend only.** The `frontend/` folder contains a zustand state store and TypeScript types. **There is no frontend/UI** in this repository.
 - The API runs locally on Cloudflare Workers tooling (`wrangler dev`) with a local D1 database.
 - Much of the API is still stubbed or returns demo data. The table below lists exactly what is implemented.
-- **Authentication (Phase 1): every `/api/v1/*` request needs `Authorization: Bearer <JWT>`.** The Worker verifies the token itself (HS256 with a pinned algorithm, issuer, audience and expiry checks) in `backend/src/security/actor.ts`. There is no identity provider yet: local tokens are minted with `npm run token` (see [Running Locally](#running-locally)). The Phase 0 `X-Dev-Actor-*` header stub and `ALLOW_DEV_ACTOR_HEADERS` no longer exist.
+- **Authentication (Phase 1): every `/api/v1/*` request needs `Authorization: Bearer <JWT>`.** The Worker verifies the token itself (HS256 with a pinned algorithm, issuer, audience and expiry checks) in `src/security/actor.ts`. There is no identity provider yet: local tokens are minted with `npm run token` (see [Running Locally](#running-locally)). The Phase 0 `X-Dev-Actor-*` header stub and `ALLOW_DEV_ACTOR_HEADERS` no longer exist.
 - **Tenants (Phase 1):** insurer staff (ASSESSOR, MANAGER) belong to exactly one insurer tenant (`tenant_id` token claim) and only see that tenant's submitted claims. Customers are platform-level (no tenant; one customer can hold policies with several insurers) and see their own claims.
 
 ## Product Concept
@@ -20,11 +20,11 @@ The intended claim journey is:
 
 Planned side states: **Info Needed**, **Appeal**, **Withdrawn**, **Expired**.
 
-The server-side state machine (`backend/src/security/claimStateMachine.ts`, unchanged in Phase 1) defines all of these stages, plus a `Draft` pre-state. Since Phase 1 every customer and insurer transition is reachable over HTTP:
+The server-side state machine (`src/security/claimStateMachine.ts`, unchanged in Phase 1) defines all of these stages, plus a `Draft` pre-state. Since Phase 1 every insurer transition, and every customer transition except Withdrawn, is reachable over HTTP:
 
 - Customer: Draft → Submitted (`POST /claims/:claimId/submit`), Info Needed → Screening (`PATCH /claims/:claimId/screening`), Decision → Appeal (`POST /claims/:claimId/appeal`).
-- Insurer (ASSESSOR/MANAGER of the claim's tenant, `backend/src/endpoints/claimsInsurer.ts`): Submitted → Verified (`/verify`), Verified → Screening (`/screen`), Screening → Review and Appeal → Review (`/review`; Appeal → Review is MANAGER-only), Screening/Review → Info Needed (`/request-info`), Review → Decision (`/decide` with outcome `Approved` or `Rejected`), Decision → Paid (`/pay`, MANAGER-only, state transition only).
-- Not reachable: Withdrawn (no endpoint) and Expired (no scheduled job). ADMIN has no claim transitions.
+- Insurer (ASSESSOR/MANAGER of the claim's tenant, `src/endpoints/claimsInsurer.ts`): Submitted → Verified (`/verify`), Verified → Screening (`/screen`), Screening → Review and Appeal → Review (`/review`; Appeal → Review is MANAGER-only), Screening/Review → Info Needed (`/request-info`), Review → Decision (`/decide` with outcome `Approved` or `Rejected`), Decision → Paid (`/pay`, MANAGER-only, state transition only).
+- Not reachable: Withdrawn (a CUSTOMER edge in the table, no endpoint) and Expired (a SYSTEM edge, no scheduled job). ADMIN has no claim transitions.
 
 Intended user experiences:
 
@@ -35,26 +35,26 @@ Intended user experiences:
 
 | Capability | Status | Evidence |
 |------------|--------|----------|
-| API server | Implemented | `backend/src/index.ts` (Hono on Cloudflare Workers) |
-| Authentication | Implemented (HS256 JWT verified by the app: pinned `alg`, `iss`/`aud`, required `exp`/`iat`, per-role maximum lifetime; fails closed when `JWT_SECRET`/`JWT_ISSUER`/`JWT_AUDIENCE` are missing). Identity provider / JWKS: PLANNED. Token revocation: PLANNED | `backend/src/security/actor.ts`, `backend/test/auth.test.ts` |
-| Authorization/RBAC | Implemented (coarse role gate per route, object-level check per claim incl. tenant scoping for insurer staff and ownership for customers, per-transition role in the state machine) | `backend/src/security/rbac.ts`, `backend/src/security/claimAccess.ts` |
-| Tenant model | Implemented (`tenants` table; `policies.tenant_id`, `claims.tenant_id`, `audit_events.actor_tenant_id`; a claim inherits its policy's tenant). Tenant admin functions: NOT IMPLEMENTED | `backend/migrations/0003_tenants.sql`, `backend/test/tenant.test.ts` |
-| Claims | Partial (initiate, screening, submit, appeal and list persisted in D1; no evidence) | `backend/src/endpoints/claims.ts` |
-| Claim lifecycle | Implemented over HTTP (all customer and insurer transitions; Withdrawn and Expired have no endpoint or job) | `backend/src/security/claimStateMachine.ts`, `backend/src/security/claimAccess.ts`, `backend/src/endpoints/claimsInsurer.ts` |
-| Evidence upload | Not found (endpoint queues an event only; no file accepted or stored) | `POST /api/v1/claims/:claimId/evidence-ocr` |
-| OCR/text extraction | Not found (stub endpoint + queue consumer that logs) | `backend/src/endpoints/ocr.ts` |
-| Screening | Partial (customer narrative stored; insurer `/screen` and `/request-info` move the stage; no fraud/risk logic) | `PATCH /api/v1/claims/:claimId/screening`, `backend/src/endpoints/claimsInsurer.ts` |
-| Review | Partial (stage transition via `/review`; no review record) | `backend/src/endpoints/claimsInsurer.ts` |
-| Decisions | Partial (outcome only: `/decide` writes `Approved`/`Rejected` to `claims.status`; no amount, reason or decision record) | `POST /api/v1/claims/:claimId/decide`, `GET /api/v1/claims/:claimId/decision` |
-| Payouts | Partial (`/pay` is a MANAGER-only Decision → Paid state transition that requires an approved decision; no payment execution, no bank details) | `POST /api/v1/claims/:claimId/pay` |
-| Audit logging | Implemented (append-only `audit_events` incl. acting tenant and server-generated request id; a stage change and its audit row are written in one D1 batch) | `backend/src/security/audit.ts`, `backend/migrations/0002_security.sql`, `backend/migrations/0003_tenants.sql` |
-| Notifications | Partial (hard-coded demo data) | `backend/src/endpoints/gateway.ts` |
-| Database | Implemented (Cloudflare D1 + 3 migrations) | `backend/wrangler.toml`, `backend/migrations/` |
-| Tests | Implemented (12 files, 175 passed + 1 todo) | `backend/test/` |
+| API server | IMPLEMENTED | `src/index.ts` (Hono on Cloudflare Workers) |
+| Authentication | IMPLEMENTED (HS256 JWT verified by the app: pinned `alg`, `iss`/`aud`, required `exp`/`iat`, per-role maximum lifetime; fails closed when `JWT_SECRET`/`JWT_ISSUER`/`JWT_AUDIENCE` are missing). Identity provider / JWKS: PLANNED. Token revocation: PLANNED | `src/security/actor.ts`, `test/auth.test.ts` |
+| Authorization/RBAC | IMPLEMENTED (coarse role gate per route, object-level check per claim incl. tenant scoping for insurer staff and ownership for customers, per-transition role in the state machine) | `src/security/rbac.ts`, `src/security/claimAccess.ts` |
+| Tenant model | IMPLEMENTED (`tenants` table; `policies.tenant_id`, `claims.tenant_id`, `audit_events.actor_tenant_id`; a claim inherits its policy's tenant). Tenant admin functions: NOT IMPLEMENTED | `migrations/0003_tenants.sql`, `test/tenant.test.ts` |
+| Claims | PARTIAL (initiate, screening, submit, appeal and list persisted in D1; no evidence) | `src/endpoints/claims.ts` |
+| Claim lifecycle | IMPLEMENTED state machine; over HTTP PARTIAL (all insurer transitions plus the customer transitions Draft → Submitted, Info Needed → Screening and Decision → Appeal; Withdrawn and Expired have no endpoint or job) | `src/security/claimStateMachine.ts`, `src/security/claimAccess.ts`, `src/endpoints/claimsInsurer.ts` |
+| Evidence upload | NOT IMPLEMENTED (endpoint queues an event only; no file accepted or stored; the `evidence` table is unused) | `POST /api/v1/claims/:claimId/evidence-ocr` |
+| OCR/text extraction | NOT IMPLEMENTED (stub endpoint + queue consumer that logs) | `src/endpoints/ocr.ts` |
+| Screening | PARTIAL (customer narrative stored; insurer `/screen` and `/request-info` move the stage; no fraud/risk logic) | `PATCH /api/v1/claims/:claimId/screening`, `src/endpoints/claimsInsurer.ts` |
+| Review | PARTIAL (stage transition via `/review`; no review record) | `src/endpoints/claimsInsurer.ts` |
+| Decisions | PARTIAL (outcome only: `/decide` writes `Approved`/`Rejected` to `claims.status`; no amount, reason or decision record) | `POST /api/v1/claims/:claimId/decide`, `GET /api/v1/claims/:claimId/decision` |
+| Payouts | PARTIAL (`/pay` is a MANAGER-only Decision → Paid state transition that requires an approved decision; no payment execution, no bank details) | `POST /api/v1/claims/:claimId/pay` |
+| Audit logging | IMPLEMENTED (append-only `audit_events` incl. acting tenant and server-generated request id; a stage change and its audit row are written in one D1 batch) | `src/security/audit.ts`, `migrations/0002_security.sql`, `migrations/0003_tenants.sql` |
+| Notifications | PARTIAL (hard-coded demo data) | `src/endpoints/gateway.ts` |
+| Database | IMPLEMENTED (Cloudflare D1 + 3 migrations) | `wrangler.toml`, `migrations/` |
+| Tests | TESTED/PASSED (12 files, 183 passed + 1 todo; the todo is TENANT-004 evidence isolation, BLOCKED until an evidence endpoint exists) | `test/` |
 
 ## API
 
-All routes are under `/api/v1`. Every route requires a verified bearer token (`Authorization: Bearer <JWT>`, see [Running Locally](#running-locally)) and returns `401 {"error":"unauthenticated"}` with `WWW-Authenticate: Bearer` otherwise; "actor" in the Auth column means that verified token. Inputs are validated with strict schemas: unknown fields are rejected with `400`. A claim the caller may not access (another customer's, another tenant's, an unsubmitted Draft for insurer staff, or non-existent) returns the same `404 {"error":"not_found"}` and is audited. Role denials return `403`. Insurer routes are per tenant: staff only act on claims whose `tenant_id` equals the `tenant_id` in their token.
+All routes are under `/api/v1`. Every route requires a verified bearer token (`Authorization: Bearer <JWT>`, see [Running Locally](#running-locally)) and returns `401 {"error":"unauthenticated"}` with `WWW-Authenticate: Bearer` otherwise; "actor" in the Auth column means that verified token. Request bodies are validated with strict schemas: unknown fields are rejected with `400` (the `GET /claims` query schema validates `limit` only; other query parameters are ignored, not rejected). A claim the caller may not access (another customer's, another tenant's, an unsubmitted Draft for insurer staff, or non-existent) returns the same `404 {"error":"not_found"}` and is audited. Role denials return `403`. Insurer routes are per tenant: staff only act on claims whose `tenant_id` equals the `tenant_id` in their token.
 
 | Method | Route | Purpose | Auth | Role | Request | Response | Notes |
 |---|---|---|---|---|---|---|---|
@@ -90,14 +90,13 @@ All routes are under `/api/v1`. Every route requires a verified bearer token (`A
 | GET | `/activities/history` | History | actor | any | — | `history[]` | Stub (empty) |
 | GET | `/activities/audit-trail` | Audit trail | actor | any | — | `trail[]` | Stub (empty); does not read `audit_events` |
 
-The full per-endpoint security view is in [docs/security/API_SECURITY_MATRIX.md](docs/security/API_SECURITY_MATRIX.md). A Postman collection is in `backend/EasyClaim.postman_collection.json`; it takes its bearer tokens from a generated, gitignored environment file (`backend/postman/EasyClaim.local.postman_environment.json`, written by `npm run token -- --postman`). Folders 0, 5, 6 and 7 of the collection are attack demos (unauthenticated → 401, cross-tenant → 404, wrong role → 403, forged/expired tokens → 401).
+The full per-endpoint security view is in [docs/security/API_SECURITY_MATRIX.md](docs/security/API_SECURITY_MATRIX.md). A Postman collection is in `EasyClaim.postman_collection.json`; it takes its bearer tokens from a generated, gitignored environment file (`postman/EasyClaim.local.postman_environment.json`, written by `npm run token -- --postman`). Folders 0, 5, 6 and 7 of the collection are attack demos (no token or the retired `X-Dev-Actor-*` headers → 401, cross-tenant → 404, wrong role → 403, tampered signature / `alg=none` / non-Bearer credentials → 401).
 
 ## Running Locally
 
 Requirements: Node.js (verified with v24).
 
 ```bash
-cd backend
 npm install
 npm run setup:local                 # creates .dev.vars (gitignored) with a random JWT_SECRET; never overwrites an existing file
 npm run db:migrate:local            # apply migrations/ to the local D1 database (0003 creates the demo tenants)
@@ -112,12 +111,12 @@ Without a `JWT_SECRET` of at least 32 bytes (or without `JWT_ISSUER` / `JWT_AUDI
 Run the checks:
 
 ```bash
-npm test            # vitest in the Workers runtime: 12 files, 175 passed + 1 todo
+npm test            # vitest in the Workers runtime: 12 files, 183 passed + 1 todo (measured 2026-09-26)
 npm run typecheck   # tsc --noEmit
 npm audit           # 0 vulnerabilities at the time of writing
 ```
 
-Mint a local token and call the API (`backend/scripts/mint-token.mjs` signs with the `JWT_SECRET` from `.dev.vars`):
+Mint a local token and call the API (`scripts/mint-token.mjs` signs with the `JWT_SECRET` from `.dev.vars`):
 
 ```bash
 npm run token -- --demo                                            # one token per demo actor, printed with a comment
@@ -130,7 +129,7 @@ curl http://127.0.0.1:8787/api/v1/covers/my-covers -H "Authorization: Bearer $TO
 curl http://127.0.0.1:8787/api/v1/claims -H "Authorization: Bearer $TOKEN"
 ```
 
-> Tokens are local-only: they are signed with the secret in your `.dev.vars` and are worthless elsewhere. The mint script mirrors the server's claim rules (`iat` backdated 60 s, `exp` at most 24 h for CUSTOMER and 8 h for ASSESSOR/MANAGER/ADMIN, `tenant_id` required for ASSESSOR/MANAGER and forbidden for CUSTOMER) and refuses to mint a token the server would reject. A deployed environment must receive tokens from a real identity provider or auth service: PLANNED, the documented path is `hono/jwt` `verifyWithJwks` (NOT IMPLEMENTED). There is no token revocation (PLANNED).
+> Tokens are local-only: they are signed with the secret in your `.dev.vars` and are worthless elsewhere. The mint script mirrors the server's claim rules (`iat` backdated 60 s; `--ttl` defaults to 3600 s and is capped 60 s below the server maximum of 24 h for CUSTOMER and 8 h for ASSESSOR/MANAGER/ADMIN; `tenant_id` required for ASSESSOR/MANAGER and forbidden for CUSTOMER) and refuses to mint a token the server would reject. `--iss`, `--aud` and `--secret` override `.dev.vars` / `wrangler.toml` for negative tests. A deployed environment must receive tokens from a real identity provider or auth service: PLANNED, the documented path is `hono/jwt` `verifyWithJwks` (NOT IMPLEMENTED). There is no token revocation (PLANNED).
 
 Demo actors (`--demo` / `--postman`): `user123` (CUSTOMER; Discovery, Sanlam and Old Mutual policies), `user456` (CUSTOMER; OUTsurance policy, no claims), `assessor_a1` and `manager_a1` (tenant `ins_discovery`), `assessor_b1` and `manager_b1` (tenant `ins_sanlam`), `admin1` (ADMIN, no claim access). `user789` from the seed can be minted with `--sub user789 --role CUSTOMER`. Seed tenants: `ins_discovery`, `ins_sanlam`, `ins_outsurance`, `ins_momentum`, `ins_oldmutual`.
 
@@ -145,7 +144,7 @@ Demo actors (`--demo` / `--postman`): `user123` (CUSTOMER; Discovery, Sanlam and
 
 `ALLOW_DEV_ACTOR_HEADERS` (Phase 0) was removed together with the header stub; setting it has no effect.
 
-Bindings configured in `backend/wrangler.toml` (not secrets):
+Bindings configured in `wrangler.toml` (not secrets):
 
 - `DB`: D1 database.
 - `CLAIM_EVENTS`: queue.
@@ -156,29 +155,24 @@ Bindings configured in `backend/wrangler.toml` (not secrets):
 ## Project Structure
 
 ```
-backend/
-  src/
-    index.ts              app, request id, global middleware, per-IP and per-actor rate limits, queue handler
-    types.ts              roles, bindings (incl. JWT_* settings), Actor { id, role, tenantId }
-    endpoints/            route handlers (gateway, policy, claims, claimsInsurer, ocr, identity, audit)
-    models/policyModel.ts policy queries
-    security/             actor (JWT verification), rbac, claimAccess (tenant + ownership, transitions), claimStateMachine, audit, validation
-  migrations/             D1 schema migrations (0001_init, 0002_security, 0003_tenants)
-  scripts/                setup-dev-vars.mjs (npm run setup:local), mint-token.mjs (npm run token)
-  seed_sa_data.sql        demo data (policies/claims with tenant_id)
-  test/                   vitest security, tenant, auth and lifecycle tests
-  wrangler.toml           Worker, D1, queue, rate-limit config, JWT_ISSUER / JWT_AUDIENCE vars
-  .dev.vars.example       local settings template (JWT_SECRET placeholder, ALLOWED_ORIGINS)
-  EasyClaim.postman_collection.json
-  postman/                generated Postman environment with local tokens (gitignored)
-frontend/
-  src/store/useAppStore.ts  zustand store (no UI)
-  src/types/index.ts        shared types
-docs/
-  BACKEND_INVENTORY.md
-  architecture/BACKEND_ARCHITECTURE.md
-  phase-reports/            phase precheck and live attack evidence (evidence/PHASE_01_LIVE_ATTACKS.log)
-  security/                 security documentation
+src/
+  index.ts              app, request id, global middleware, per-IP and per-actor rate limits, queue handler
+  types.ts              roles, bindings (incl. JWT_* settings), Actor { id, role, tenantId }
+  endpoints/            route handlers (gateway, policy, claims, claimsInsurer, ocr, identity, audit)
+  models/policyModel.ts policy queries
+  security/             actor (JWT verification), rbac, claimAccess (tenant + ownership, transitions), claimStateMachine, audit, validation
+  controllers/ routes/ services/   backend-team MVC layer, NOT mounted by index.ts; if mounted it must sit behind requireActor and use loadAuthorizedClaim/transitionClaim
+migrations/             D1 schema migrations (0001_init, 0002_security, 0003_tenants)
+scripts/                setup-dev-vars.mjs (npm run setup:local), mint-token.mjs (npm run token)
+seed_sa_data.sql        demo data (policies/claims with tenant_id)
+test/                   vitest security, tenant, auth and lifecycle tests
+wrangler.toml           Worker, D1, queue, rate-limit config, JWT_ISSUER / JWT_AUDIENCE vars
+.dev.vars.example       local settings template (JWT_SECRET placeholder, ALLOWED_ORIGINS)
+EasyClaim.postman_collection.json
+postman/                generated Postman environment with local tokens (gitignored)
+lib/                      Flutter mobile app (backend team). Untrusted API client; out of scope for the security docs
+docs/security/            threat model, controls, test plan, attack scenarios, handoff
+docs/phase-reports/       per-phase verified reports and evidence
 ```
 
 ## Security
@@ -193,10 +187,10 @@ See [docs/security/README.md](docs/security/README.md).
 - Claim ownership checks (IDOR/BOLA) and tenant isolation for insurer staff (cross-tenant, unsubmitted Draft and missing claims are indistinguishable: 404).
 - Role checks (coarse per route, per transition in the state machine; ADMIN has no claim access).
 - Strict input validation (mass-assignment protection), incl. the insurer `decide` body.
-- Claim state machine with every customer and insurer transition reachable over HTTP; stage change and audit row written in one D1 batch; replay/race → 409.
+- Claim state machine with every insurer transition and every customer transition except Withdrawn reachable over HTTP; stage change and audit row written in one D1 batch; replay/race → 409.
 - Append-only audit trail with acting tenant and server-generated request id.
 - Rate limiting (per IP, then per actor), security headers, CORS allowlist, body size limit, generic error responses.
-- Live attack evidence against `wrangler dev`: [docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log](docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log) (forged/expired/tampered/`alg=none`/HS512 tokens → 401; cross-tenant read and transition → 404; customer on insurer routes → 403; assessor payout → 403; retired dev headers → 401; full Submitted → Paid path; audit rows counted).
+- Live attack evidence against `wrangler dev`: [docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log](docs/phase-reports/evidence/PHASE_01_LIVE_ATTACKS.log) (ATTACK-P1-001 to -012: forged/expired/tampered/`alg=none`/HS512/over-TTL tokens → 401; cross-tenant read and transition → 404, same body as a missing claim; customer on insurer routes → 403; assessor payout → 403; retired dev headers → 401 without a token and ignored with one; IDOR → 404; ADMIN list → 403; full Submitted → Paid path with pay-before-decision and replay → 409; audit rows counted per action, role and tenant).
 
 **Not implemented / planned / decision required:**
 
