@@ -54,12 +54,12 @@ tenant's or a non-existent claim differently from each other.
 | Step | Who | Endpoint | Edge | Gates that matter | Recorded |
 |---|---|---|---|---|---|
 | Work queue | Assessor / Manager | `GET /claims` | — | 1, 2, 4 (own tenant only; drafts hidden; no `user_id` exposed) | — |
-| Look at the file | Assessor / Manager | `GET /claims/:id/timeline`, `/evidence`, `/evidence/:eid`, `/evidence/:eid/verify`, `/payout` | — | 1, 4 (own tenant); `verify` re-hashes the stored object → `VALID` / `TAMPERED` | `evidence.accessed`, `evidence.integrity_verified` |
+| Look at the file | Assessor / Manager | `GET /claims/:id/timeline`, `/risk-signals` (audited `screening.signal_read`), `/evidence`, `/evidence/:eid`, `/evidence/:eid/verify`, `/payout` | — | 1, 4 (own tenant); `verify` re-hashes the stored object → `VALID` / `TAMPERED` | `evidence.accessed`, `evidence.integrity_verified` |
 | Verify identity/policy | Assessor | `POST /claims/:id/verify` | `Submitted → Verified` | 1–6 | `claim.stage_changed` |
-| Screen | Assessor | `POST /claims/:id/screen` | `Verified → Screening` | 1–6; Phase 4 attaches the quantum risk signal **read-only** after the transition | `claim.stage_changed`; `screening_signals` row |
+| Screen | Assessor | `POST /claims/:id/screen` | `Verified → Screening` | 1–6; Phase 4 attaches the advisory signal **read-only** after the transition: classical + quantum scores, band NORMAL / ELEVATED / HIGH, recommendation STANDARD_REVIEW / REVIEW_REQUIRED, versions, digest | `claim.stage_changed`, `screening.signal_attached` (with digest) |
 | Ask the customer for more | Assessor | `POST /claims/:id/request-info` | `Screening/Review → Info Needed` | 1–6 | `claim.stage_changed` |
 | Review | Assessor | `POST /claims/:id/review` | `Screening → Review` | 1–6 | `claim.stage_changed` |
-| Decide | **Manager only** | `POST /claims/:id/decide` `{ outcome, reason, approvedAmountCents? }` | `Review → Decision` | 1–6 + business checks: approval needs payout details, approved ≤ claimed | insert-only `claim_decisions` row (who, when, why, previous stage, amounts, destination snapshot, **evidence digest**, rules version) + `claim.decision_recorded` |
+| Decide | **Manager only** | `POST /claims/:id/decide` `{ outcome, reason, approvedAmountCents? }` | `Review → Decision` | 1–6 + business checks: approval needs payout details, approved ≤ claimed | insert-only `claim_decisions` row (who, when, why, previous stage, amounts, destination snapshot, **evidence digest**, **screening signal it saw**, rules version), **signed with ML-DSA-65** (Phase 5) + `claim.decision_recorded` |
 | Pay | **Manager only** | `POST /claims/:id/pay` (no body; optional `Idempotency-Key`) | `Decision → Paid` | 1–6 + amount from the decision, destination must still match the snapshot, one payout per claim | insert-only `payouts` row (`status = simulated`) + `payout.completed_simulated` |
 | Re-review an appeal | Manager | `POST /claims/:id/review` | `Appeal → Review` | 1–6 | `claim.stage_changed` |
 
@@ -82,7 +82,9 @@ machine but have no endpoint or job yet.
 | Pay twice (replay, retry storm) | `payouts.claim_id UNIQUE` + state machine | 409 `already_paid`; same `Idempotency-Key` → same payout, one row | P3-08 |
 | Upload an `.exe` renamed `.pdf`, an 11 MB file, or against someone else's claim | Evidence validation + Gate 4 | 415 / 413 / 404 | `test/evidence.test.ts` |
 | Swap the bytes of stored evidence | Integrity check | `verify` reports `TAMPERED`; the decision's evidence digest no longer recomputes | Phase 2 tests + `claim_decisions.evidence_digest` |
+| Edit a recorded decision directly in the database (amount, destination, outcome, evidence, screening) | ML-DSA-65 signature over the decision bundle (Phase 5) | `decision/verify` → TAMPERED; `/pay` 409 `decision_integrity_failed` | `test/decisionIntegrity.test.ts`, Phase 5 live log |
 | Rewrite or delete decision, payout or audit history | Database triggers, no write routes | rejected at the database; routes 404 | P3-09, `test/audit.test.ts` |
+| A client supplies a quantum/anomaly score, or tries to turn a HIGH signal into Paid/Rejected | No write route; strict bodies; signal read after the transition | 400 / 404 / 409; signal digest audited and stored in the decision | `test/quantumScreening.test.ts` |
 | Prompt injection in a document or queue message | Queue validation; OCR/AI is advisory only | discarded / logged; no code path to claim state | `test/queue.test.ts` |
 | One credential hammering the API | Per-actor rate limit | 429 | `test/hardening.test.ts` |
 

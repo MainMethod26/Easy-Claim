@@ -24,7 +24,7 @@ Owner: **Cyber** = delivered on branch `cyber`; **Backend** = backend team.
 | Audit of sensitive actions | IMPLEMENTED; rows carry `actor_tenant_id` and server-generated `request_id`; state change + audit in one batch | Cyber | `src/security/audit.ts`, `migrations/0002_security.sql`, `0003_tenants.sql` |
 | Basic rate/resource limits | IMPLEMENTED (per-IP before auth, per-actor after auth, 64 KB body, list limit ≤ 50) | Cyber | `wrangler.toml`, `src/index.ts` |
 | Security headers, CORS allowlist, generic errors | IMPLEMENTED | Cyber | `src/index.ts` |
-| Security tests | IMPLEMENTED (183 tests + 1 todo, 12 files) | Cyber | `test/*.test.ts`, `vitest.config.mts` |
+| Security tests | IMPLEMENTED (264 tests, 17 files; + 27 Python tests) | Cyber | `test/*.test.ts`, `vitest.config.mts` |
 
 ## P1 — Important
 
@@ -32,15 +32,15 @@ Owner: **Cyber** = delivered on branch `cyber`; **Backend** = backend team.
 |---|---|---|
 | Identity provider / JWKS verification, key rotation, revocation (`jti` denylist) | PLANNED (BACKEND-SEC-019) | Backend |
 | Per-environment `wrangler.toml` (`[env.production]`, distinct issuer/audience, `wrangler secret put --env`) | PLANNED (BACKEND-SEC-018) | Backend |
-| Decision record (`claim_decisions`: reason, amount, versions) | IMPLEMENTED (Phase 3, `migrations/0005`); evidence digest / risk signal / integrity signature columns reserved | Cyber |
+| Decision record (`claim_decisions`: reason, amount, versions) | IMPLEMENTED (Phase 3, `migrations/0005`); evidence digest (Phase 2 alignment), screening signal (Phase 4) and ML-DSA signature (Phase 5) now filled | Cyber |
 | Separation of duties (decider ≠ payer) | DECISION REQUIRED (BACKEND-SEC-015) | Product / Backend |
 | Appeal limit | DECISION REQUIRED (BACKEND-SEC-016) | Product / Backend |
 | Per-tenant claimant reference instead of `user_id` | DECISION REQUIRED (BACKEND-SEC-017) | Product / Backend |
-| Evidence hashing / tamper detection (SHA-256 into `evidence.sha256`) | PLANNED (table exists) | Backend |
+| Evidence hashing / tamper detection (SHA-256 into `evidence.sha256`) | IMPLEMENTED (Phase 2: per-file hash + VALID/TAMPERED verify; decisions record the evidence digest) | Backend / Cyber |
 | Payout protection | PARTIAL (Phase 3): simulated payout with server-held amount, destination snapshot check, one-per-claim + idempotency key IMPLEMENTED; real rail, destination verification, step-up auth PLANNED | Cyber / Backend |
 | Step-up authentication for payout/mandate/banking changes | PLANNED | Backend |
 | Configuration versioning + audit | PLANNED (no config exists) | Backend |
-| Explainable screening signals | PLANNED | Backend |
+| Explainable screening signals | IMPLEMENTED (Phase 4: classical + quantum scores, band, recommendation, explanation, versions, digest; advisory) | Quantum / Cyber |
 | AI/OCR trust boundaries | PLANNED (documented in `AI_SECURITY.md`; queue validation IMPLEMENTED) | Backend |
 | Dependency scanning in CI (`npm audit`) | PARTIAL (run manually: 0 vulns) | Cyber |
 
@@ -53,9 +53,9 @@ Owner: **Cyber** = delivered on branch `cyber`; **Backend** = backend team.
 - Malware scanning / CDR for uploads
 - Cache the imported HMAC `CryptoKey` in `resolveActor()` (micro-optimisation)
 
-## Bonus
+## Bonus (both delivered)
 
-- Quantum-kernel screening experiment
-- Post-quantum signatures over decision records / evidence hashes
+- Quantum-kernel screening experiment — IMPLEMENTED (Phase 4; simulator; did not outperform classical)
+- Post-quantum signatures over decision records — IMPLEMENTED (Phase 5, ML-DSA-65; key custody and rotation PLANNED)
 
 Bonus work must never bypass `transitionClaim()`, `loadAuthorizedClaim()` or `requireRole()`.

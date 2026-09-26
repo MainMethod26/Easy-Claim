@@ -157,7 +157,7 @@ The consumer logic is verified by `test/queue.test.ts`. Under local `wrangler de
 | `seed_sa_data.sql` | Demo policies and claims with `tenant_id`; users `user123` (Discovery, Sanlam, Old Mutual policies), `user456`, `user789` |
 | `scripts/setup-dev-vars.mjs` (Phase 1) | `npm run setup:local`: creates `.dev.vars` from `.dev.vars.example` with a random 32-byte `JWT_SECRET`; never overwrites an existing file |
 | `scripts/mint-token.mjs` (Phase 1) | `npm run token -- --demo \| --postman \| --sub X --role Y [--tenant Z] [--ttl s]`: local HS256 tokens signed with the `.dev.vars` secret (`iat` backdated 60 s; refuses claims the server would reject: role/tenant rules and TTL 60 s below the server maximum). `--postman` writes `postman/EasyClaim.local.postman_environment.json` (gitignored) |
-| `test/` | vitest on `@cloudflare/vitest-plugin` (Workers runtime): 12 files, 183 passed + 1 todo on 2026-09-26; `helpers.ts` mints real HS256 tokens with the per-run random `JWT_SECRET` from `vitest.config.mts` |
+| `test/` | vitest on `@cloudflare/vitest-plugin` (Workers runtime): 17 files, 264 passed on 2026-09-26 (after Phase 5); `helpers.ts` mints real HS256 tokens with the per-run random `JWT_SECRET` from `vitest.config.mts` |
 | `wrangler.toml`, `.dev.vars.example` | Bindings and `[vars]` (`JWT_ISSUER`, `JWT_AUDIENCE`, `ALLOWED_ORIGINS`); the local settings template |
 | `EasyClaim.postman_collection.json`, `postman/` | Postman collection (folders 0, 5, 6 and 7 are attack demos: 401 / 404 / 403 / 401) and its generated, gitignored environment |
 

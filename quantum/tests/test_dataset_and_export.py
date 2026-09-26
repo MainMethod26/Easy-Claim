@@ -43,3 +43,27 @@ def test_export_sql_only_touches_screening_signals(tmp_path):
     assert "UPDATE" not in sql.upper().replace("INSERT OR REPLACE", "")
     payload = json.loads((results / "results.json").read_text(encoding="utf8"))
     assert payload["execution"] == "simulator" and payload["hardware_used"] is False
+
+
+def test_demo_claims_are_scored_from_their_own_features_not_copied():
+    """QUANTUM-01/05 support: the demo signals equal the scores recorded for the demo claims
+    themselves (computed with user123's claim history), carry version tags and stay labelled synthetic."""
+    results = HERE / "results"
+    if not (results / "demo_claims.sql").exists():
+        subprocess.run([sys.executable, str(HERE / "experiment.py")], check=True, capture_output=True)
+    data = json.loads((results / "results.json").read_text(encoding="utf8"))
+    assert data["feature_version"] == "claim-features-v1" and data["kernel_version"] == "qk-fidelity-zz-r2-v1"
+    demo = data["demo_claims"]
+    assert set(demo) == {"claim_demo_normal", "claim_demo_unusual"}
+    sql = (results / "demo_claims.sql").read_text(encoding="utf8")
+    for cid, rec in demo.items():
+        line = next(l for l in sql.splitlines() if l.startswith("INSERT OR REPLACE INTO screening_signals") and f"'{cid}'" in l)
+        assert f"{rec['classical_anomaly']}, {rec['quantum_anomaly']}, '{rec['interpretation']}'" in line
+        snap = json.loads(re.search(r"'(\{.*\})'", line).group(1).replace("''", "'"))
+        assert snap["_synthetic"] is True and snap["_source"] == rec["content_source"]
+        assert snap["_feature_version"] == "claim-features-v1"
+        # prior_claim_count reflects user123 in the local DB (2 seed claims + the other demo claim),
+        # not the synthetic source row's user.
+        assert snap["prior_claim_count"]["raw"] == 3.0
+    assert demo["claim_demo_normal"]["interpretation"] == "NORMAL"
+    assert demo["claim_demo_unusual"]["interpretation"] == "HIGH_ANOMALY"

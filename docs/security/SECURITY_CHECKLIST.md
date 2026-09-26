@@ -4,7 +4,9 @@ Phase 1 update (2026-09-26): the Phase 0 items about `X-Dev-Actor-*` headers, `A
 
 ## Pre-demo (local)
 
-- [ ] `npm test` — all green (12 files, 183 passed + 1 todo on 2026-09-26; the todo is TENANT-004 evidence isolation, BLOCKED until an evidence endpoint exists)
+- [ ] `npm test` — all green (17 files, 264 passed on 2026-09-26; no skipped tests) and `npm run quantum:test` (27 passed)
+- [ ] `MLDSA_SEED` set as a secret in every deployed environment (`wrangler secret put MLDSA_SEED`); without it decisions are refused
+- [ ] migrations 0001–0008 applied
 - [ ] `npm run typecheck` passes (clean at time of writing)
 - [ ] `npm audit` — 0 vulnerabilities (0 at time of writing)
 - [ ] `npm run db:migrate:local && npm run db:seed:local` applied; migrations `0001_init`, `0002_security` and `0003_tenants` all listed as applied (`0003` adds `tenants`, `policies.tenant_id`, `claims.tenant_id`, `audit_events.actor_tenant_id`)

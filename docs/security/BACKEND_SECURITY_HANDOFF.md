@@ -23,7 +23,7 @@
 | `src/endpoints/claims.ts` | `GET /claims` (owner / tenant scoped, no drafts and no `user_id` for insurers) |
 | `migrations/0002_security.sql`, `0003_tenants.sql` | claim columns, `audit_events` (append-only), `evidence` table (unused), `tenants`, `policies.tenant_id`, `claims.tenant_id`, `audit_events.actor_tenant_id` |
 | `scripts/mint-token.mjs`, `setup-dev-vars.mjs` | local tokens (`npm run token -- --demo \| --postman`), local secret setup (`npm run setup:local`) |
-| `test/*.test.ts` | 232 tests, 15 files after Phases 2–4 and the evidence-binding follow-up (`npm test`) |
+| `test/*.test.ts` | 264 tests, 17 files after Phases 2–5 (`npm test`) |
 
 ## Requirements
 
@@ -87,7 +87,7 @@
 
 ### BACKEND-SEC-014 — Keep the tests green
 - **Requirement:** `npm test`, `npm run typecheck`, `npm audit` pass on every PR; new sensitive routes ship with BOLA, RBAC, tenant and mass-assignment tests.
-- **Status:** IMPLEMENTED locally (232 tests, 15 files); CI NOT IMPLEMENTED.
+- **Status:** IMPLEMENTED locally (264 tests, 17 files; plus 27 Python tests); CI NOT IMPLEMENTED.
 
 ### BACKEND-SEC-015 — Separation of duties (DECISION REQUIRED)
 - **Question:** may the MANAGER who recorded the decision also perform `/pay`, and may the original decider re-review an appeal? Today nothing prevents it.
@@ -122,3 +122,7 @@
 | 4 | `src/controllers/policyController.ts` | `saveRequirements` inserts against a client-supplied `policyId` with no ownership check | HIGH |
 
 Status: NOT EXPLOITABLE today (not mounted). Required before any of these routes are mounted: go through `requireActor`, `requireRole`, `loadAuthorizedClaim` and `transitionClaim` exactly like `src/endpoints/*`, or delete the layer. Owner: backend team. Rule recorded in `docs/PARALLEL_WORK.md` (`src/index.ts`: append mounts only, keep `requireActor` on `/api/v1/*`).
+
+### BACKEND-SEC-022 — Post-quantum decision signing (Phase 5)
+- **Status:** IMPLEMENTED (ML-DSA-65 over the decision bundle; verify route; `/pay` enforces; fail closed without `MLDSA_SEED`). See `docs/security/PQC_DECISION_INTEGRITY.md`.
+- **Still yours / DECISION REQUIRED:** key custody (KMS/HSM vs Cloudflare secret), key rotation with a registry of past public keys, `wrangler secret put MLDSA_SEED --env production`, re-deciding pre-Phase-5 decisions (they are `UNSIGNED` and cannot be paid).

@@ -24,7 +24,7 @@ quantum/
 python -m venv quantum/.venv
 quantum/.venv/Scripts/pip install -r quantum/requirements.txt     # POSIX: quantum/.venv/bin/pip
 quantum/.venv/Scripts/python quantum/experiment.py                # add --regenerate to rebuild the dataset
-quantum/.venv/Scripts/python -m pytest quantum/tests -q
+npm run quantum:test   # runs pytest from quantum/ with the venv interpreter
 ```
 
 Then, for the local Worker demo: `npm run signals:import:local && npm run demo:quantum:local`.

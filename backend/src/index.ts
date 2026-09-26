@@ -13,6 +13,7 @@ import identity from './endpoints/identity'
 import audit from './endpoints/audit'
 import riskSignals from './screening/routes'
 import { processQueueBatch } from './endpoints/ocr'
+import { decisionIntegrity, integrityInfo } from './integrity/routes'
 import { requireActor } from './security/actor'
 import devLogin from './endpoints/devLogin'
 import type { AppEnv } from './types'
@@ -98,6 +99,8 @@ app.route('/api/v1/claims', claims)
 app.route('/api/v1/claims', claimsInsurer)
 app.route('/api/v1/claims', evidence)
 app.route('/api/v1/claims', riskSignals) // Phase 4: read-only advisory screening signal
+app.route('/api/v1/claims', decisionIntegrity) // Phase 5: ML-DSA decision verification
+app.route('/api/v1/integrity', integrityInfo) // Phase 5: public key
 app.route('/api/v1/ocr', ocr)
 app.route('/api/v1/profile', identity)
 app.route('/api/v1/activities', audit)

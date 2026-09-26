@@ -9,12 +9,13 @@
     "typecheck": "tsc --noEmit",
     "db:migrate:local": "wrangler d1 migrations apply easy-claim-db --local",
     "db:seed:local": "wrangler d1 execute easy-claim-db --local --file=seed_sa_data.sql",
-    "quantum:experiment": "python quantum/experiment.py",
+    "quantum:experiment": "node -e \"const fs=require('fs');const py=['quantum/.venv/Scripts/python.exe','quantum/.venv/bin/python'].find(p=>fs.existsSync(p))||'python';require('child_process').execFileSync(py,['quantum/experiment.py',...process.argv.slice(1)],{stdio:'inherit'})\"",
     "signals:import:local": "wrangler d1 execute easy-claim-db --local --file=quantum/results/screening_signals.sql",
     "demo:quantum:local": "wrangler d1 execute easy-claim-db --local --file=quantum/results/demo_claims.sql",
     "setup:local": "node scripts/setup-dev-vars.mjs",
     "secret": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
-    "token": "node scripts/mint-token.mjs"
+    "token": "node scripts/mint-token.mjs",
+    "quantum:test": "node -e \"const fs=require('fs'),path=require('path');const py=['quantum/.venv/Scripts/python.exe','quantum/.venv/bin/python'].find(p=>fs.existsSync(p));require('child_process').execFileSync(py?path.resolve(py):'python',['-m','pytest','tests','-q'],{stdio:'inherit',cwd:'quantum'})\""
   },
   "keywords": [],
   "author": "",
@@ -23,6 +24,7 @@
   "dependencies": {
     "@hono/swagger-ui": "^0.6.1",
     "@hono/zod-validator": "^0.9.1",
+    "@noble/post-quantum": "^0.7.1",
     "hono": "^4.13.9",
     "postman-to-openapi": "^1.2.0",
     "swagger-ui-dist": "^5.33.0",

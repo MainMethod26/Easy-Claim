@@ -48,7 +48,7 @@ Phase 0 table, unchanged. Where Phase 1 changed a row, section 2a below supersed
 | Security headers / CORS | NOT IMPLEMENTED | IMPLEMENTED: `secureHeaders`, CORS allowlist from `ALLOWED_ORIGINS`. Phase 1 update: see 2a | `src/index.ts` |
 | Error handling | Hono defaults | IMPLEMENTED: JSON 404, generic 500 with no stack or internals | `src/index.ts` |
 | Body size limit | NOT IMPLEMENTED | IMPLEMENTED: 64 KB | `src/index.ts` |
-| Tests | NOT IMPLEMENTED (`npm test` exited 1) | 9 files, 85 tests, TESTED/PASSED. Phase 1 update: 12 files, 183 passed + 1 todo, see 2a | `test/` |
+| Tests | NOT IMPLEMENTED (`npm test` exited 1) | 9 files, 85 tests, TESTED/PASSED. Phase 1 update: 12 files, 183 passed + 1 todo, see 2a. Phase 5 update: 17 files, 264 passed | `test/` |
 | Dependency scan | — | `npm audit`: 0 vulnerabilities (re-run in Phase 1: still 0) | — |
 | Secrets in repo | None found | None. `.dev.vars` gitignored; `.dev.vars.example` committed. Phase 1 update: see 2a (`JWT_SECRET`, Postman environment) | `.gitignore` |
 

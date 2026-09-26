@@ -441,6 +441,89 @@
           }
         }
       }
+    },
+    "/api/v1/claims/{claimId}/risk-signals": {
+      "get": {
+        "summary": "Advisory screening signal (Phase 4): classical and quantum-kernel anomaly scores. Read-only; ASSESSOR/MANAGER of the claim tenant.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "claimId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ claimId, stage, riskSignals: null | { classicalAnomaly, quantumAnomaly, interpretation, anomalyBand, screeningRecommendation, explanation, versions, signalDigest, modelVersion, execution, computedAt, advisory } }"
+          },
+          "401": {
+            "description": "no or invalid token"
+          },
+          "403": {
+            "description": "role is not ASSESSOR or MANAGER"
+          },
+          "404": {
+            "description": "claim missing, draft, or another tenant (indistinguishable)"
+          }
+        }
+      }
+    },
+    "/api/v1/claims/{claimId}/decision/verify": {
+      "get": {
+        "summary": "Phase 5: verify the ML-DSA-65 signature of the latest decision (VALID | TAMPERED | UNSIGNED | UNKNOWN_KEY | UNAVAILABLE | NO_DECISION). Owner or claim tenant staff.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "claimId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ claimId, decisionId, integrity: { status, alg, keyId, bundleDigest, recomputedDigest } }"
+          },
+          "401": {
+            "description": "no token"
+          },
+          "404": {
+            "description": "not visible to this actor"
+          }
+        }
+      }
+    },
+    "/api/v1/integrity/public-key": {
+      "get": {
+        "summary": "Phase 5: ML-DSA-65 public key used to sign decisions.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ alg, standard, keyId, bundleVersion, context, publicKey }"
+          },
+          "503": {
+            "description": "signing key not configured"
+          }
+        }
+      }
     }
   }
 }

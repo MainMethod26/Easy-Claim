@@ -1,5 +1,10 @@
 # Decision Security
 
+> **Phase 5 update (2026-09-26).** Every decision is now signed with ML-DSA-65 (NIST FIPS 204) over a canonical
+> bundle (outcome, amounts, destination hash, evidence digest, screening signal, actor, time, reason, rules version);
+> `GET /claims/:id/decision/verify` checks it and `/pay` refuses any decision that does not verify. See
+> `docs/security/PQC_DECISION_INTEGRITY.md` and `docs/phase-reports/PHASE_05_REPORT.md`.
+
 > **Phase 3 update (2026-09-26).** Decisions are now MANAGER-only and recorded in the insert-only
 > `claim_decisions` table (who, what, when, why, previous stage, claimed/approved amounts, destination
 > snapshot, request id, `rules_version = phase3-manual-v1`), written in the same D1 batch as the
