@@ -43,7 +43,7 @@ existing gates when they arrive.
 | Payout diversion (destination or amount change) | Med / High | destination frozen after submission, decision snapshot, server-held amount, one payout per claim | simulated payout only; real rail PLANNED |
 | Stolen/forged token | Med / High | HS256 pinned, iss/aud/exp/iat, 8 h staff / 24 h customer TTL | no revocation, shared secret — IdP PLANNED (`BACKEND-SEC-019`) |
 | Malicious upload | High / Med | type allowlist + magic bytes + 10 MB + private storage + hash | no malware scanning (PLANNED) |
-| Audit/decision tampering by insider with DB access | Low / High | append-only triggers | triggers droppable by DB admin; ML-DSA signing PLANNED (Phase 5) |
+| Audit/decision tampering by insider with DB access | Low / High | append-only triggers | triggers droppable by DB admin, but every decision is ML-DSA-65 signed (Phase 5): edits are detected and payout refused |
 | Regression that removes controls (happened: `d76a0c6`) | High / High | full test suite + rules in `docs/PARALLEL_WORK.md` | no CI gate yet (PLANNED) |
 
 ---
@@ -81,7 +81,7 @@ Branching rules for parallel work (reserved migration numbers, file ownership, r
 
 | Layer | Status | What runs |
 |---|---|---|
-| Unit + integration security tests in the Workers runtime (real D1, R2, queue) | IMPLEMENTED | `npm test`: 15 files, 232 tests — authentication, BOLA, tenant isolation, RBAC, mass assignment, state machine, evidence, decision/payout, audit integrity, queue/prompt-injection, hardening |
+| Unit + integration security tests in the Workers runtime (real D1, R2, queue) | IMPLEMENTED | `npm test`: 17 files, 264 tests (+ 27 Python tests) — authentication, BOLA, tenant isolation, RBAC, mass assignment, state machine, evidence, decision/payout, audit integrity, queue/prompt-injection, hardening |
 | Live attack execution against `wrangler dev` with recorded evidence | IMPLEMENTED (per phase) | `docs/phase-reports/evidence/*.log`, `docs/quantum/` |
 | Mutation checks (disable a control, confirm tests fail) | done manually in Phases 0/1 | documented in phase reports |
 | Type checking | IMPLEMENTED | `npm run typecheck` |
@@ -116,7 +116,7 @@ Integration test rule: every external boundary gets a test that feeds it hostile
 | Pre-deploy checklist (`docs/security/SECURITY_CHECKLIST.md`): secrets via `wrangler secret`, distinct issuer/audience per environment, real D1 id, bucket provisioned, migrations applied, tests green | IMPLEMENTED as a checklist; automation PLANNED |
 | Environment separation (`[env.production]`) | PLANNED |
 | Monitoring: alert on spikes of `outcome = 'denied'` audit rows per actor/tenant, and on `payout.blocked` | PLANNED |
-| Audit retention/export and immutability beyond DB triggers | PLANNED (Phase 5 signing) |
+| Audit retention/export | PLANNED; decision immutability beyond DB triggers IMPLEMENTED via ML-DSA-65 signatures (Phase 5) |
 | Incident response: rotate `JWT_SECRET` (invalidates all tokens), disable the affected tenant's staff tokens at the IdP, review audit trail by `request_id` | PARTIAL (rotation possible; no runbook yet) |
 | Key management for future ML-DSA signatures | DECISION REQUIRED |
 
@@ -139,7 +139,10 @@ may ever bypass authentication, tenant isolation, authorization, the state machi
 | Security rules | Signal is untrusted data: schema-validated on read, never shown to customers, never used to auto-approve/auto-reject; experiment reproducibility (features, preprocessing, dataset/split, simulator vs hardware) documented; any future hardware run needs a provider assessment (§5). |
 | Open | Real claim features and a labelled dataset (DECISION REQUIRED); routing of high-risk signals to mandatory human review (PLANNED, `BACKEND-SEC` roadmap). |
 
-### 7.2 Post-quantum cryptography: ML-DSA decision integrity — PLANNED (Phase 5, not built)
+### 7.2 Post-quantum cryptography: ML-DSA decision integrity — IMPLEMENTED (Phase 5, merged `c86ee11`)
+
+Delivered as designed below; details, tests and live evidence in `docs/security/PQC_DECISION_INTEGRITY.md`. Still
+PLANNED: KMS/HSM key custody, rotation with a key registry, trusted timestamps. The table below is the original design.
 
 | Aspect | Plan |
 |---|---|
@@ -164,4 +167,4 @@ sit **after** the six gates, and the state machine remains the only path to a st
 | Business rules (separation of duties, appeal limit, admin scope, consent/retention) | Product + security owners (DECISION REQUIRED items in `BACKEND_SECURITY_HANDOFF.md` 015–020) |
 | Backend features, integrations, CI, environments | Backend team, following §2 design rules |
 | Flutter app: must obtain a token and call only customer routes; no local authorization logic | Frontend (backend team) |
-| Quantum/PQC | Quantum track (advisory signal only; Phase 5 signing) |
+| Quantum/PQC | Quantum track (advisory screening signal, Phase 4) and cyber track (ML-DSA decision signing, Phase 5) |
