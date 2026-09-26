@@ -1,3 +1,4 @@
+import "policy_details_screen.dart";
 import 'package:flutter/material.dart';
 import '../models/covers_models.dart';
 import '../providers/covers_provider.dart';
@@ -57,6 +58,8 @@ class _CoversScreenState extends State<CoversScreen> {
   }
 
   void _openPolicyDetails(ActivePolicy policy) {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => PolicyDetailsScreen(policy: policy)));
+    return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
