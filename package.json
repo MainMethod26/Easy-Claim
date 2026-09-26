@@ -20,7 +20,7 @@
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",
     "hono": "^4.13.9",
-    "postman-to-openapi": "^1.7.3",
+    "postman-to-openapi": "^1.2.0",
     "swagger-ui-dist": "^5.33.0",
     "zod": "^4.6.5"
   },
