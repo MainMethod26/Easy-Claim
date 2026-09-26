@@ -10,13 +10,14 @@ import claimsInsurer from './endpoints/claimsInsurer'
 import evidence from './endpoints/evidence'
 import ocr from './endpoints/ocr'
 import identity from './endpoints/identity'
+import admin from './endpoints/admin'
 import audit from './endpoints/audit'
 import riskSignals from './screening/routes'
 import { processQueueBatch } from './endpoints/ocr'
 import { decisionIntegrity, integrityInfo } from './integrity/routes'
 import { requireActor } from './security/actor'
 import devLogin from './endpoints/devLogin'
-import type { AppEnv } from './types'
+import type { AppEnv, Bindings } from './types'
 import { swaggerUI } from '@hono/swagger-ui'
 import openapiData from './openapi.json'
 
@@ -103,6 +104,7 @@ app.route('/api/v1/claims', decisionIntegrity) // Phase 5: ML-DSA decision verif
 app.route('/api/v1/integrity', integrityInfo) // Phase 5: public key
 app.route('/api/v1/ocr', ocr)
 app.route('/api/v1/profile', identity)
+app.route('/api/v1/admin', admin)
 app.route('/api/v1/activities', audit)
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404))
@@ -123,4 +125,26 @@ export default {
   async queue(batch: MessageBatch<unknown>, env: unknown): Promise<void> {
     await processQueueBatch(batch, env)
   },
+  async scheduled(event: ScheduledEvent, env: Bindings, ctx: ExecutionContext): Promise<void> {
+    // Expire claims that have been in 'Info Needed' for more than 30 days
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    
+    try {
+      const claimsToExpire = await env.DB.prepare(
+        `SELECT id FROM claims WHERE stage = 'Info Needed' AND updated_at < ?`
+      ).bind(thirtyDaysAgo).all<{id: string}>()
+      
+      if (claimsToExpire.results.length > 0) {
+        const stmt = env.DB.prepare(`UPDATE claims SET stage = 'Expired', status = 'Closed', updated_at = ? WHERE id = ?`)
+        const now = new Date().toISOString()
+        
+        const batch = claimsToExpire.results.map(c => stmt.bind(now, c.id))
+        await env.DB.batch(batch)
+        
+        console.log(`Expired ${claimsToExpire.results.length} old claims.`)
+      }
+    } catch (err) {
+      console.error('Failed to run expiry cron job:', err)
+    }
+  }
 }

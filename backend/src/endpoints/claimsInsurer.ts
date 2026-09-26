@@ -271,6 +271,34 @@ router.post('/:claimId/pay', insurerOnly, validate('param', claimIdParam), async
     return blocked('destination_mismatch', 409, { decisionId: decision.id })
   }
 
+
+  // Real Payout via Ansa Payment API
+  let ansaStatus = 'simulated'
+  if (c.env.ANSA_SECRET_KEY) {
+     console.log(`Initiating real Ansa payout for claim ${claim.id}...`)
+     try {
+       // Using Ansa's generic REST API for disbursements/payouts
+       const ansaRes = await fetch('https://api.ansa.dev/v1/disbursements', {
+         method: 'POST',
+         headers: {
+           'Authorization': `Bearer ${c.env.ANSA_SECRET_KEY}`,
+           'Content-Type': 'application/json'
+         },
+         body: JSON.stringify({
+           amount: decision.approved_amount_cents,
+           currency: 'ZAR',
+           destination_account: claim.payout_account_last4, // Mapped Ansa customer/account
+           reference: `Payout for claim ${claim.id}`
+         })
+       })
+       if (ansaRes.ok) ansaStatus = 'paid'
+       else throw new Error(await ansaRes.text())
+     } catch (err) {
+       console.error('Ansa Payout failed:', err)
+       return blocked('ansa_payout_failed', 500)
+     }
+  }
+
   const payoutId = `pay_${crypto.randomUUID()}`
   const row = gatedInsert(c.env.DB, 'payouts', {
     id: payoutId,
@@ -280,7 +308,7 @@ router.post('/:claimId/pay', insurerOnly, validate('param', claimIdParam), async
     amount_cents: decision.approved_amount_cents,
     destination_hash: decision.destination_hash,
     destination_last4: claim.payout_account_last4,
-    status: 'simulated',
+    status: ansaStatus,
     idempotency_key: idemHeader,
     initiated_by: actor.id,
     initiated_role: actor.role,

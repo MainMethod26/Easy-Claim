@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'screens/admin_auth_screen.dart'; 
+import 'screens/admin/admin_auth_screen.dart'; 
 import 'services/config_service.dart';
 
 Future<void> main() async {

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/covers_models.dart';
 import '../providers/covers_provider.dart';
 import '../widgets/aurora_background.dart';
-import 'insurer_profile_screen.dart';
+import 'admin/insurer_profile_screen.dart';
 import '../widgets/claims_wizard_modal.dart';
 import '../services/logo_dev_service.dart';
 

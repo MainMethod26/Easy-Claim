@@ -6,7 +6,7 @@ import '../widgets/picture_background.dart';
 import 'main_navigation_screen.dart';
 import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
-import 'insurer_dashboard_screen.dart';
+import 'admin/insurer_dashboard_screen.dart';
 import 'dart:convert';
 
 class AuthScreen extends StatefulWidget {

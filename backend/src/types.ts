@@ -40,6 +40,11 @@ export type Bindings = {
   // Phase 5: 32-byte hex seed for the ML-DSA-65 decision-signing key. Secret binding only
   // (`wrangler secret put MLDSA_SEED` deployed, `.dev.vars` locally). Missing -> decisions refused (fail closed).
   MLDSA_SEED?: string
+  // Cloudflare Workers AI Binding
+  AI?: any
+  // Cloudflare Access (Zero Trust) settings
+  CF_ACCESS_TEAM_URL?: string
+  CF_ACCESS_AUD?: string
 }
 
 export type AppEnv = {

@@ -39,6 +39,16 @@ namespace_id = "1001"
 ALLOWED_ORIGINS = ""
 # Expected JWT issuer / audience (see src/security/actor.ts). Change per environment.
 JWT_ISSUER = "easyclaim-dev"
+CF_ACCESS_TEAM_URL = "https://your-team.cloudflareaccess.com"
+CF_ACCESS_AUD = "your-cf-access-aud"
 JWT_AUDIENCE = "easyclaim-api"
 # JWT_SECRET is a SECRET, never a var: `wrangler secret put JWT_SECRET` (deployed)
 # or backend/.dev.vars (local, gitignored). The API refuses every request without it.
+
+[ai]
+binding = "AI"
+
+[triggers]
+crons = ["0 0 * * *"] # Run every midnight
+
+# ANSA_SECRET_KEY should be set via wrangler secret put ANSA_SECRET_KEY

@@ -1,0 +1,45 @@
+--- backend/src/endpoints/claimsInsurer.ts
++++ backend/src/endpoints/claimsInsurer.ts
+@@ -282,13 +282,35 @@
+     return blocked('destination_mismatch', 409, { decisionId: decision.id })
+   }
+ 
++  // Real Payout via Stripe API
++  let stripeStatus = 'simulated'
++  if (c.env.STRIPE_SECRET_KEY) {
++     console.log(`Initiating real Stripe payout for claim ${claim.id}...`)
++     try {
++       const stripeRes = await fetch('https://api.stripe.com/v1/transfers', {
++         method: 'POST',
++         headers: {
++           'Authorization': `Bearer ${c.env.STRIPE_SECRET_KEY}`,
++           'Content-Type': 'application/x-www-form-urlencoded'
++         },
++         body: new URLSearchParams({
++           amount: decision.approved_amount_cents.toString(),
++           currency: 'zar',
++           destination: 'acct_123456789', // In reality, this maps from claim.payout_bank_name / destination hash
++           description: `Payout for claim ${claim.id}`
++         })
++       })
++       if (stripeRes.ok) stripeStatus = 'paid'
++       else throw new Error(await stripeRes.text())
++     } catch (err) {
++       console.error('Stripe Payout failed:', err)
++       return blocked('stripe_payout_failed', 500)
++     }
++  }
++
+   const payoutId = `pay_${crypto.randomUUID()}`
+   const row = gatedInsert(c.env.DB, 'payouts', {
+     id: payoutId,
+     claim_id: claim.id,
+     tenant_id: claim.tenant_id,
+     decision_id: decision.id,
+     amount_cents: decision.approved_amount_cents,
+     destination_hash: decision.destination_hash,
+     destination_last4: claim.payout_account_last4,
+-    status: 'simulated',
++    status: stripeStatus,
+     idempotency_key: idemHeader,
+     initiated_by: actor.id,

@@ -353,4 +353,18 @@ router.post(
   }
 )
 
+router.post(
+  '/:claimId/withdraw',
+  requireRole('CUSTOMER'),
+  validate('param', claimIdParam),
+  async (c) => {
+    const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'owner-write')
+    if (!claim) return c.json(notFound, 404)
+
+    const t = await transitionClaim(c, claim, 'Withdrawn')
+    if (!t.ok) return c.json({ error: t.error }, t.status)
+    return c.json({ status: 'withdrawn' })
+  }
+)
+
 export default router
