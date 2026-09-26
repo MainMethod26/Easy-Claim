@@ -132,7 +132,7 @@ figcaption{font-size:13px;color:var(--muted);margin-top:8px;max-width:75ch}
   <h1>Where EasyClaim stands, what we built, and how we talk about it</h1>
   <p class="lede">A single page for the whole team. It answers the question "are we done?" honestly, explains the security and quantum work in plain words, and gives you the pitch, the demo, and the answers judges will push on.</p>
   <div class="grid g3" style="margin-top:22px">
-    <div class="card"><div class="stat"><b>190</b><span>Worker security tests passing on <code>main</code>, plus 1 pre-existing todo</span></div></div>
+    <div class="card"><div class="stat"><b>213</b><span>Worker security tests passing on <code>main</code>, plus 1 pre-existing todo</span></div></div>
     <div class="card"><div class="stat"><b>26</b><span>Python tests passing for the quantum experiment</span></div></div>
     <div class="card"><div class="stat"><b>0</b><span>npm audit vulnerabilities and 0 TypeScript errors on <code>main</code></span></div></div>
   </div>
@@ -151,21 +151,21 @@ figcaption{font-size:13px;color:var(--muted);margin-top:8px;max-width:75ch}
 <!-- ============ STATUS ============ -->
 <section class="panel" id="tab-status">
   <h2>Are we done? Cyber: yes for what is on main. Quantum: yes, honestly scoped.</h2>
-  <p>Everything below was verified against the GitHub <code>main</code> branch at commit <code>210e126</code> on 26 September 2026 by running typecheck, the full test suite, the audit, and the Python tests on a fresh checkout.</p>
+  <p>Everything below was verified against the GitHub <code>main</code> branch at commit <code>f1b2374</code> on 26 September 2026, after Phase 3 merged by running typecheck, the full test suite, the audit, and the Python tests on a fresh checkout.</p>
   <div class="tbl"><table>
     <thead><tr><th>Phase</th><th>Track</th><th>What it delivers</th><th>Status</th><th>Evidence</th></tr></thead>
     <tbody>
       <tr><td>0 Foundation</td><td>Cyber</td><td>Ownership checks, RBAC, state machine, strict validation, append-only audit, headers, limits</td><td><span class="pill live">LIVE ON MAIN</span></td><td>85 original tests, all still passing inside the 190</td></tr>
       <tr><td>1 Identity and tenants</td><td>Cyber</td><td>Real JWT authentication, actor with tenant, cross-tenant isolation, insurer endpoints</td><td><span class="pill live">LIVE ON MAIN</span></td><td>183 tests, live attack log <code>PHASE_01_LIVE_ATTACKS.log</code></td></tr>
       <tr><td>2 Evidence and OCR</td><td>Cyber</td><td>Private storage, hashes, untrusted-document boundary</td><td><span class="pill no">NOT ON MAIN</span></td><td>Teammate's machine. No remote branch seen yet. Migration number 0004 reserved.</td></tr>
-      <tr><td>3 Decision and payout</td><td>Cyber</td><td>Insert-only decision records, simulated payout protection, idempotency</td><td><span class="pill wait">READY, PR #2 OPEN</span></td><td>213 tests pass on the rebased local branch. The copy on GitHub is older and conflicts; the Phase 3 session must push its rebase, then PR #2 fast-forwards.</td></tr>
+      <tr><td>3 Decision and payout</td><td>Cyber</td><td>Insert-only decision records, simulated payout protection, idempotency</td><td><span class="pill live">LIVE ON MAIN</span></td><td>PR #2 merged. Migration 0005, 213 tests, live demo log <code>PHASE_03_LIVE_DEMOS.log</code></td></tr>
       <tr><td>4 Quantum screening</td><td>Quantum</td><td>One-class quantum-kernel anomaly signal vs classical baseline, read-only integration</td><td><span class="pill live">LIVE ON MAIN</span></td><td>26 Python tests, 7 new Worker tests, live demo log <code>PHASE_04_LIVE_DEMO.log</code></td></tr>
       <tr><td>5 Post-quantum signatures</td><td>Quantum</td><td>ML-DSA signature over the decision bundle, tamper demo</td><td><span class="pill no">NOT STARTED</span></td><td>Planned in master plan §11. Phase 3 already reserved the column for it.</td></tr>
     </tbody>
   </table></div>
   <div class="grid g2" style="margin-top:18px">
-    <div class="callout ok"><h3>What "done" means for you personally</h3><p>Your cyber work (Phases 0 and 1) and the quantum work (Phase 4) are merged, tested, documented and pushed. The master plan document is at version 1.1 and records both. You can stop building and start rehearsing.</p></div>
-    <div class="callout note"><h3>What is not done for the team</h3><p>Phase 3 needs one push from the session that owns it. Phase 2 is with your teammate. Phase 5 is optional stretch. None of these blocks the demo you can already give.</p></div>
+    <div class="callout ok"><h3>What "done" means for you personally</h3><p>The cyber work (Phases 0, 1 and 3) and the quantum work (Phase 4) are merged, tested, documented and pushed. The master plan document is at version 1.1 and records both. You can stop building and start rehearsing.</p></div>
+    <div class="callout note"><h3>What is not done for the team</h3><p>Phase 2 is with your teammate. Phase 5 is optional stretch. Neither blocks the demo you can already give.</p></div>
   </div>
 </section>
 
@@ -243,7 +243,7 @@ figcaption{font-size:13px;color:var(--muted);margin-top:8px;max-width:75ch}
       <li>Insurer endpoints for verify, screen, review, request-info, decide and pay, all through the state machine.</li>
       <li>Stage change and its audit row are written in one database batch, so they always exist together.</li>
     </ul></div>
-    <div class="card"><h3>Phase 3: decisions and payout (in PR #2)</h3><ul>
+    <div class="card"><h3>Phase 3: decisions and payout</h3><ul>
       <li>Decision is manager-only. Insert-only decision record with who, when, reason, amounts, payout-destination snapshot and rules version.</li>
       <li>Payout is simulated: no request body accepted, amount can never exceed the claimed amount, destination must match the decision-time snapshot, one payout per claim with idempotency key.</li>
       <li>Reserved columns for the Phase 2 evidence digest, the Phase 4 risk signal and the Phase 5 signature.</li>
@@ -399,7 +399,7 @@ R420 000 on R4 200 claim → 422 / 400</pre></div>
       <div id="pitch">
       <p><b>Problem.</b> Insurance claims in South Africa are slow, opaque and easy to abuse. A claimant cannot see where their claim is, an insurer cannot trust what arrives, and one leaked ID lets someone read another person's claim.</p>
       <p><b>What EasyClaim is.</b> A claims backend where every step of a claim's life is a controlled transition, every request proves who it is and which insurer it belongs to, and every change is written to an audit trail that cannot be edited.</p>
-      <p><b>What we proved.</b> 190 automated security tests run on every change. We attacked our own server live: cross-tenant reads, forged tokens, clients setting their own claim status, replayed payouts. Every attempt is blocked and logged, and we can show the raw responses.</p>
+      <p><b>What we proved.</b> 213 automated security tests run on every change. We attacked our own server live: cross-tenant reads, forged tokens, clients setting their own claim status, replayed payouts. Every attempt is blocked and logged, and we can show the raw responses.</p>
       <p><b>The quantum part.</b> At the Screening stage we added an experimental quantum-kernel anomaly signal and compared it fairly with a classical baseline on identical features. On our synthetic data the classical model was slightly ahead. We report that honestly, because a screening signal that a human reviews is the right place to experiment, and the right way to talk about quantum today.</p>
       <p><b>What is next.</b> Evidence hashing and OCR isolation, and post-quantum signatures over decision records so a claim decision stays verifiable after quantum computers break today's signatures.</p>
       </div>
@@ -424,7 +424,7 @@ R420 000 on R4 200 claim → 422 / 400</pre></div>
   <details><summary>Did you run on a real quantum computer?</summary><div class="body">No. Everything ran on a local statevector simulator. Every stored signal is marked "simulator". The circuit path a hardware backend would run exists and is tested against the simulator path, and a hardware run is listed as optional future work that would be reported separately.</div></details>
   <details><summary>Where did your fraud data come from?</summary><div class="body">We have no fraud labels and refused to invent any. The experiment uses a synthetic development dataset, clearly labelled, with anomalies generated by three named recipes. That is why we chose one-class anomaly detection: it learns what normal looks like and needs no labels.</div></details>
   <details><summary>Could the model reject a claim or block a payout?</summary><div class="body">No. The signal is written by an offline pipeline into a server-only table. No API route accepts a score. The Worker reads it after the Screening transition already happened and attaches it as context. Tests prove a high-anomaly row leaves the claim row byte-identical, and moving a claim to Review still requires an assessor.</div></details>
-  <details><summary>How do you know your security controls work?</summary><div class="body">190 automated tests in the Workers runtime, run on every change, plus live attack logs saved from the running server for each phase. On merge day the suite caught a commit that had removed authentication from the entry point. That is the proof it is not decoration.</div></details>
+  <details><summary>How do you know your security controls work?</summary><div class="body">213 automated tests in the Workers runtime, run on every change, plus live attack logs saved from the running server for each phase. On merge day the suite caught a commit that had removed authentication from the entry point. That is the proof it is not decoration.</div></details>
   <details><summary>What about the mobile app, is it secure?</summary><div class="body">The Flutter app is treated as an untrusted client. Every control is server-side. The threat model says so explicitly, and nothing in the API trusts a header or body field for identity, tenant or state.</div></details>
   <details><summary>Are you compliant with OWASP or NIST?</summary><div class="body">We used OWASP API Security Top 10, ASVS, NIST SSDF and FIPS 204 as reference frameworks to structure the work. We do not claim certification or compliance. Each control is mapped to the threat it addresses and the test that proves it.</div></details>
   <details><summary>What is post-quantum here, and why is it separate from quantum computing?</summary><div class="body">Phase 5 plans ML-DSA signatures over the decision bundle so a decision stays verifiable even against future quantum attackers. That is cryptography defending against quantum machines. Phase 4 uses a quantum algorithm to compute a signal. Different problems, and we keep the vocabulary separate on purpose.</div></details>
@@ -445,7 +445,6 @@ R420 000 on R4 200 claim → 422 / 400</pre></div>
   <div class="tbl"><table>
     <thead><tr><th>Item</th><th>Owner</th><th>Why it matters</th><th>How to close</th></tr></thead>
     <tbody>
-      <tr><td>Phase 3 PR #2 shows as conflicting on GitHub</td><td>Phase 3 session on this PC</td><td>The local branch is rebased on current main and passes 213 tests; the remote copy is old and would delete Phase 4 files if merged as-is.</td><td>Push the rebased branch (force-with-lease), then merge PR #2 as a fast-forward. Do not merge the current remote copy.</td></tr>
       <tr><td>Phase 2 not on a remote branch</td><td>Teammate</td><td>Evidence handling is part of the story and Phase 3 reserved a column for its digest.</td><td>Branch from <code>main</code>, use migration <code>0004</code>, open a PR. Rules in <code>docs/PARALLEL_WORK.md</code>.</td></tr>
       <tr><td>Backend team's MVC layer</td><td>Backend teammate</td><td>It is unmounted, but if mounted it bypasses every control. Findings recorded as BACKEND-SEC-021.</td><td>Talk to them directly. Either route through the existing guards or delete the layer. Their Swagger route needs a dependency that is not installed.</td></tr>
       <tr><td>Phase 5 ML-DSA signatures</td><td>Quantum track</td><td>Completes the post-quantum half of the story.</td><td>Stretch goal. Validate library and parameter set first; do not claim compliance because a library is used.</td></tr>
@@ -464,7 +463,7 @@ R420 000 on R4 200 claim → 422 / 400</pre></div>
   </div>
 </section>
 
-<div class="footer">Verified against <code>main</code> at <code>210e126</code>, 26 September 2026. Numbers in this brief are copied from test runs and result files, not estimated.</div>
+<div class="footer">Verified against <code>main</code> at <code>f1b2374</code>, 26 September 2026, with Phase 3 merged. Numbers in this brief are copied from test runs and result files, not estimated.</div>
 </div>
 
 <script>
