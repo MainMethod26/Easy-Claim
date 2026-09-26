@@ -6,9 +6,9 @@ actually contains on `main` (2026-09-26). Status words: **IMPLEMENTED** (in code
 Reference frameworks: NIST SSDF (SP 800-218), OWASP ASVS, OWASP API Security Top 10 (2023), POPIA. They are
 assessment references, not compliance claims.
 
-Channels: today the only interface is the HTTPS API (`/api/v1/*`) and the Flutter app. **WhatsApp intake,
-the web dashboard and Home Affairs eKYC are intended channels and do not exist in code yet**; where they
-are mentioned below the controls are PLANNED and the design constraint is stated so they cannot bypass the
+Channels: today the only interface is the HTTPS API (`/api/v1/*`) and the Flutter app. **The web
+dashboard and Home Affairs eKYC are intended channels and do not exist in code yet**; where they are
+mentioned below the controls are PLANNED and the design constraint is stated so they cannot bypass the
 existing gates when they arrive.
 
 ---
@@ -52,7 +52,7 @@ existing gates when they arrive.
 
 - **Method:** STRIDE per flow, recorded in `docs/security/THREAT_MODEL.md`; attack scenarios with expected vs actual results in `docs/security/ATTACK_SCENARIOS.md`; journeys in `docs/USER_JOURNEYS_AND_SECURITY.md`.
 - **Flows modelled (IMPLEMENTED):** authentication, claim submission, evidence upload, insurer workflow (verify → screen → review), decision, payout, audit, queue/OCR boundary.
-- **Flows to model before they are built (PLANNED):** WhatsApp intake (webhook signature verification, sender ↔ customer binding, media download through the same evidence validation, no state change from message text), identity verification / eKYC (provider trust boundary, ID-number handling, replay), real payout rail (destination verification, idempotency across the rail, reconciliation).
+- **Flows to model before they are built (PLANNED):** identity verification / eKYC (provider trust boundary, ID-number handling, replay), real payout rail (destination verification, idempotency across the rail, reconciliation).
 - **Design rules every reviewer checks:** new route mounted under `/api/v1` behind `requireActor`; role gate is resource-independent; object load applies the tenant boundary; any stage change goes through `transitionClaim`; a new table holding claim data carries `tenant_id`; new sensitive action writes an audit event; no new "admin" shortcut. The unmounted MVC layer stays unmounted until it satisfies these (`BACKEND-SEC-021`).
 - **Review artefacts:** each phase ships a precheck (what actually exists) and a report (what changed, tests, attacks, limitations) under `docs/phase-reports/`.
 
@@ -71,7 +71,6 @@ existing gates when they arrive.
 | Rate limits per IP and per actor; 64 KB body limit; security headers; CORS allowlist | IMPLEMENTED | `src/index.ts` |
 | No secrets in code; `.dev.vars` and Postman environments git-ignored; per-run test secret | IMPLEMENTED | `.gitignore`, `vitest.config.mts` |
 | Least privilege by role and per transition (assessors prepare, managers decide/pay, admin has no claim access) | IMPLEMENTED | state machine roles |
-| Webhook payload validation (WhatsApp) — signature check, schema, media re-validated as evidence | PLANNED | design constraint above |
 | Coding standard / lint in CI | PLANNED | none configured |
 
 Branching rules for parallel work (reserved migration numbers, file ownership, rebase before PR, never commit to `cyber`): `docs/PARALLEL_WORK.md`.
@@ -101,7 +100,6 @@ Rule: a security-sensitive change ships with a test that fails without it. "Neve
 |---|---|---|
 | Cloudflare Workers, D1, R2, Queues, Rate Limiting | IMPLEMENTED | Shared-responsibility: Cloudflare secures the platform; we own authorization, data classification, secrets (`wrangler secret`), private bucket, per-environment config (`[env.production]` PLANNED, `BACKEND-SEC-018`). |
 | Identity provider (JWKS) | PLANNED (`BACKEND-SEC-019`) | Switch `resolveActor` to `verifyWithJwks`; asymmetric keys, `kid` rotation; the claim rules (role, tenant, TTL) stay ours. |
-| WhatsApp Business API | PLANNED | Verify webhook signatures; treat message text and media as untrusted; bind sender to a verified customer before any claim action; media passes the same evidence validation and lands in the same private bucket; no state change from message content. Data-handling and retention terms reviewed before go-live. |
 | Home Affairs eKYC / identity verification | PLANNED | Provider risk review (data residency, retention, breach terms); send the minimum; store a verification result and reference, never the raw ID document unless classified High and encrypted; audit every verification. |
 | Payment / payout rail | PLANNED (`BACKEND-SEC-006`) | Only after a recorded, approved decision; amount and destination from our ledger, never from the request; rail-side idempotency key = our `payouts.id`; destination verification and step-up for changes; reconciliation against `payouts`. |
 | OCR / AI providers | PLANNED (`BACKEND-SEC-008`) | Output is an advisory, schema-validated signal; never calls `transitionClaim`; documents are hostile input (prompt injection). |
