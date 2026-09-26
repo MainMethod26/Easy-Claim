@@ -3,7 +3,8 @@ import type { AppEnv } from '../types'
 import { requireRole } from '../security/rbac'
 import { loadAuthorizedClaim } from '../security/claimAccess'
 import { claimIdParam, validate } from '../security/validation'
-import { readRiskSignals } from './quantumSignal'
+import { writeAuditEvent } from '../security/audit'
+import { readRiskSignals, signalSummary } from './quantumSignal'
 
 /**
  * Phase 4 (quantum track): GET /claims/:claimId/risk-signals
@@ -21,6 +22,14 @@ router.get('/:claimId/risk-signals', insurerOnly, validate('param', claimIdParam
   const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'insurer')
   if (!claim) return c.json({ error: 'not_found' }, 404)
   const riskSignals = await readRiskSignals(c.env.DB, claim.id)
+  // Who looked at which signal (digest), so a later change to the stored row is detectable.
+  await writeAuditEvent(c, {
+    action: 'screening.signal_read',
+    resourceType: 'claim',
+    resourceId: claim.id,
+    outcome: 'success',
+    details: riskSignals ? signalSummary(riskSignals) : { band: null },
+  })
   return c.json({ claimId: claim.id, stage: claim.stage, riskSignals })
 })
 

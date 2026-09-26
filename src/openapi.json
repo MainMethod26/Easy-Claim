@@ -441,6 +441,40 @@
           }
         }
       }
+    },
+    "/api/v1/claims/{claimId}/risk-signals": {
+      "get": {
+        "summary": "Advisory screening signal (Phase 4): classical and quantum-kernel anomaly scores. Read-only; ASSESSOR/MANAGER of the claim tenant.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "claimId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ claimId, stage, riskSignals: null | { classicalAnomaly, quantumAnomaly, interpretation, anomalyBand, screeningRecommendation, explanation, versions, signalDigest, modelVersion, execution, computedAt, advisory } }"
+          },
+          "401": {
+            "description": "no or invalid token"
+          },
+          "403": {
+            "description": "role is not ASSESSOR or MANAGER"
+          },
+          "404": {
+            "description": "claim missing, draft, or another tenant (indistinguishable)"
+          }
+        }
+      }
     }
   }
 }

@@ -1,0 +1,29 @@
+# Phase 4 completion live demo evidence
+# Captured 2026-09-26T08:47:06Z against wrangler dev 127.0.0.1:8789, branch phase-4-completion (uncommitted). Simulator scores. Tokens not printed.
+
+== DEMO 1: normal claim → Screening (classical + quantum signal attached, STANDARD_REVIEW)
+[screen claim_demo_normal] {"status":"transitioned","claimId":"claim_demo_normal","from":"Verified","to":"Screening","riskSignals":{"classicalAnomaly":0.0667,"quantumAnomaly":0.05,"interpretation":"NORMAL","anomalyBand":"NORMAL","screeningRecommendation":"STANDARD_REVIEW","explanation":
+== DEMO 2: unusual claim → Screening (HIGH, REVIEW_REQUIRED) — a signal, not a verdict
+[screen claim_demo_unusual] {"status":"transitioned","claimId":"claim_demo_unusual","from":"Verified","to":"Screening","riskSignals":{"classicalAnomaly":1,"quantumAnomaly":1,"interpretation":"HIGH_ANOMALY","anomalyBand":"HIGH","screeningRecommendation":"REVIEW_REQUIRED","explanation":"Th
+== Attack 1: fake score in the request body
+[risk-signals read] {"claimId":"claim_demo_unusual","stage":"Screening","riskSignals":{"classicalAnomaly":1,"quantumAnomaly":1,"interpretation":"HIGH_ANOMALY","anomalyBand":"HIGH","screeningRecommendation":"REVIEW_REQUIRED","explanation":"The claim is structurally unusual compare
+[POST risk-signals quantumScore=0] {"error":"not_found"} -> HTTP 404
+== Attack 2/3: other customer / other tenant / no token
+[customer reads signal] {"error":"forbidden"} -> HTTP 403
+[tenant B assessor reads signal] {"error":"not_found"} -> HTTP 404
+[no token] {"error":"unauthenticated"} -> HTTP 401
+== Attack 5: quantum → outcome bypass (straight from Screening)
+[pay from Screening] {"error":"illegal_transition"} -> HTTP 409
+[decide from Screening] {"error":"illegal_transition"} -> HTTP 409
+[decide with client score] {"error":"validation_failed","issues":[{"path":"","code":"unrecognized_keys","message":"Unrecognized key: \"quantumScore\""}]} -> HTTP 400
+== Human path: review → human decision (records the signal it saw)
+[review] {"status":"transitioned","claimId":"claim_demo_unusual","from":"Screening","to":"Review"} -> HTTP 200
+[manager decides (Rejected, own reasoning)] {"status":"transitioned","claimId":"claim_demo_unusual","from":"Review","to":"Decision","outcome":"Rejected","decisionId":"dec_b580e7ce-b254-4f78-a9d8-2fabe42c6fcb","approvedAmountCents":null,"evidenceCount":0,"evidenceDigest":null} -> HTTP 200
+[decision view] {"decision":"Rejected","record":{"id":"dec_b580e7ce-b254-4f78-a9d8-2fabe42c6fcb","decidedAt":"2026-09-26T08:46:43.956Z","decidedByRole":"MANAGER","reason":"Reported 300+ days after the incident; outside policy notification terms","approvedAmountCents":null,"ru
+
+== Audit rows (screening.*) for claim_demo_unusual
+ "action": "screening.signal_attached",	 "actor_role": "ASSESSOR",	 "band": "HIGH",	 "rec": "REVIEW_REQUIRED",	 "digest12": "b5247414b554"
+ "action": "screening.signal_read",	 "actor_role": "MANAGER",	 "band": "HIGH",	 "rec": "REVIEW_REQUIRED",	 "digest12": "b5247414b554"
+
+== claim_decisions.risk_signal for claim_demo_unusual
+"risk_signal": "{\"band\":\"HIGH\",\"recommendation\":\"REVIEW_REQUIRED\",\"classical\":1,\"quantum\":1,\"model\":\"phase4-qk1c-v1\",\"execution\":\"simulator\",\"digest\":\"b5247414b554d9331addc4fe90327e892c2a43f209c35a5bd6bf1cf829080bb8\"}"

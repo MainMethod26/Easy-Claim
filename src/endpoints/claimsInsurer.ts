@@ -6,7 +6,7 @@ import { loadAuthorizedClaim, transitionClaim } from '../security/claimAccess'
 import { checkTransition, type ClaimStage } from '../security/claimStateMachine'
 import { DECISION_RULES_VERSION, evidenceDigest, gatedInsert, latestDecision, payoutFor } from '../security/ledger'
 import { claimIdParam, decideSchema, emptyBodySchema, validate } from '../security/validation'
-import { readRiskSignals } from '../screening/quantumSignal'
+import { readRiskSignals, signalSummary } from '../screening/quantumSignal'
 
 /**
  * Insurer-side claim operations. Each route is a thin wrapper: the state machine
@@ -50,6 +50,13 @@ router.post('/:claimId/screen', insurerOnly, validate('param', claimIdParam), as
   // Phase 4: attach the advisory screening signal (read-only; null when none was computed).
   // It is context for the assessor and has no effect on the transition above.
   const riskSignals = await readRiskSignals(c.env.DB, claim.id)
+  await writeAuditEvent(c, {
+    action: 'screening.signal_attached',
+    resourceType: 'claim',
+    resourceId: claim.id,
+    outcome: 'success',
+    details: riskSignals ? signalSummary(riskSignals) : { band: null },
+  })
   return c.json({ status: 'transitioned', claimId: claim.id, from: claim.stage, to: 'Screening', riskSignals })
 })
 
@@ -111,6 +118,9 @@ router.post('/:claimId/decide', insurerOnly, validate('param', claimIdParam), va
 
   // Snapshot of the evidence set (Phase 2) the decision is taken on; null when there is none.
   const evidence = await evidenceDigest(c.env.DB, claim.id)
+  // Phase 4: record the screening signal the decision-maker had (advisory context only; it is
+  // never an input to any rule here). Null when no signal was computed.
+  const screening = await readRiskSignals(c.env.DB, claim.id)
 
   const decisionId = `dec_${crypto.randomUUID()}`
   const record = gatedInsert(c.env.DB, 'claim_decisions', {
@@ -129,6 +139,7 @@ router.post('/:claimId/decide', insurerOnly, validate('param', claimIdParam), va
     request_id: c.get('requestId') ?? null,
     rules_version: DECISION_RULES_VERSION,
     evidence_digest: evidence.digest,
+    risk_signal: screening ? JSON.stringify(signalSummary(screening)) : null,
   })
   const t = await transitionClaim(c, claim, 'Decision', {
     status: outcome,
