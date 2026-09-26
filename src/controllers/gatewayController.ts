@@ -2,19 +2,22 @@ import { Context } from 'hono';
 import { GatewayService } from '../services/gatewayService';
 
 export class GatewayController {
-  static getHome(c: Context) {
-    return c.json(GatewayService.getHomeData());
+  static async getHome(c: Context) {
+    const userId = c.req.header('x-user-id') || 'user123';
+    return c.json(await GatewayService.getHomeData(c.env.DB, userId));
   }
 
-  static getMostVisited(c: Context) {
+  static async getMostVisited(c: Context) {
     return c.json({ data: GatewayService.getMostVisitedServices() });
   }
 
-  static getNotifications(c: Context) {
-    return c.json({ notifications: GatewayService.getNotifications() });
+  static async getNotifications(c: Context) {
+    const userId = c.req.header('x-user-id') || 'user123';
+    return c.json({ notifications: await GatewayService.getNotifications(c.env.DB, userId) });
   }
 
-  static getRecentActivity(c: Context) {
-    return c.json({ activity: GatewayService.getRecentActivity() });
+  static async getRecentActivity(c: Context) {
+    const userId = c.req.header('x-user-id') || 'user123';
+    return c.json({ activity: await GatewayService.getRecentActivity(c.env.DB, userId) });
   }
 }

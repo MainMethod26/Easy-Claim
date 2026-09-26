@@ -1,7 +1,7 @@
 import { PolicyModel } from '../models/policyModel';
 
 export class PolicyService {
-  static async getMyCovers(db: any, userId: string) {
+  static async getMyCovers(db: D1Database, userId: string) {
     return await PolicyModel.getMyCovers(db, userId);
   }
 
@@ -15,8 +15,25 @@ export class PolicyService {
     ];
   }
 
-  static processRequirements(body: any) {
+  static async createJoinRequest(db: D1Database, userId: string, body: any) {
+    const id = crypto.randomUUID();
+    const provider = body.provider || 'Unknown';
+    const planName = body.planName || 'Unknown Plan';
+    const insuranceType = body.insuranceType || 'General';
+    const premium = body.premium || 0;
+
+    await db.prepare(
+      'INSERT INTO policies (id, user_id, provider, plan_name, insurance_type, premium, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(id, userId, provider, planName, insuranceType, premium, 'Pending').run();
+
+    return { id };
+  }
+
+  static async processRequirements(db: D1Database, body: any) {
     const insuranceType = body.insurance_type;
+    const policyId = body.policyId;
+    if (!policyId || !insuranceType) return null;
+
     let capturedData: any = {};
     
     if (insuranceType === 'Mobile Device Insurance') {
@@ -53,6 +70,11 @@ export class PolicyService {
       return null;
     }
     
-    return capturedData;
+    const reqId = crypto.randomUUID();
+    await db.prepare(
+      'INSERT INTO policy_requirements (id, policy_id, requirement_type, payload) VALUES (?, ?, ?, ?)'
+    ).bind(reqId, policyId, insuranceType, JSON.stringify(capturedData)).run();
+
+    return { capturedData, reqId };
   }
 }

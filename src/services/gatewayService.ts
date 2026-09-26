@@ -1,11 +1,11 @@
 export class GatewayService {
-  static getHomeData() {
+  static async getHomeData(db: D1Database, userId: string) {
+    const { results: activeClaims } = await db.prepare("SELECT * FROM claims WHERE user_id = ? AND status = 'Processing'").bind(userId).all();
+    const alerts = activeClaims.map((c: any) => `Your claim #${c.id} is currently in stage: ${c.stage}.`);
+    
     return { 
       message: 'Welcome to EasyClaim SA',
-      alerts: [
-        "Your OUTsurance claim #claim_out_101 is being reviewed.",
-        "Discovery Health updated their claim submission guidelines."
-      ]
+      alerts: alerts.length > 0 ? alerts : ["No active alerts. You're all caught up!"]
     };
   }
   
@@ -17,17 +17,13 @@ export class GatewayService {
     ];
   }
   
-  static getNotifications() {
-    return [
-      { type: 'Update', message: 'Momentum Health approved your recent pharmacy claim.' },
-      { type: 'Reminder', message: 'Old Mutual premium of R150 is due on the 1st.' }
-    ];
+  static async getNotifications(db: D1Database, userId: string) {
+    const { results } = await db.prepare("SELECT event as message, timestamp as date FROM audit_logs WHERE user_id = ? AND event LIKE 'Notification:%' ORDER BY timestamp DESC LIMIT 5").bind(userId).all();
+    return results;
   }
   
-  static getRecentActivity() {
-    return [
-      { date: '2023-10-15', action: 'Uploaded hospital invoice for Discovery Health.' },
-      { date: '2023-10-10', action: 'Canceled mandate for old insurance provider.' }
-    ];
+  static async getRecentActivity(db: D1Database, userId: string) {
+    const { results } = await db.prepare("SELECT timestamp as date, event as action FROM audit_logs WHERE user_id = ? ORDER BY timestamp DESC LIMIT 5").bind(userId).all();
+    return results;
   }
 }

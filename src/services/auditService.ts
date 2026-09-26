@@ -1,17 +1,11 @@
 export class AuditService {
-  static getHistory() {
-    return [
-      { id: 'act_01', date: '2023-10-15T10:30:00Z', action: 'Uploaded hospital invoice for Discovery Health claim.' },
-      { id: 'act_02', date: '2023-10-10T14:15:00Z', action: 'Canceled debit order mandate for OUTsurance.' },
-      { id: 'act_03', date: '2023-09-01T09:00:00Z', action: 'Joined Sanlam Comprehensive Life Cover.' }
-    ];
+  static async getHistory(db: D1Database, userId: string) {
+    const { results } = await db.prepare('SELECT id, timestamp as date, event as action FROM audit_logs WHERE user_id = ? ORDER BY timestamp DESC LIMIT 50').bind(userId).all();
+    return results;
   }
 
-  static getAuditTrail() {
-    return [
-      { event: 'LOGIN_SUCCESS', ip: '197.85.12.34', location: 'Johannesburg, ZA', timestamp: '2023-10-16T08:00:00Z' },
-      { event: 'DOCUMENT_UPLOAD', ip: '197.85.12.34', location: 'Johannesburg, ZA', timestamp: '2023-10-15T10:30:00Z' },
-      { event: 'CONSENT_GRANTED', ip: '197.85.12.34', location: 'Johannesburg, ZA', timestamp: '2023-06-22T11:45:00Z' }
-    ];
+  static async getAuditTrail(db: D1Database, userId: string) {
+    const { results } = await db.prepare('SELECT event, ip_address as ip, location, timestamp FROM audit_logs WHERE user_id = ? ORDER BY timestamp DESC LIMIT 50').bind(userId).all();
+    return results;
   }
 }

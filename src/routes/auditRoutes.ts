@@ -1,9 +1,12 @@
 import { Hono } from 'hono';
+import { Env } from '../types/env';
 import { AuditController } from '../controllers/auditController';
 
-const router = new Hono();
+const router = new Hono<{ Bindings: Env }>();
+
 
 router.get('/history', AuditController.getHistory);
-router.get('/audit-trail', AuditController.getAuditTrail);
+router.get('/trail', AuditController.getAuditTrail);
+
 
 export default router;

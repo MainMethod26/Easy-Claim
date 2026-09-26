@@ -1,42 +1,37 @@
 export class IdentityService {
-  static getProfile(userId: string) {
-    return {
-      id: userId,
-      firstName: 'Sipho',
-      lastName: 'Nkosi',
-      idNumber: '8505125021087',
-      email: 'sipho.nkosi@example.co.za',
-      phone: '+27 82 123 4567',
-      address: '123 Nelson Mandela Drive, Sandton, 2196',
-      riskProfile: 'Low',
-      kycStatus: 'Verified'
-    };
+  static async getProfile(db: D1Database, userId: string) {
+    const { results } = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).all();
+    return results.length > 0 ? results[0] : null;
   }
 
-  static updateProfile(data: any) {
-    return data;
+  static async updateProfile(db: D1Database, userId: string, data: any) {
+    const updates: string[] = [];
+    const values: any[] = [];
+    if (data.first_name) { updates.push('first_name = ?'); values.push(data.first_name); }
+    if (data.last_name) { updates.push('last_name = ?'); values.push(data.last_name); }
+    if (data.phone) { updates.push('phone = ?'); values.push(data.phone); }
+    if (data.address) { updates.push('address = ?'); values.push(data.address); }
+    
+    if (updates.length > 0) {
+      updates.push('updated_at = CURRENT_TIMESTAMP');
+      values.push(userId);
+      await db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+    }
+    return this.getProfile(db, userId);
   }
 
-  static getConsents() {
-    return [
-      { id: 'c_popia', name: 'POPIA Data Processing', status: 'Granted', date: '2023-01-15' },
-      { id: 'c_marketing', name: 'Marketing Communications', status: 'Declined', date: '2023-01-15' },
-      { id: 'c_medical', name: 'Medical Records Sharing (Discovery)', status: 'Granted', date: '2023-06-22' }
-    ];
+  static async getConsents(db: D1Database, userId: string) {
+    const { results } = await db.prepare('SELECT * FROM consents WHERE user_id = ?').bind(userId).all();
+    return results;
   }
 
-  static checkMandate(tenantId: string) {
-    return { 
-      tenantId: tenantId,
-      mandateActive: true,
-      amount: 'R 850.00',
-      nextDeduction: '2023-11-01',
-      bankName: 'Standard Bank',
-      accountEnding: '4567'
-    };
+  static async checkMandate(db: D1Database, tenantId: string, userId: string) {
+    const { results } = await db.prepare('SELECT * FROM mandates WHERE user_id = ? AND provider_name = ? AND status = ?').bind(userId, tenantId, 'Active').all();
+    return results.length > 0 ? results[0] : null;
   }
   
-  static cancelMandate() {
+  static async cancelMandate(db: D1Database, mandateId: string) {
+    await db.prepare('UPDATE mandates SET status = ? WHERE id = ?').bind('Cancelled', mandateId).run();
     return { 
       status: 'success',
       message: 'Debit order mandate successfully cancelled.',
@@ -44,13 +39,15 @@ export class IdentityService {
     };
   }
 
-  static login(idNumber: string) {
-    if (idNumber === '8505125021087') {
+  static async login(db: D1Database, idNumber: string) {
+    const { results } = await db.prepare('SELECT * FROM users WHERE id_number = ?').bind(idNumber).all();
+    if (results.length > 0) {
+      const user = results[0];
       return {
         status: 'success',
         message: 'Login successful',
-        token: 'mock-jwt-token-123',
-        profile: this.getProfile('user123')
+        token: `mock-jwt-token-${user.id}`,
+        profile: user
       };
     }
     return null;

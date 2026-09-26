@@ -1,8 +1,11 @@
 import { Hono } from 'hono';
+import { Env } from '../types/env';
 import { OcrController } from '../controllers/ocrController';
 
-const router = new Hono();
+const router = new Hono<{ Bindings: Env }>();
 
-router.post('/process', OcrController.process);
+
+router.post('/', OcrController.process);
+
 
 export default router;
