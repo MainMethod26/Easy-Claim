@@ -16,6 +16,7 @@ Customer ─► authenticated claim ─► evidence ─► screening ─┬─ c
 
 | Path | What |
 |---|---|
+| `admin/` | Insurer Admin Portal (React 19 + TypeScript + Vite) for assessors & managers |
 | `backend/` | Cloudflare Worker (Hono) + D1 + R2 + queue. The only API. Tests in `backend/test` |
 | `frontend/` | Flutter app (customer app `lib/main.dart`, insurer portal `lib/main_admin.dart`) |
 | `quantum/` | Offline Phase 4 screening pipeline (Python, PennyLane simulator) that exports signals for D1 |
@@ -38,6 +39,11 @@ npm run dev                # http://127.0.0.1:8787 (port busy? see the runbook)
 cd ../frontend
 flutter pub get
 flutter run -d chrome --web-port 5173 --dart-define=API_BASE_URL=http://127.0.0.1:8787/api/v1
+
+# Or run the React Insurer Admin Portal:
+cd ../admin
+npm install
+npm run dev                    # http://localhost:5173
 ```
 
 Sign in with a demo account, password `1234567` (local demo only): `mike` (customer), `assessor_discovery`,
