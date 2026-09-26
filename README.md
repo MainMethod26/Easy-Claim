@@ -113,7 +113,7 @@ Without a `JWT_SECRET` of at least 32 bytes (or without `JWT_ISSUER` / `JWT_AUDI
 Run the checks:
 
 ```bash
-npm test            # vitest in the Workers runtime: 12 files, 183 passed + 1 todo (measured 2026-09-26)
+npm test            # vitest in the Workers runtime: 17 files, 264 passed (measured 2026-09-26 after Phase 5); `npm run quantum:test` runs the 27 Python tests
 npm run typecheck   # tsc --noEmit
 npm audit           # 0 vulnerabilities at the time of writing
 ```
