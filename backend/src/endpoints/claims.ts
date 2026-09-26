@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { INSURER_ROLES, type AppEnv } from '../types'
+import { TENANT_ROLES, type AppEnv } from '../types'
 import { requireRole } from '../security/rbac'
 import { writeAuditEvent } from '../security/audit'
 import { loadAuthorizedClaim, transitionClaim } from '../security/claimAccess'
@@ -46,7 +46,7 @@ router.get('/', validate('query', listQuerySchema), async (c) => {
     return c.json({ claims: results })
   }
 
-  if (INSURER_ROLES.includes(actor.role) && actor.tenantId !== null) {
+  if (TENANT_ROLES.includes(actor.role) && actor.tenantId !== null) {
     // Drafts are not yet shared with the insurer. user_id is a platform-wide customer id
     // and is not exposed to tenant staff (DECISION REQUIRED: per-tenant claimant reference).
     const { results } = await c.env.DB.prepare(

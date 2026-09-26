@@ -4,10 +4,10 @@ import { describe, expect, it } from 'vitest'
 // @ts-expect-error raw-text import resolved by Vite
 import seedScript from '../scripts/seed-demo-users.mjs?raw'
 import { DEMO_USERS } from '../src/security/demoUsers'
-import { auditRows, call, customerA, insurerA, insurerB, superadmin } from './helpers'
+import { assessorA, auditRows, call, createSubmittedClaim, customerA, insurerAdminA, insurerAdminB, managerA, superadmin } from './helpers'
 
-// Accounts (team role model, 26 Sep 2026): POST /auth/login, POST /auth/register, GET /auth/me,
-// SUPERADMIN /admin/*, INSURER_ADMIN /tenant/*. Demo users are seeded by test/setup.ts with the
+// Accounts (final role model, 26 Sep 2026: CUSTOMER, ASSESSOR, MANAGER, INSURER_ADMIN, SUPERADMIN):
+// POST /auth/login, POST /auth/register, GET /auth/me, SUPERADMIN /admin/*, INSURER_ADMIN /tenant/*. Demo users are seeded by test/setup.ts with the
 // per-run DEMO_LOGIN_PASSWORD.
 
 const PASSWORD = env.DEMO_LOGIN_PASSWORD as string
@@ -25,23 +25,33 @@ async function bearer(username: string, password = PASSWORD): Promise<string> {
 const strong = 'correct-horse-battery'
 
 describe('ACCOUNTS: login', () => {
-  it.each([
-    ['mike', 'user123', 'CUSTOMER', null, 'Mike'],
-    ['admin_discovery', 'usr_admin_discovery', 'INSURER_ADMIN', 'ins_discovery', 'Discovery Claims Admin'],
-    ['superadmin', 'usr_superadmin', 'SUPERADMIN', null, 'EasyClaim Platform Admin'],
-  ])('%s signs in and the token works on /auth/me and a role-appropriate route', async (username, id, role, tenantId, displayName) => {
-    const r = await login({ username, password: PASSWORD })
-    expect(r.status).toBe(200)
-    expect(r.body).toMatchObject({ tokenType: 'Bearer', expiresIn: 3600, actor: { id, username, role, tenantId, displayName, status: 'active' } })
-    expect(r.body.actor.password_hash).toBeUndefined()
-    const auth = `Bearer ${r.body.token}`
-    const me = await json(await call('/auth/me', { authorization: auth }))
-    expect(me.actor).toEqual({ id, role, tenantId, username, displayName, status: 'active' })
-    const route = role === 'CUSTOMER' ? '/covers/my-covers' : role === 'INSURER_ADMIN' ? '/tenant' : '/admin/tenants'
-    expect((await call(route, { authorization: auth })).status).toBe(200)
-    const ok = (await auditRows('auth.login', id)).find((row) => row.outcome === 'success')
-    expect(JSON.parse(ok!.details as string)).toEqual({ role, tenantId })
-  })
+  const ROLE_ROUTE: Record<string, (tenantId: string | null) => string> = {
+    CUSTOMER: () => '/covers/my-covers',
+    ASSESSOR: (t) => (t === 'ins_discovery' ? '/claims/claim_disc_101' : '/claims/claim_sanlam_102'),
+    MANAGER: (t) => (t === 'ins_discovery' ? '/claims/claim_disc_101' : '/claims/claim_sanlam_102'),
+    INSURER_ADMIN: () => '/tenant',
+    SUPERADMIN: () => '/admin/tenants',
+  }
+
+  it.each(DEMO_USERS.map((u) => [u.username, u] as const))(
+    '%s signs in with the right role and tenant; the token works on /auth/me and a role-appropriate route',
+    async (username, u) => {
+      const r = await login({ username, password: PASSWORD })
+      expect(r.status).toBe(200)
+      expect(r.body).toMatchObject({
+        tokenType: 'Bearer',
+        expiresIn: 3600,
+        actor: { id: u.id, username, role: u.role, tenantId: u.tenantId, displayName: u.displayName, status: 'active' },
+      })
+      expect(r.body.actor.password_hash).toBeUndefined()
+      const auth = `Bearer ${r.body.token}`
+      const me = await json(await call('/auth/me', { authorization: auth }))
+      expect(me.actor).toEqual({ id: u.id, role: u.role, tenantId: u.tenantId, username, displayName: u.displayName, status: 'active' })
+      expect((await call(ROLE_ROUTE[u.role](u.tenantId), { authorization: auth })).status).toBe(200)
+      const ok = (await auditRows('auth.login', u.id)).find((row) => row.outcome === 'success')
+      expect(JSON.parse(ok!.details as string)).toEqual({ role: u.role, tenantId: u.tenantId })
+    }
+  )
 
   it('wrong password and unknown username answer the same 401 body', async () => {
     const wrong = await login({ username: 'mike', password: 'not-the-password' })
@@ -141,8 +151,8 @@ describe('ACCOUNTS: customer self-registration', () => {
 })
 
 describe('ACCOUNTS: /admin/* (SUPERADMIN)', () => {
-  it('customer and insurer admin → 403 on every admin route', async () => {
-    for (const who of [customerA, insurerA]) {
+  it('customer, assessor, manager and insurer admin → 403 on every admin route', async () => {
+    for (const who of [customerA, assessorA, managerA, insurerAdminA]) {
       expect((await call('/admin/tenants', { as: who })).status).toBe(403)
       expect((await call('/admin/tenants', { method: 'POST', as: who, json: { id: 'ins_x1', name: 'X' } })).status).toBe(403)
       expect((await call('/admin/users', { as: who })).status).toBe(403)
@@ -153,7 +163,8 @@ describe('ACCOUNTS: /admin/* (SUPERADMIN)', () => {
 
   it('lists and creates tenants (duplicate 409, bad id 400)', async () => {
     const list = await json(await call('/admin/tenants', { as: superadmin }))
-    expect(list.tenants).toContainEqual(expect.objectContaining({ id: 'ins_discovery', name: 'Discovery Health', admin_count: 1, policy_count: 1 }))
+    // admin_count counts every staff account of the tenant (insurer admin, assessor, manager)
+    expect(list.tenants).toContainEqual(expect.objectContaining({ id: 'ins_discovery', name: 'Discovery Health', admin_count: 3, policy_count: 1 }))
     const created = await call('/admin/tenants', { method: 'POST', as: superadmin, json: { id: 'ins_hollard', name: 'Hollard' } })
     expect(created.status).toBe(201)
     expect(await json(created)).toEqual({ tenant: { id: 'ins_hollard', name: 'Hollard' } })
@@ -163,42 +174,53 @@ describe('ACCOUNTS: /admin/* (SUPERADMIN)', () => {
     expect((await auditRows('admin.tenant_created', 'ins_hollard'))[0]).toMatchObject({ actor_id: 'usr_superadmin', outcome: 'success' })
   })
 
-  it('creates an INSURER_ADMIN (tenant required, must exist) and a SUPERADMIN (no tenant allowed)', async () => {
+  it('creates INSURER_ADMIN accounts only (tenant required, must exist); SUPERADMIN, customer and staff roles → 400', async () => {
     const noTenant = await call('/admin/users', { method: 'POST', as: superadmin, json: { username: 'adm_new', password: strong, displayName: 'New', role: 'INSURER_ADMIN' } })
-    expect(noTenant.status).toBe(422)
-    expect(await json(noTenant)).toEqual({ error: 'tenant_required' })
-    const unknown = await call('/admin/users', { method: 'POST', as: superadmin, json: { username: 'adm_new', password: strong, displayName: 'New', role: 'INSURER_ADMIN', tenantId: 'ins_nope' } })
+    expect(noTenant.status).toBe(400)
+    const unknown = await call('/admin/users', { method: 'POST', as: superadmin, json: { username: 'adm_new', password: strong, displayName: 'New', tenantId: 'ins_nope' } })
+    expect(unknown.status).toBe(422)
     expect(await json(unknown)).toEqual({ error: 'unknown_tenant' })
+    for (const role of ['SUPERADMIN', 'CUSTOMER', 'ASSESSOR', 'MANAGER']) {
+      const r = await call('/admin/users', { method: 'POST', as: superadmin, json: { username: 'x_role', password: strong, displayName: 'X', role, tenantId: 'ins_momentum' } })
+      expect(r.status, role).toBe(400)
+    }
     const ok = await call('/admin/users', { method: 'POST', as: superadmin, json: { username: 'adm_new', password: strong, displayName: 'New Admin', role: 'INSURER_ADMIN', tenantId: 'ins_momentum' } })
     expect(ok.status).toBe(201)
     const user = (await json(ok)).user
     expect(user).toMatchObject({ username: 'adm_new', role: 'INSURER_ADMIN', tenantId: 'ins_momentum', status: 'active' })
     expect(user.password_hash).toBeUndefined()
-    // the new admin signs in and sees only Momentum
+    // role may be omitted (defaults to INSURER_ADMIN)
+    const implicit = await call('/admin/users', { method: 'POST', as: superadmin, json: { username: 'adm_implicit', password: strong, displayName: 'Implicit', tenantId: 'ins_outsurance' } })
+    expect((await json(implicit)).user).toMatchObject({ role: 'INSURER_ADMIN', tenantId: 'ins_outsurance' })
+    // the new admin signs in and sees only Momentum, read-only
     const auth = await bearer('adm_new', strong)
     expect((await json(await call('/tenant', { authorization: auth }))).tenant).toEqual({ id: 'ins_momentum', name: 'Momentum' })
     const queue = await json(await call('/claims', { authorization: auth }))
     expect(queue.claims.map((c: { id: string }) => c.id)).toEqual(['claim_mom_103'])
-
-    const superWithTenant = await call('/admin/users', { method: 'POST', as: superadmin, json: { username: 'root_2', password: strong, displayName: 'Root', role: 'SUPERADMIN', tenantId: 'ins_discovery' } })
-    expect(await json(superWithTenant)).toEqual({ error: 'tenant_not_allowed' })
-    const root = await call('/admin/users', { method: 'POST', as: superadmin, json: { username: 'root_2', password: strong, displayName: 'Root Two', role: 'SUPERADMIN' } })
-    expect(root.status).toBe(201)
-    expect((await call('/admin/stats', { authorization: await bearer('root_2', strong) })).status).toBe(200)
-    // customers cannot be created here, and duplicates are refused
-    expect((await call('/admin/users', { method: 'POST', as: superadmin, json: { username: 'cust_x', password: strong, displayName: 'C', role: 'CUSTOMER' } })).status).toBe(400)
-    expect((await call('/admin/users', { method: 'POST', as: superadmin, json: { username: 'MIKE', password: strong, displayName: 'Dup', role: 'SUPERADMIN' } })).status).toBe(409)
+    expect((await call('/claims/claim_mom_103/verify', { method: 'POST', authorization: auth })).status).toBe(403)
+    // duplicates are refused
+    expect((await call('/admin/users', { method: 'POST', as: superadmin, json: { username: 'MIKE', password: strong, displayName: 'Dup', tenantId: 'ins_momentum' } })).status).toBe(409)
     expect((await auditRows('admin.user_created', user.id))[0]).toMatchObject({ actor_id: 'usr_superadmin', outcome: 'success' })
+  })
+
+  it('another SUPERADMIN cannot be disabled through the API (409 superadmin_managed_offline)', async () => {
+    await env.DB.prepare(
+      "INSERT INTO users (id, username, password_hash, role, tenant_id, display_name, status, created_at, created_by) VALUES ('usr_root_2', 'root_2', 'x', 'SUPERADMIN', NULL, 'Root Two', 'active', '2026-09-26T00:00:00Z', NULL)"
+    ).run()
+    const r = await call('/admin/users/usr_root_2', { method: 'PATCH', as: superadmin, json: { status: 'disabled' } })
+    expect(r.status).toBe(409)
+    expect(await json(r)).toEqual({ error: 'superadmin_managed_offline' })
+    expect((await env.DB.prepare("SELECT status FROM users WHERE id = 'usr_root_2'").first<{ status: string }>())!.status).toBe('active')
   })
 
   it('lists accounts with and without a tenant filter; never returns password hashes or customers by default', async () => {
     const all = await json(await call('/admin/users', { as: superadmin }))
     const names = all.users.map((u: { username: string }) => u.username)
-    expect(names).toEqual(expect.arrayContaining(['superadmin', 'admin_discovery', 'admin_sanlam']))
+    expect(names).toEqual(expect.arrayContaining(['superadmin', 'admin_discovery', 'admin_sanlam', 'assessor_discovery', 'manager_sanlam']))
     expect(names).not.toContain('mike')
     expect(JSON.stringify(all)).not.toContain('pbkdf2')
     const disc = await json(await call('/admin/users?tenantId=ins_discovery', { as: superadmin }))
-    expect(disc.users.map((u: { username: string }) => u.username)).toEqual(['admin_discovery'])
+    expect(disc.users.map((u: { username: string }) => u.username).sort()).toEqual(['admin_discovery', 'assessor_discovery', 'manager_discovery'])
     expect((await call('/admin/users?tenantId=bad%20id', { as: superadmin })).status).toBe(400)
   })
 
@@ -223,7 +245,7 @@ describe('ACCOUNTS: /admin/* (SUPERADMIN)', () => {
     const tenantCount = (await env.DB.prepare('SELECT count(*) AS n FROM tenants').first<{ n: number }>())!.n
     expect(stats.tenants).toBe(tenantCount)
     expect(stats.tenants).toBeGreaterThanOrEqual(5)
-    for (const role of ['CUSTOMER', 'INSURER_ADMIN', 'SUPERADMIN']) {
+    for (const role of ['CUSTOMER', 'ASSESSOR', 'MANAGER', 'INSURER_ADMIN', 'SUPERADMIN']) {
       const n = (await env.DB.prepare('SELECT count(*) AS n FROM users WHERE role = ?').bind(role).first<{ n: number }>())!.n
       expect(stats.usersByRole[role], role).toBe(n)
     }
@@ -236,43 +258,60 @@ describe('ACCOUNTS: /admin/* (SUPERADMIN)', () => {
 })
 
 describe('ACCOUNTS: /tenant/* (INSURER_ADMIN, own tenant only)', () => {
-  it('superadmin and customer → 403', async () => {
-    for (const who of [superadmin, customerA]) {
+  it('superadmin, customer, assessor and manager → 403', async () => {
+    for (const who of [superadmin, customerA, assessorA, managerA]) {
       expect((await call('/tenant', { as: who })).status).toBe(403)
       expect((await call('/tenant/users', { as: who })).status).toBe(403)
-      expect((await call('/tenant/users', { method: 'POST', as: who, json: { username: 'x_2', password: strong, displayName: 'X' } })).status).toBe(403)
+      expect((await call('/tenant/users', { method: 'POST', as: who, json: { username: 'x_2', password: strong, displayName: 'X', role: 'ASSESSOR' } })).status).toBe(403)
       expect((await call('/tenant/stats', { as: who })).status).toBe(403)
     }
   })
 
   it('sees its own tenant, users and stats', async () => {
-    expect((await json(await call('/tenant', { as: insurerA }))).tenant).toEqual({ id: 'ins_discovery', name: 'Discovery Health' })
-    const users = await json(await call('/tenant/users', { as: insurerA }))
-    expect(users.users.map((u: { username: string }) => u.username)).toEqual(['admin_discovery'])
+    expect((await json(await call('/tenant', { as: insurerAdminA }))).tenant).toEqual({ id: 'ins_discovery', name: 'Discovery Health' })
+    const users = await json(await call('/tenant/users', { as: insurerAdminA }))
+    expect(users.users.map((u: { username: string }) => u.username).sort()).toEqual(['admin_discovery', 'assessor_discovery', 'manager_discovery'])
     expect(JSON.stringify(users)).not.toContain('pbkdf2')
-    expect(await json(await call('/tenant/stats', { as: insurerA }))).toEqual({ tenantId: 'ins_discovery', claims: { total: 1, byStage: { Review: 1 } } })
+    expect(await json(await call('/tenant/stats', { as: insurerAdminA }))).toEqual({ tenantId: 'ins_discovery', claims: { total: 1, byStage: { Review: 1 } } })
   })
 
-  it('creates an admin for its own tenant only (a tenantId or role in the body → 400) and the new admin works', async () => {
-    expect((await call('/tenant/users', { method: 'POST', as: insurerA, json: { username: 'disc_2', password: strong, displayName: 'D2', tenantId: 'ins_sanlam' } })).status).toBe(400)
-    expect((await call('/tenant/users', { method: 'POST', as: insurerA, json: { username: 'disc_2', password: strong, displayName: 'D2', role: 'SUPERADMIN' } })).status).toBe(400)
-    const res = await call('/tenant/users', { method: 'POST', as: insurerA, json: { username: 'disc_2', password: strong, displayName: 'Discovery Admin 2' } })
-    expect(res.status).toBe(201)
-    const user = (await json(res)).user
-    expect(user).toMatchObject({ role: 'INSURER_ADMIN', tenantId: 'ins_discovery', status: 'active' })
-    expect((await auditRows('tenant.user_created', user.id))[0]).toMatchObject({ actor_id: 'usr_admin_discovery', actor_tenant_id: 'ins_discovery' })
-    const auth = await bearer('disc_2', strong)
-    expect((await call('/claims/claim_disc_101/review', { method: 'POST', as: undefined, authorization: auth })).status).not.toBe(403)
-    expect((await call('/claims/claim_sanlam_102', { authorization: auth })).status).toBe(404)
-    expect((await call('/tenant/users', { method: 'POST', as: insurerA, json: { username: 'DISC_2', password: strong, displayName: 'Dup' } })).status).toBe(409)
+  it('creates ASSESSOR, MANAGER and INSURER_ADMIN staff for its own tenant only; bad role or a tenantId → 400', async () => {
+    const base = { password: strong, displayName: 'Staff' }
+    for (const body of [
+      { ...base, username: 'disc_x', role: 'ASSESSOR', tenantId: 'ins_sanlam' },
+      { ...base, username: 'disc_x', role: 'SUPERADMIN' },
+      { ...base, username: 'disc_x', role: 'CUSTOMER' },
+      { ...base, username: 'disc_x' },
+    ]) {
+      expect((await call('/tenant/users', { method: 'POST', as: insurerAdminA, json: body })).status, JSON.stringify(body)).toBe(400)
+    }
+    const created: Record<string, { id: string; role: string; tenantId: string }> = {}
+    for (const role of ['ASSESSOR', 'MANAGER', 'INSURER_ADMIN'] as const) {
+      const res = await call('/tenant/users', { method: 'POST', as: insurerAdminA, json: { ...base, username: `disc_${role.toLowerCase()}`, role } })
+      expect(res.status, role).toBe(201)
+      created[role] = (await json(res)).user
+      expect(created[role]).toMatchObject({ role, tenantId: 'ins_discovery', status: 'active' })
+      expect((await auditRows('tenant.user_created', created[role].id))[0]).toMatchObject({ actor_id: 'usr_admin_discovery', actor_tenant_id: 'ins_discovery' })
+    }
+    // the new assessor works claims of its tenant but cannot decide (separation of duties)
+    const assessor = await bearer('disc_assessor', strong)
+    const submitted = await createSubmittedClaim()
+    expect((await call(`/claims/${submitted}/verify`, { method: 'POST', authorization: assessor })).status).toBe(200)
+    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', authorization: assessor, json: { outcome: 'Rejected', reason: 'x' } })).status).toBe(403)
+    expect((await call('/claims/claim_sanlam_102', { authorization: assessor })).status).toBe(404)
+    // the new insurer admin reads, never acts
+    const admin2 = await bearer('disc_insurer_admin', strong)
+    expect((await call('/claims/claim_disc_101', { authorization: admin2 })).status).toBe(200)
+    expect((await call('/claims/claim_disc_101/request-info', { method: 'POST', authorization: admin2 })).status).toBe(403)
+    expect((await call('/tenant/users', { method: 'POST', as: insurerAdminA, json: { ...base, username: 'DISC_ASSESSOR', role: 'ASSESSOR' } })).status).toBe(409)
   })
 
-  it('disables an admin of its own tenant; cross-tenant user 404; self 409', async () => {
-    const created = (await json(await call('/tenant/users', { method: 'POST', as: insurerB, json: { username: 'sanlam_2', password: strong, displayName: 'S2' } }))).user
-    expect((await call(`/tenant/users/${created.id}`, { method: 'PATCH', as: insurerA, json: { status: 'disabled' } })).status).toBe(404)
-    expect((await call('/tenant/users/usr_admin_discovery', { method: 'PATCH', as: insurerB, json: { status: 'disabled' } })).status).toBe(404)
-    expect((await call('/tenant/users/usr_admin_sanlam', { method: 'PATCH', as: insurerB, json: { status: 'disabled' } })).status).toBe(409)
-    const off = await call(`/tenant/users/${created.id}`, { method: 'PATCH', as: insurerB, json: { status: 'disabled' } })
+  it('disables staff of its own tenant; cross-tenant user 404; self 409', async () => {
+    const created = (await json(await call('/tenant/users', { method: 'POST', as: insurerAdminB, json: { username: 'sanlam_2', password: strong, displayName: 'S2', role: 'ASSESSOR' } }))).user
+    expect((await call(`/tenant/users/${created.id}`, { method: 'PATCH', as: insurerAdminA, json: { status: 'disabled' } })).status).toBe(404)
+    expect((await call('/tenant/users/usr_admin_discovery', { method: 'PATCH', as: insurerAdminB, json: { status: 'disabled' } })).status).toBe(404)
+    expect((await call('/tenant/users/usr_admin_sanlam', { method: 'PATCH', as: insurerAdminB, json: { status: 'disabled' } })).status).toBe(409)
+    const off = await call(`/tenant/users/${created.id}`, { method: 'PATCH', as: insurerAdminB, json: { status: 'disabled' } })
     expect(off.status).toBe(200)
     expect((await login({ username: 'sanlam_2', password: strong })).status).toBe(401)
     expect((await auditRows('tenant.user_status_changed', created.id))[0]).toMatchObject({ actor_tenant_id: 'ins_sanlam' })
@@ -291,7 +330,10 @@ describe('ACCOUNTS: demo account list stays in sync', () => {
       return { id: field('id'), username: field('username'), role: field('role'), tenantId: field('tenantId'), displayName: field('displayName') }
     })
     expect(entries).toEqual(DEMO_USERS.map((u) => ({ ...u })))
-    expect(DEMO_USERS.map((u) => u.username)).toEqual(['superadmin', 'admin_discovery', 'admin_sanlam', 'mike', 'lerato', 'sipho'])
+    expect(DEMO_USERS.map((u) => u.username)).toEqual([
+      'superadmin', 'admin_discovery', 'admin_sanlam', 'assessor_discovery', 'manager_discovery',
+      'assessor_sanlam', 'manager_sanlam', 'mike', 'lerato', 'sipho',
+    ])
   })
 
   it('every demo account can sign in with the demo password', async () => {

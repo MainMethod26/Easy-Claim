@@ -16,7 +16,7 @@ import { readRiskSignals, signalSummary } from './quantumSignal'
  * There is no POST/PATCH/PUT counterpart anywhere in the API.
  */
 const router = new Hono<AppEnv>()
-const insurerOnly = requireRole('INSURER_ADMIN')
+const insurerOnly = requireRole('ASSESSOR', 'MANAGER')
 
 router.get('/:claimId/risk-signals', insurerOnly, validate('param', claimIdParam), async (c) => {
   const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'insurer')

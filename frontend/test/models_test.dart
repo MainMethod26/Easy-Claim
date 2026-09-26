@@ -58,7 +58,7 @@ void main() {
     test('Decision, payout and timeline parse', () {
       final d = DecisionInfo.fromJson({
         'decision': 'Approved',
-        'record': {'id': 'dec_1', 'approvedAmountCents': 420000, 'reason': 'ok', 'decidedByRole': 'INSURER_ADMIN'},
+        'record': {'id': 'dec_1', 'approvedAmountCents': 420000, 'reason': 'ok', 'decidedByRole': 'MANAGER'},
       });
       expect(d.isApproved, isTrue);
       expect(d.approvedAmountCents, 420000);

@@ -112,12 +112,29 @@ void main() {
       }
     });
 
-    test('roles: only the three team roles get screens', () {
+    test('roles: the five final roles parse; anything else is unknown', () {
       expect(const AuthActor(id: 'a', role: 'SUPERADMIN').isSuperadmin, isTrue);
       expect(const AuthActor(id: 'a', role: 'INSURER_ADMIN', tenantId: 'ins_x').isInsurerAdmin, isTrue);
       expect(const AuthActor(id: 'a', role: 'CUSTOMER').isCustomer, isTrue);
-      expect(const AuthActor(id: 'a', role: 'MANAGER').userRole, UserRole.unknown);
-      expect(const AuthActor(id: 'a', role: 'ASSESSOR').userRole, UserRole.unknown);
+      final assessor = const AuthActor(id: 'a', role: 'ASSESSOR', tenantId: 'ins_x');
+      expect(assessor.isAssessor && assessor.isClaimStaff && !assessor.isManager, isTrue);
+      final manager = const AuthActor(id: 'a', role: 'MANAGER', tenantId: 'ins_x');
+      expect(manager.isManager && manager.isClaimStaff, isTrue);
+      expect(const AuthActor(id: 'a', role: 'INSURER_ADMIN').isClaimStaff, isFalse);
+      expect(UserRole.manager.label, 'Claims manager');
+      expect(UserRole.assessor.label, 'Assessor');
+      expect(const AuthActor(id: 'a', role: 'ADMIN').userRole, UserRole.unknown);
+      expect(const AuthActor(id: 'a', role: '').userRole, UserRole.unknown);
+    });
+
+    test('409 superadmin_managed_offline maps to user text', () async {
+      backend.on('PATCH /admin/users/usr_root2', {'error': 'superadmin_managed_offline'}, status: 409);
+      try {
+        await SuperadminRepository().setUserStatus('usr_root2', active: false);
+        fail('expected ApiException');
+      } on ApiException catch (e) {
+        expect(e.message, 'Platform admin accounts are managed outside the app.');
+      }
     });
 
     test('superadmin repository: tenant, account and status bodies; claims filter', () async {
@@ -130,12 +147,10 @@ void main() {
       final t = await repo.createTenant(id: ' ins_hollard ', name: ' Hollard ');
       expect(t.name, 'Hollard');
       expect(backend.last('POST /admin/tenants')!.json, {'id': 'ins_hollard', 'name': 'Hollard'});
-      await repo.createUser(username: 'admin_hollard', password: 'pw123456', displayName: 'H', role: 'INSURER_ADMIN', tenantId: 'ins_hollard');
+      await repo.createUser(username: 'admin_hollard', password: 'pw123456', displayName: 'H', tenantId: 'ins_hollard');
+      // Only insurer admins are created by the platform admin: no role field, tenant required.
       expect(backend.last('POST /admin/users')!.json,
-          {'username': 'admin_hollard', 'password': 'pw123456', 'displayName': 'H', 'role': 'INSURER_ADMIN', 'tenantId': 'ins_hollard'});
-      await repo.createUser(username: 'root2', password: 'pw123456', displayName: 'R', role: 'SUPERADMIN', tenantId: 'ins_hollard');
-      // A platform admin never carries a tenant, even if the form had one selected.
-      expect(backend.last('POST /admin/users')!.json, {'username': 'root2', 'password': 'pw123456', 'displayName': 'R', 'role': 'SUPERADMIN'});
+          {'username': 'admin_hollard', 'password': 'pw123456', 'displayName': 'H', 'tenantId': 'ins_hollard'});
       final u = await repo.setUserStatus('usr_9', active: false);
       expect(u.isActive, isFalse);
       expect(backend.last('PATCH /admin/users/usr_9')!.json, {'status': 'disabled'});
@@ -145,12 +160,14 @@ void main() {
       expect(backend.last('GET /admin/users'), isNotNull);
     });
 
-    test('tenant admin repository never names the tenant; it comes from the token', () async {
+    test('tenant admin repository sends the staff role but never the tenant', () async {
       backend.on('POST /tenant/users', {'user': {'id': 'usr_5', 'username': 'colleague', 'role': 'INSURER_ADMIN', 'tenantId': 'ins_discovery', 'displayName': 'C', 'status': 'active'}}, status: 201);
       backend.on('PATCH /tenant/users/usr_5', {'user': {'id': 'usr_5', 'username': 'colleague', 'role': 'INSURER_ADMIN', 'tenantId': 'ins_discovery', 'displayName': 'C', 'status': 'active'}});
       final repo = TenantAdminRepository();
-      await repo.createUser(username: 'colleague', password: 'pw123456', displayName: 'C');
-      expect(backend.last('POST /tenant/users')!.json, {'username': 'colleague', 'password': 'pw123456', 'displayName': 'C'});
+      await repo.createUser(username: 'colleague', password: 'pw123456', displayName: 'C', role: 'ASSESSOR');
+      expect(backend.last('POST /tenant/users')!.json, {'username': 'colleague', 'password': 'pw123456', 'displayName': 'C', 'role': 'ASSESSOR'});
+      await repo.createUser(username: 'boss', password: 'pw123456', displayName: 'B', role: 'MANAGER');
+      expect(backend.last('POST /tenant/users')!.json['role'], 'MANAGER');
       await repo.setUserStatus('usr_5', active: true);
       expect(backend.last('PATCH /tenant/users/usr_5')!.json, {'status': 'active'});
     });

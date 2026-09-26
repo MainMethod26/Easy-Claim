@@ -47,8 +47,10 @@ void main() {
       await tester.pump();
       expect(find.text('Local demo accounts'), findsOneWidget);
       expect(find.textContaining('mike'), findsWidgets);
-      expect(find.textContaining('assessor'), findsNothing);
-      expect(find.textContaining('manager'), findsNothing);
+      expect(find.textContaining('assessor_discovery'), findsOneWidget);
+      expect(find.textContaining('manager_discovery'), findsOneWidget);
+      expect(find.textContaining('admin_discovery'), findsOneWidget);
+      expect(find.textContaining('superadmin'), findsOneWidget);
       expect(find.byKey(const Key('create-account')), findsOneWidget);
       expect(find.textContaining('Quick Demo'), findsNothing);
     });
@@ -71,7 +73,24 @@ void main() {
           'actor': {'id': id, 'username': username, 'role': role, 'tenantId': tenantId, 'displayName': name ?? username, 'status': 'active'},
         };
 
-    testWidgets('insurer admin is routed to the claim queue (UX only)', (tester) async {
+    testWidgets('assessor and manager are routed to the claim queue without a Team tab', (tester) async {
+      for (final (user, role) in [('assessor_discovery', 'ASSESSOR'), ('manager_discovery', 'MANAGER')]) {
+        Session.instance.signOut();
+        await tester.pumpWidget(const SizedBox.shrink()); // fresh navigator for each role
+        backend.on('POST /auth/login', loginBody('id_$user', user, role, tenantId: 'ins_discovery'));
+        backend.on('GET /claims', {'claims': []});
+        await tester.pumpWidget(_app(const AuthScreen()));
+        await tester.enterText(find.byKey(const Key('field-Username')), user);
+        await tester.enterText(find.byKey(const Key('field-Password')), '1234567');
+        await tester.tap(find.text('Sign In to EasyClaim'));
+        await _settle(tester);
+        expect(find.byType(InsurerDashboardScreen), findsOneWidget, reason: role);
+        expect(find.text('Team'), findsNothing, reason: role);
+        expect(find.textContaining('Claim queue'), findsOneWidget, reason: role);
+      }
+    });
+
+    testWidgets('insurer admin is routed to the read-only claims + Team portal (UX only)', (tester) async {
       backend.on('POST /auth/login', loginBody('usr_admin_discovery', 'admin_discovery', 'INSURER_ADMIN', tenantId: 'ins_discovery'));
       backend.on('GET /claims', {'claims': []});
       backend.on('GET /tenant', {'tenant': {'id': 'ins_discovery', 'name': 'Discovery'}});
@@ -84,6 +103,8 @@ void main() {
       await _settle(tester);
       expect(find.byType(InsurerDashboardScreen), findsOneWidget);
       expect(find.text('No submitted claims for your insurer yet.'), findsOneWidget);
+      expect(find.text('Team'), findsOneWidget);
+      expect(find.textContaining('Claims (read-only)'), findsOneWidget);
     });
 
     testWidgets('superadmin is routed to the platform portal', (tester) async {
@@ -189,9 +210,9 @@ void main() {
       backend.on('GET /claims/claim_1/risk-signals', {'claimId': 'claim_1', 'stage': stage, 'riskSignals': highSignalJson});
     }
 
-    testWidgets('Review + INSURER_ADMIN → decision action and the screening card', (tester) async {
+    testWidgets('Review + MANAGER → decision action and the screening card', (tester) async {
       tallSurface(tester);
-      signInAs('usr_admin_discovery', 'INSURER_ADMIN', tenantId: 'ins_discovery');
+      signInAs('manager_a1', 'MANAGER', tenantId: 'ins_discovery');
       stubClaim('Review');
       await tester.pumpWidget(_app(const InsurerClaimDetailsScreen(claimId: 'claim_1')));
       await _settle(tester);
@@ -202,11 +223,65 @@ void main() {
       expect(find.textContaining('Manager'), findsNothing);
     });
 
-    testWidgets('Decision + Approved → Pay claim button for the insurer admin', (tester) async {
+    testWidgets('Review + ASSESSOR → no decision button, manager note, screening card still shown', (tester) async {
+      tallSurface(tester);
+      signInAs('assessor_a1', 'ASSESSOR', tenantId: 'ins_discovery');
+      stubClaim('Review');
+      await tester.pumpWidget(_app(const InsurerClaimDetailsScreen(claimId: 'claim_1')));
+      await _settle(tester);
+      expect(find.text('Record decision'), findsNothing);
+      expect(find.text('Manager decision required.'), findsOneWidget);
+      expect(find.text('Request information'), findsOneWidget);
+      expect(find.text('REVIEW REQUIRED'), findsOneWidget);
+    });
+
+    testWidgets('ASSESSOR at Decision/Approved and Appeal → manager notes, no pay or re-review', (tester) async {
+      tallSurface(tester);
+      signInAs('assessor_a1', 'ASSESSOR', tenantId: 'ins_discovery');
+      stubClaim('Decision', status: 'Approved');
+      await tester.pumpWidget(_app(const InsurerClaimDetailsScreen(claimId: 'claim_1')));
+      await _settle(tester);
+      expect(find.text('Pay claim (simulated)'), findsNothing);
+      expect(find.text('Manager payout required.'), findsOneWidget);
+
+      stubClaim('Appeal');
+      await tester.pumpWidget(_app(const InsurerClaimDetailsScreen(key: ValueKey('appeal'), claimId: 'claim_1')));
+      await _settle(tester);
+      expect(find.text('Re-review appeal'), findsNothing);
+      expect(find.text('Manager must re-open the appeal.'), findsOneWidget);
+    });
+
+    testWidgets('MANAGER at Appeal → Re-review appeal', (tester) async {
+      tallSurface(tester);
+      signInAs('manager_a1', 'MANAGER', tenantId: 'ins_discovery');
+      stubClaim('Appeal');
+      await tester.pumpWidget(_app(const InsurerClaimDetailsScreen(claimId: 'claim_1')));
+      await _settle(tester);
+      expect(find.text('Re-review appeal'), findsOneWidget);
+    });
+
+    testWidgets('insurer admin detail: read-only, no screening call, staff note', (tester) async {
       tallSurface(tester);
       signInAs('usr_admin_discovery', 'INSURER_ADMIN', tenantId: 'ins_discovery');
+      stubClaim('Review');
+      await tester.pumpWidget(_app(const InsurerClaimDetailsScreen(
+        claimId: 'claim_1',
+        readOnly: true,
+        readOnlyNote: 'Read-only view. Claim actions belong to your assessors and managers.',
+      )));
+      await _settle(tester);
+      expect(find.text('Record decision'), findsNothing);
+      expect(find.text('Request information'), findsNothing);
+      expect(find.text('REVIEW REQUIRED'), findsNothing);
+      expect(find.text('Read-only view. Claim actions belong to your assessors and managers.'), findsOneWidget);
+      expect(backend.last('GET /claims/claim_1/risk-signals'), isNull);
+    });
+
+    testWidgets('Decision + Approved → Pay claim button for the manager', (tester) async {
+      tallSurface(tester);
+      signInAs('manager_a1', 'MANAGER', tenantId: 'ins_discovery');
       stubClaim('Decision', status: 'Approved');
-      backend.on('GET /claims/claim_1/decision', {'decision': 'Approved', 'record': {'id': 'dec_1', 'approvedAmountCents': 420000, 'reason': 'ok', 'decidedByRole': 'INSURER_ADMIN'}});
+      backend.on('GET /claims/claim_1/decision', {'decision': 'Approved', 'record': {'id': 'dec_1', 'approvedAmountCents': 420000, 'reason': 'ok', 'decidedByRole': 'MANAGER'}});
       backend.on('GET /claims/claim_1/decision/verify', {'claimId': 'claim_1', 'decisionId': 'dec_1', 'integrity': {'status': 'VALID', 'alg': 'ML-DSA-65', 'keyId': 'k'}});
       await tester.pumpWidget(_app(const InsurerClaimDetailsScreen(claimId: 'claim_1')));
       await _settle(tester);
@@ -225,9 +300,9 @@ void main() {
       expect(backend.last('GET /claims/claim_1/risk-signals'), isNull);
     });
 
-    testWidgets('Submitted → Verify claim calls POST /verify', (tester) async {
+    testWidgets('Submitted → Verify claim calls POST /verify (assessor)', (tester) async {
       tallSurface(tester);
-      signInAs('usr_admin_discovery', 'INSURER_ADMIN', tenantId: 'ins_discovery');
+      signInAs('assessor_a1', 'ASSESSOR', tenantId: 'ins_discovery');
       stubClaim('Submitted');
       backend.on('POST /claims/claim_1/verify', {'status': 'transitioned', 'from': 'Submitted', 'to': 'Verified'});
       await tester.pumpWidget(_app(const InsurerClaimDetailsScreen(claimId: 'claim_1')));
@@ -240,7 +315,7 @@ void main() {
   });
 
   group('team screen (insurer admin)', () {
-    testWidgets('shows tenant, stats, admins; Add admin posts to /tenant/users', (tester) async {
+    testWidgets('shows tenant, stats, staff; Add staff posts the chosen role to /tenant/users', (tester) async {
       tester.view.physicalSize = const Size(1200, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -249,9 +324,9 @@ void main() {
       backend.on('GET /tenant/stats', {'tenantId': 'ins_discovery', 'claims': {'total': 2, 'byStage': {'Review': 1, 'Paid': 1}}});
       backend.on('GET /tenant/users', {'users': [
         {'id': 'usr_admin_discovery', 'username': 'admin_discovery', 'role': 'INSURER_ADMIN', 'tenantId': 'ins_discovery', 'displayName': 'Discovery Claims Admin', 'status': 'active'},
-        {'id': 'usr_x', 'username': 'colleague', 'role': 'INSURER_ADMIN', 'tenantId': 'ins_discovery', 'displayName': 'Colleague', 'status': 'disabled'},
+        {'id': 'usr_x', 'username': 'colleague', 'role': 'ASSESSOR', 'tenantId': 'ins_discovery', 'displayName': 'Colleague', 'status': 'disabled'},
       ]});
-      backend.on('POST /tenant/users', {'user': {'id': 'usr_n', 'username': 'newadmin', 'role': 'INSURER_ADMIN', 'tenantId': 'ins_discovery', 'displayName': 'New Admin', 'status': 'active'}}, status: 201);
+      backend.on('POST /tenant/users', {'user': {'id': 'usr_n', 'username': 'newmanager', 'role': 'MANAGER', 'tenantId': 'ins_discovery', 'displayName': 'New Manager', 'status': 'active'}}, status: 201);
       await tester.pumpWidget(_app(const Scaffold(body: InsurerTeamScreen())));
       await _settle(tester);
       expect(find.text('Discovery Health'), findsOneWidget);
@@ -259,14 +334,18 @@ void main() {
       expect(find.text('Discovery Claims Admin (you)'), findsOneWidget);
       expect(find.byKey(const Key('toggle-admin_discovery')), findsNothing); // never your own account
       expect(find.byKey(const Key('toggle-colleague')), findsOneWidget);
-      await tester.tap(find.byKey(const Key('add-admin')));
+      expect(find.textContaining('Assessor'), findsWidgets);
+      await tester.tap(find.byKey(const Key('add-staff')));
       await _settle(tester);
-      await tester.enterText(find.byKey(const Key('account-username')), 'newadmin');
-      await tester.enterText(find.byKey(const Key('account-displayName')), 'New Admin');
+      await tester.enterText(find.byKey(const Key('account-username')), 'newmanager');
+      await tester.enterText(find.byKey(const Key('account-displayName')), 'New Manager');
       await tester.enterText(find.byKey(const Key('account-password')), '1234567');
+      await tester.tap(find.text('Manager'));
+      await _settle(tester);
       await tester.tap(find.byKey(const Key('account-create')));
       await _settle(tester);
-      expect(backend.last('POST /tenant/users')!.json, {'username': 'newadmin', 'password': '1234567', 'displayName': 'New Admin'});
+      expect(backend.last('POST /tenant/users')!.json,
+          {'username': 'newmanager', 'password': '1234567', 'displayName': 'New Manager', 'role': 'MANAGER'});
     });
   });
 
@@ -294,25 +373,32 @@ void main() {
       expect(find.textContaining('read-only'), findsOneWidget);
     });
 
-    testWidgets('accounts screen: Add account posts role + tenant to /admin/users', (tester) async {
+    testWidgets('accounts screen: Add account creates an insurer admin (tenant, no role); no toggle on platform admins', (tester) async {
       tester.view.physicalSize = const Size(1200, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
       signInAs('usr_superadmin', 'SUPERADMIN');
       backend.on('GET /admin/tenants', {'tenants': [{'id': 'ins_discovery', 'name': 'Discovery Health', 'admin_count': 1, 'policy_count': 1, 'claim_count': 3}]});
-      backend.on('GET /admin/users', {'users': []});
+      backend.on('GET /admin/users', {'users': [
+        {'id': 'usr_superadmin', 'username': 'superadmin', 'role': 'SUPERADMIN', 'tenantId': null, 'displayName': 'EasyClaim Platform Admin', 'status': 'active'},
+        {'id': 'usr_root2', 'username': 'root2', 'role': 'SUPERADMIN', 'tenantId': null, 'displayName': 'Root Two', 'status': 'active'},
+        {'id': 'usr_admin_discovery', 'username': 'admin_discovery', 'role': 'INSURER_ADMIN', 'tenantId': 'ins_discovery', 'displayName': 'Discovery Insurer Admin', 'status': 'active'},
+      ]});
       backend.on('POST /admin/users', {'user': {'id': 'usr_n', 'username': 'admin2', 'role': 'INSURER_ADMIN', 'tenantId': 'ins_discovery', 'displayName': 'Admin Two', 'status': 'active'}}, status: 201);
       await tester.pumpWidget(_app(const Scaffold(body: SuperadminAccountsScreen())));
       await _settle(tester);
+      expect(find.byKey(const Key('toggle-root2')), findsNothing);
+      expect(find.byKey(const Key('toggle-admin_discovery')), findsOneWidget);
       await tester.tap(find.byKey(const Key('add-account')));
       await _settle(tester);
+      expect(find.text('Platform admin'), findsNothing); // no way to create a platform admin
       await tester.enterText(find.byKey(const Key('account-username')), 'admin2');
       await tester.enterText(find.byKey(const Key('account-displayName')), 'Admin Two');
       await tester.enterText(find.byKey(const Key('account-password')), '1234567');
       await tester.tap(find.byKey(const Key('account-create')));
       await _settle(tester);
       expect(backend.last('POST /admin/users')!.json,
-          {'username': 'admin2', 'password': '1234567', 'displayName': 'Admin Two', 'role': 'INSURER_ADMIN', 'tenantId': 'ins_discovery'});
+          {'username': 'admin2', 'password': '1234567', 'displayName': 'Admin Two', 'tenantId': 'ins_discovery'});
     });
   });
 

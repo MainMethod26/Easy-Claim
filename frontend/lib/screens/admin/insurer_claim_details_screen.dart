@@ -1,20 +1,30 @@
 import 'package:flutter/material.dart';
+import '../../core/auth/session.dart';
 import '../../core/widgets/state_views.dart';
 import '../../core/widgets/trust_cards.dart';
 import '../../data/models/api_models.dart';
 import '../../data/models/claim_stage.dart';
 import '../../data/repositories/repositories.dart';
 
-/// Everything an insurer admin needs to operate one claim. All data comes from the backend;
-/// the buttons shown follow the backend stage, and the backend re-checks role, tenant and
-/// stage on every call. With [readOnly] (platform admin) no actions and no screening card
-/// are shown: /risk-signals and every POST are 403 for that role.
+/// Everything insurer staff need to operate one claim. All data comes from the backend; the
+/// buttons follow the backend stage and the signed-in role (assessors prepare, only managers
+/// decide, pay and re-open appeals), and the backend re-checks role, tenant and stage on every
+/// call. With [readOnly] (insurer admin, platform admin) no actions and no screening card are
+/// shown: /risk-signals and every POST are 403 for those roles.
 class InsurerClaimDetailsScreen extends StatefulWidget {
   final String claimId;
   final InsurerRepository? insurer;
   final ClaimsRepository? claims;
   final bool readOnly;
-  const InsurerClaimDetailsScreen({super.key, required this.claimId, this.insurer, this.claims, this.readOnly = false});
+  final String readOnlyNote;
+  const InsurerClaimDetailsScreen({
+    super.key,
+    required this.claimId,
+    this.insurer,
+    this.claims,
+    this.readOnly = false,
+    this.readOnlyNote = 'Read-only view. Actions on this claim belong to its insurer staff.',
+  });
 
   @override
   State<InsurerClaimDetailsScreen> createState() => _InsurerClaimDetailsScreenState();
@@ -105,6 +115,8 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
 
   List<Widget> _actions(_ClaimFile file) {
     final stage = file.claim.stage;
+    // UX only: the backend refuses decide / pay / appeal re-review for anyone but a MANAGER.
+    final isManager = Session.instance.actor?.isManager ?? false;
     Widget button(String label, IconData icon, VoidCallback onPressed, {Color color = const Color(0xFF2563EB)}) => Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: ElevatedButton.icon(
@@ -135,12 +147,16 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
         ];
       case BackendStage.review:
         return [
-          button('Record decision', Icons.gavel, () => _openDecisionForm(file.claim), color: const Color(0xFF0F766E)),
+          if (isManager)
+            button('Record decision', Icons.gavel, () => _openDecisionForm(file.claim), color: const Color(0xFF0F766E))
+          else
+            note('Manager decision required.'),
           button('Request information', Icons.help_outline, () => advance('request-info', 'Customer asked for more information'),
               color: const Color(0xFFD97706)),
         ];
       case BackendStage.decision:
         if (file.claim.status == 'Approved' && !file.payout.isPaid) {
+          if (!isManager) return [note('Manager payout required.')];
           return [
             button('Pay claim (simulated)', Icons.payments_outlined,
                 () => _run(() async {
@@ -151,6 +167,7 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
         }
         return [note(file.claim.status == 'Rejected' ? 'Rejected. The customer may appeal.' : 'Decision recorded.')];
       case BackendStage.appeal:
+        if (!isManager) return [note('Manager must re-open the appeal.')];
         return [button('Re-review appeal', Icons.replay, () => advance('review', 'Appeal moved to review'))];
       case BackendStage.infoNeeded:
         return [note('Waiting for the customer to update the claim.')];
@@ -231,8 +248,8 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
               ]),
               const SizedBox(height: 8),
               if (widget.readOnly)
-                const Text('Read-only view. Actions on this claim belong to its insurer admin.',
-                    style: TextStyle(color: Color(0xFF64748B), fontStyle: FontStyle.italic))
+                Text(widget.readOnlyNote,
+                    style: const TextStyle(color: Color(0xFF64748B), fontStyle: FontStyle.italic))
               else if (_busy)
                 const LoadingView()
               else

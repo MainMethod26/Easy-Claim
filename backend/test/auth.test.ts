@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { insurerA, call, customerA, mintToken } from './helpers'
+import { managerA, call, customerA, mintToken } from './helpers'
 
 const b64u = (s: string) => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 
@@ -112,14 +112,14 @@ describe('authentication (Bearer JWT)', () => {
   })
 
   it('AUTH-006c staff token with a lifetime above the 8h maximum → 401', async () => {
-    const token = await mintToken(insurerA, { ttl: 8 * 3600 + 60 })
+    const token = await mintToken(managerA, { ttl: 8 * 3600 + 60 })
     expect((await call('/claims', { authorization: `Bearer ${token}` })).status).toBe(401)
-    const ok = await mintToken(insurerA, { ttl: 8 * 3600 - 60 })
+    const ok = await mintToken(managerA, { ttl: 8 * 3600 - 60 })
     expect((await call('/claims', { authorization: `Bearer ${ok}` })).status).toBe(200)
   })
 
   it('AUTH-007 audience may be an array containing the API', async () => {
-    const token = await mintToken(insurerA, { claims: { aud: ['other', env.JWT_AUDIENCE] } })
+    const token = await mintToken(managerA, { claims: { aud: ['other', env.JWT_AUDIENCE] } })
     expect((await call('/claims', { authorization: `Bearer ${token}` })).status).toBe(200)
   })
 
@@ -152,7 +152,7 @@ describe('authentication (Bearer JWT)', () => {
   })
 
   it('AUTH-011 dev actor headers never bypass authentication (ATTACK-P1-010)', async () => {
-    const headers = { 'X-Dev-Actor-Id': 'usr_admin_discovery', 'X-Dev-Actor-Role': 'INSURER_ADMIN' }
+    const headers = { 'X-Dev-Actor-Id': 'manager_a1', 'X-Dev-Actor-Role': 'INSURER_ADMIN' }
     expect((await call('/claims', { headers })).status).toBe(401)
     expect((await call('/claims', { headers, env: { ALLOW_DEV_ACTOR_HEADERS: 'true' } as never })).status).toBe(401)
     // and they do not override a real token's identity

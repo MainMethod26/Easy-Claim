@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "b3e34b5c-43f5-46b5-827c-473d092d603a",
-    "name": "EasyClaim API (three-role model: customer, insurer admin, superadmin)",
-    "description": "Local demo collection for backend/ (the only API). Setup:\n1. cd backend && npm install && npm run setup:local && npm run demo:setup:local && npm run dev\n2. Either import the environment written by `npm run token -- --postman` (offline tokens), or create an environment with baseUrl = http://127.0.0.1:8787 and demoPassword = the DEMO_LOGIN_PASSWORD line of backend/.dev.vars (1234567), then run folder 00.\nRoles: CUSTOMER, INSURER_ADMIN (one insurer role: verify..pay + own-tenant accounts), SUPERADMIN (platform admin, read-only on claims). Folder names still say assessor/manager in places: both are now the insurer admin (token_insurer_a / token_insurer_b).\nSecrets never enter this collection. Folders 0, 5, 6, 7, 8, 11 are attack demonstrations; each request description states the expected response.\nContract: docs/API_CONTRACT.md.",
+    "name": "EasyClaim API (roles: customer, assessor, manager, insurer admin, superadmin)",
+    "description": "Local demo collection for backend/ (the only API). Setup:\n1. cd backend && npm install && npm run setup:local && npm run demo:setup:local && npm run dev\n2. Either import the environment written by `npm run token -- --postman` (offline tokens), or create an environment with baseUrl = http://127.0.0.1:8787 and demoPassword = the DEMO_LOGIN_PASSWORD line of backend/.dev.vars (1234567), then run folder 00.\nRoles: CUSTOMER; ASSESSOR (verify/screen/review); MANAGER (+ decide/pay); INSURER_ADMIN (own-tenant staff, read-only claims); SUPERADMIN (platform, read-only claims).\nSecrets never enter this collection. Folders 0, 5, 6, 7, 8, 11 are attack demonstrations; each request description states the expected response.\nContract: docs/API_CONTRACT.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -18,7 +18,7 @@
   "item": [
     {
       "name": "00 - Sign in (demo accounts)",
-      "description": "Signs in the seeded demo accounts through POST /api/v1/auth/login (real accounts table, PBKDF2 hashes) and stores each token in the active environment (same variable names as `npm run token -- --postman`). Set the environment variable `demoPassword` to the DEMO_LOGIN_PASSWORD line of backend/.dev.vars (agreed demo password 1234567). Roles: CUSTOMER (mike, lerato), INSURER_ADMIN (admin_discovery, admin_sanlam), SUPERADMIN (superadmin).",
+      "description": "Signs in the seeded demo accounts through POST /api/v1/auth/login (real accounts table, PBKDF2 hashes) and stores each token in the active environment (same variable names as `npm run token -- --postman`). Set the environment variable `demoPassword` to the DEMO_LOGIN_PASSWORD line of backend/.dev.vars (agreed demo password 1234567). Roles: CUSTOMER (mike, lerato), ASSESSOR / MANAGER (assessor_*, manager_*), INSURER_ADMIN (admin_*), SUPERADMIN.",
       "auth": {
         "type": "noauth"
       },
@@ -110,6 +110,190 @@
                 "exec": [
                   "pm.test('200', () => pm.response.to.have.status(200));",
                   "pm.environment.set('token_customer_b', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in assessor_discovery",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Expected: 200 with a token for assessor_discovery; stored in {{token_assessor_a}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"assessor_discovery\",\n  \"password\": \"{{demoPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('token_assessor_a', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in manager_discovery",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Expected: 200 with a token for manager_discovery; stored in {{token_manager_a}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"manager_discovery\",\n  \"password\": \"{{demoPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('token_manager_a', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in assessor_sanlam",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Expected: 200 with a token for assessor_sanlam; stored in {{token_assessor_b}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"assessor_sanlam\",\n  \"password\": \"{{demoPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('token_assessor_b', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in manager_sanlam",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Expected: 200 with a token for manager_sanlam; stored in {{token_manager_b}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"manager_sanlam\",\n  \"password\": \"{{demoPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('token_manager_b', pm.response.json().token);"
                 ]
               }
             }
@@ -835,14 +1019,14 @@
       ]
     },
     {
-      "name": "2 - Insurer admin, tenant A (ins_discovery)",
+      "name": "2 - Assessor, tenant A (ins_discovery)",
       "description": "Insurer staff of Discovery. Sees only submitted Discovery claims. Token: {{token_insurer_a}}.",
       "auth": {
         "type": "bearer",
         "bearer": [
           {
             "key": "token",
-            "value": "{{token_insurer_a}}",
+            "value": "{{token_assessor_a}}",
             "type": "string"
           }
         ]
@@ -1017,14 +1201,14 @@
       ]
     },
     {
-      "name": "3 - Insurer admin, tenant A: decide & pay",
+      "name": "3 - Manager, tenant A (ins_discovery)",
       "description": "Manager of Discovery: decides (with a reason) and pays (simulated). Assessors can no longer decide (Phase 3). Token: {{token_insurer_a}}.",
       "auth": {
         "type": "bearer",
         "bearer": [
           {
             "key": "token",
-            "value": "{{token_insurer_a}}",
+            "value": "{{token_manager_a}}",
             "type": "string"
           }
         ]
@@ -1118,14 +1302,14 @@
       ]
     },
     {
-      "name": "4 - Insurer admin, tenant B (ins_sanlam)",
+      "name": "4 - Assessor, tenant B (ins_sanlam)",
       "description": "Insurer staff of Sanlam. Token: {{token_insurer_b}}.",
       "auth": {
         "type": "bearer",
         "bearer": [
           {
             "key": "token",
-            "value": "{{token_insurer_b}}",
+            "value": "{{token_assessor_b}}",
             "type": "string"
           }
         ]
@@ -1166,7 +1350,7 @@
         "bearer": [
           {
             "key": "token",
-            "value": "{{token_insurer_b}}",
+            "value": "{{token_assessor_b}}",
             "type": "string"
           }
         ]
@@ -1246,7 +1430,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_insurer_b}}",
+                  "value": "{{token_manager_b}}",
                   "type": "string"
                 }
               ]
@@ -1277,7 +1461,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_insurer_b}}",
+                  "value": "{{token_manager_b}}",
                   "type": "string"
                 }
               ]
@@ -1395,7 +1579,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_insurer_b}}",
+                  "value": "{{token_assessor_b}}",
                   "type": "string"
                 }
               ]
@@ -1568,7 +1752,7 @@
         "bearer": [
           {
             "key": "token",
-            "value": "{{token_insurer_a}}",
+            "value": "{{token_manager_a}}",
             "type": "string"
           }
         ]
@@ -1646,7 +1830,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_insurer_a}}",
+                  "value": "{{token_assessor_a}}",
                   "type": "string"
                 }
               ]
@@ -1828,7 +2012,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_insurer_b}}",
+                  "value": "{{token_manager_b}}",
                   "type": "string"
                 }
               ]
@@ -1867,7 +2051,7 @@
         "bearer": [
           {
             "key": "token",
-            "value": "{{token_insurer_a}}",
+            "value": "{{token_assessor_a}}",
             "type": "string"
           }
         ]
@@ -1977,7 +2161,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_insurer_a}}",
+                  "value": "{{token_manager_a}}",
                   "type": "string"
                 }
               ]
@@ -2039,7 +2223,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_insurer_b}}",
+                  "value": "{{token_assessor_b}}",
                   "type": "string"
                 }
               ]
@@ -2070,7 +2254,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_insurer_a}}",
+                  "value": "{{token_manager_a}}",
                   "type": "string"
                 }
               ]
@@ -2131,7 +2315,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_insurer_a}}",
+                  "value": "{{token_manager_a}}",
                   "type": "string"
                 }
               ]
@@ -2149,7 +2333,7 @@
         "bearer": [
           {
             "key": "token",
-            "value": "{{token_insurer_a}}",
+            "value": "{{token_manager_a}}",
             "type": "string"
           }
         ]
@@ -2254,7 +2438,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{token_insurer_b}}",
+                  "value": "{{token_assessor_b}}",
                   "type": "string"
                 }
               ]
@@ -2811,10 +2995,10 @@
                 "users"
               ]
             },
-            "description": "Expected: 201 {user}; unknown tenant -> 422; SUPERADMIN role with a tenantId -> 422",
+            "description": "Expected: 201 {user} INSURER_ADMIN; unknown tenant -> 422; role SUPERADMIN -> 400 (superadmins are never created via the API)",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"admin_demo_mutual\",\n  \"password\": \"{{demoPassword}}\",\n  \"displayName\": \"Demo Mutual Admin\",\n  \"role\": \"INSURER_ADMIN\",\n  \"tenantId\": \"ins_demo_mutual\"\n}",
+              "raw": "{\n  \"username\": \"admin_demo_mutual\",\n  \"password\": \"{{demoPassword}}\",\n  \"displayName\": \"Demo Mutual Admin\",\n  \"tenantId\": \"ins_demo_mutual\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2957,7 +3141,7 @@
           }
         },
         {
-          "name": "POST /tenant/users (insurer admin adds a colleague)",
+          "name": "POST /tenant/users (insurer admin adds an assessor)",
           "request": {
             "method": "POST",
             "header": [
@@ -2978,10 +3162,10 @@
                 "users"
               ]
             },
-            "description": "Expected: 201 INSURER_ADMIN in the caller's tenant; a tenantId in the body -> 400",
+            "description": "Expected: 201 in the caller's tenant; role ASSESSOR|MANAGER|INSURER_ADMIN; a tenantId in the body -> 400",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"discovery_colleague\",\n  \"password\": \"{{demoPassword}}\",\n  \"displayName\": \"Discovery Colleague\"\n}",
+              "raw": "{\n  \"username\": \"discovery_assessor2\",\n  \"password\": \"{{demoPassword}}\",\n  \"displayName\": \"Discovery Assessor 2\",\n  \"role\": \"ASSESSOR\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

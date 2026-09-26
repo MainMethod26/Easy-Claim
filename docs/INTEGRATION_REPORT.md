@@ -1,9 +1,27 @@
 # Integration report
 
-EasyClaim full-stack integration, hardening and repository cleanup. Branch `main` at `1e432f7` plus uncommitted
-changes in the working tree (nothing committed or pushed). 26 Sep 2026.
+EasyClaim full-stack integration, hardening and repository cleanup, rebased onto `main` `abc3a3d` and pushed to `main`
+on 26 Sep 2026. Final role model: CUSTOMER, ASSESSOR, MANAGER, INSURER_ADMIN, SUPERADMIN (team decision).
 
 Status words used: **IMPLEMENTED · TESTED · PARTIALLY TESTED · LOCAL ONLY · PLANNED · KNOWN LIMITATION**.
+
+## 0. Final state (read first)
+
+- **Roles:** CUSTOMER (files claims) · ASSESSOR (verify, screen, review, request info) · MANAGER (+ decide, pay,
+  re-open appeals) · INSURER_ADMIN (own insurer's staff accounts, tenant stats, read-only claims, no claim actions) ·
+  SUPERADMIN (insurers, insurer-admin accounts, platform stats, read-only claims; not creatable via the API).
+- **Accounts:** real `users` table (migration `0010_users.sql`, PBKDF2), `POST /auth/login`, `POST /auth/register`
+  (customers only), `/admin/*`, `/tenant/*`. Demo accounts (local seed only, password `1234567`): `mike`, `lerato`,
+  `sipho`, `assessor_discovery`, `manager_discovery`, `assessor_sanlam`, `manager_sanlam`, `admin_discovery`,
+  `admin_sanlam`, `superadmin`.
+- **Merge with main `abc3a3d`:** reverted the `decode()` login bypass, replaced the broken `admin.ts`, removed the
+  magic-word login and the unsafe Ansa payout branch, rewrote the nightly expiry job through the state machine with
+  audit, disabled the remote-only `[ai]` binding that broke local tests, deleted `*.orig`/`*.patch` and
+  `add_cors.py`. Details: [SECURITY_INTEGRATION.md](SECURITY_INTEGRATION.md) §7.
+- **Screens per role:** `docs/integration/evidence/app/f01`–`f09` (assessor sees "Manager decision required", manager
+  sees "Record decision", insurer admin Team screen, superadmin portal).
+- Sections 1–28 below describe the integration pass itself; where they mention an interim demo login or a
+  three-role model, section 0 and the docs it links supersede them.
 
 ## 1. Executive summary
 
@@ -17,13 +35,13 @@ Verified (all run on this PC, 26 Sep 2026):
 | Check | Result |
 |---|---|
 | `backend`: `tsc --noEmit` | clean |
-| `backend`: `vitest run` | 20 files, **300 passed** (was: 0 running on `main`) |
+| `backend`: `vitest run` | 21 files, **354 passed** (was: 0 running on `main`) |
 | `backend`: `npm audit` | 0 vulnerabilities |
 | `frontend`: `flutter analyze` | No issues found (was 22 issues) |
-| `frontend`: `flutter test` | **37 passed** (was 5 pass / 9 fail) |
+| `frontend`: `flutter test` | **54 passed** (was 5 pass / 9 fail) |
 | `frontend`: `flutter build web` | built |
 | `quantum`: `pytest` | 27 passed (was 26 + 1 path failure) |
-| Live API demo + attacks (`docs/integration/live-demo.sh`) | **49 passed, 0 failed** ([log](integration/evidence/LIVE_DEMO.log)) |
+| Live API demo + attacks (`docs/integration/live-demo.sh`) | **72 passed, 0 failed** ([log](integration/evidence/LIVE_DEMO.log)) |
 | Live app walkthrough (headless Chrome against `wrangler dev`) | customer, assessor, manager, customer-outcome and two attack flows completed; 30 screenshots in [integration/evidence/app/](integration/evidence/app/) |
 
 The most important fix is a security regression: the restructure had added an unauthenticated login that issued

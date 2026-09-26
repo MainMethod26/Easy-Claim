@@ -2,7 +2,7 @@
 # Live end-to-end demo + attack checks (three-role model) against a running local Worker (cd backend && npm run dev).
 # Usage (from the repo root):  bash docs/integration/live-demo.sh [baseUrl]
 # Signs in with the seeded demo accounts (password: DEMO_LOGIN_PASSWORD in backend/.dev.vars); never prints it or any token.
-# Roles: CUSTOMER (mike, lerato), INSURER_ADMIN (admin_discovery, admin_sanlam), SUPERADMIN (superadmin).
+# Roles: CUSTOMER (mike, lerato), ASSESSOR/MANAGER (assessor_*/manager_*), INSURER_ADMIN (admin_*), SUPERADMIN (superadmin).
 set -u
 BASE="${1:-http://127.0.0.1:8787}/api/v1"
 PW="$(grep '^DEMO_LOGIN_PASSWORD=' backend/.dev.vars | cut -d= -f2-)"
@@ -23,8 +23,9 @@ check() { # check LABEL EXPECTED ACTUAL
 login() { req POST /auth/login "" "{\"username\":\"$1\",\"password\":\"$PW\"}" | cut -d' ' -f2- | j 'o.token'; }
 
 echo "== EasyClaim live demo against $BASE ($(date -u +%FT%TZ))"
-CUST=$(login mike); CUSTB=$(login lerato); ASSA=$(login admin_discovery); MANA=$ASSA; ASSB=$(login admin_sanlam); SUPER=$(login superadmin)
-[ ${#CUST} -gt 100 ] && [ ${#ASSA} -gt 100 ] && [ ${#SUPER} -gt 100 ] && echo "signed in 5 demo accounts (tokens not shown)" || { echo "login failed: is the Worker running and were the demo users seeded (npm run db:seed:users:local)?"; exit 1; }
+CUST=$(login mike); CUSTB=$(login lerato); ASSA=$(login assessor_discovery); MANA=$(login manager_discovery); ASSB=$(login assessor_sanlam)
+ADMA=$(login admin_discovery); ADMB=$(login admin_sanlam); SUPER=$(login superadmin)
+[ ${#CUST} -gt 100 ] && [ ${#ASSA} -gt 100 ] && [ ${#MANA} -gt 100 ] && [ ${#ADMA} -gt 100 ] && [ ${#SUPER} -gt 100 ] && echo "signed in 8 demo accounts (tokens not shown)" || { echo "login failed: is the Worker running and were the demo users seeded (npm run db:seed:users:local)?"; exit 1; }
 
 echo; echo "-- Security checks"
 check "ATTACK-01 no token -> 401"                                   401 "$(req GET /claims "" | cut -c1-3)"
@@ -37,12 +38,15 @@ check "ATTACK-21 superadmin cannot verify a claim -> 403"           403 "$(req P
 check "ATTACK-21 superadmin cannot pay -> 403"                      403 "$(req POST /claims/claim_sanlam_102/pay "$SUPER" | cut -c1-3)"
 check "superadmin reads the platform claim list -> 200"             200 "$(req GET /claims "$SUPER" | cut -c1-3)"
 check "customer cannot open /admin -> 403"                          403 "$(req GET /admin/tenants "$CUST" | cut -c1-3)"
-check "insurer admin cannot open /admin -> 403"                     403 "$(req GET /admin/stats "$ASSA" | cut -c1-3)"
-check "ATTACK-22 Sanlam admin cannot disable a Discovery admin -> 404" 404 "$(req PATCH /tenant/users/usr_admin_discovery "$ASSB" '{"status":"disabled"}' | cut -c1-3)"
+check "insurer admin cannot open /admin -> 403"                     403 "$(req GET /admin/stats "$ADMA" | cut -c1-3)"
+check "assessor cannot open /tenant -> 403"                         403 "$(req GET /tenant/users "$ASSA" | cut -c1-3)"
+check "ATTACK-22 Sanlam admin cannot disable a Discovery admin -> 404" 404 "$(req PATCH /tenant/users/usr_admin_discovery "$ADMB" '{"status":"disabled"}' | cut -c1-3)"
+check "ATTACK-24 insurer admin cannot verify a claim -> 403"        403 "$(req POST /claims/claim_disc_101/request-info "$ADMA" | cut -c1-3)"
+check "insurer admin reads its own claims read-only -> 200"         200 "$(req GET /claims/claim_disc_101 "$ADMA" | cut -c1-3)"
 check "ATTACK-02 forged token -> 401"                               401 "$(req GET /claims "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtYW5hZ2VyX2ExIn0.AAAA" | cut -c1-3)"
-check "ATTACK-06 customer calls insurer action -> 403"             403 "$(req POST /claims/claim_mom_103/verify "$CUST" | cut -c1-3)"
+check "ATTACK-06 customer calls assessor action -> 403"             403 "$(req POST /claims/claim_mom_103/verify "$CUST" | cut -c1-3)"
 check "ATTACK-04 customer B reads customer A claim -> 404"          404 "$(req GET /claims/claim_disc_101 "$CUSTB" | cut -c1-3)"
-check "ATTACK-05 Sanlam admin reads Discovery claim -> 404"      404 "$(req GET /claims/claim_disc_101 "$ASSB" | cut -c1-3)"
+check "ATTACK-05 Sanlam assessor reads Discovery claim -> 404"      404 "$(req GET /claims/claim_disc_101 "$ASSB" | cut -c1-3)"
 check "ATTACK-08 X-User-Id spoof ignored -> 404"                    404 "$(req GET /claims/claim_disc_101 "$CUSTB" "" -H 'X-User-Id: user123' | cut -c1-3)"
 check "ATTACK-10 X-Tenant-Id spoof ignored -> 404"                  404 "$(req GET /claims/claim_disc_101 "$ASSB" "" -H 'X-Tenant-Id: ins_discovery' | cut -c1-3)"
 check "ATTACK-09 role in request body -> 400"                       400 "$(req POST /claims/initiate "$CUST" '{"policyId":"pol_disc_001","role":"SUPERADMIN"}' | cut -c1-3)"
@@ -62,9 +66,9 @@ check "upload .exe renamed .pdf -> 415" 415 "$(req POST /claims/$CID/evidence "$
 check "submit -> 200"             200 "$(req POST /claims/$CID/submit "$CUST" | cut -c1-3)"
 check "ATTACK-14 pay a Submitted claim -> 409" 409 "$(req POST /claims/$CID/pay "$MANA" | cut -c1-3)"
 check "evidence locked after submit -> 409" 409 "$(req POST /claims/$CID/evidence "$CUST" "" -F "file=@$RECEIPT;type=application/pdf" | cut -c1-3)"
-check "insurer admin sees 1 evidence file" 1 "$(req GET /claims/$CID/evidence "$ASSA" | cut -d' ' -f2- | j 'o.evidence.length')"
+check "assessor sees 1 evidence file" 1 "$(req GET /claims/$CID/evidence "$ASSA" | cut -d' ' -f2- | j 'o.evidence.length')"
 
-echo; echo "-- Insurer admin journey on the HIGH_ANOMALY demo claim (claim_demo_unusual, stage Verified)"
+echo; echo "-- Insurer journey (assessor then manager) on the HIGH_ANOMALY demo claim (claim_demo_unusual, stage Verified)"
 R=$(req POST /claims/claim_demo_unusual/screen "$ASSA"); check "screen -> 200" 200 "${R:0:3}"
 check "signal band"            HIGH             "$(echo "${R:4}" | j 'o.riskSignals.anomalyBand')"
 check "recommendation"         REVIEW_REQUIRED  "$(echo "${R:4}" | j 'o.riskSignals.screeningRecommendation')"
@@ -73,11 +77,13 @@ check "HIGH did not reject: stage" Screening    "$(req GET /claims/claim_demo_un
 check "customer cannot read the signal -> 403" 403 "$(req GET /claims/claim_demo_unusual/risk-signals "$CUST" | cut -c1-3)"
 check "ATTACK-11 fake score in /screen body ignored (already Screening -> 409)" 409 "$(req POST /claims/claim_demo_unusual/screen "$ASSA" '{"quantumAnomaly":0,"anomalyBand":"NORMAL"}' | cut -c1-3)"
 check "review -> 200"                        200 "$(req POST /claims/claim_demo_unusual/review "$ASSA" | cut -c1-3)"
+check "ATTACK-07 assessor decides -> 403"    403 "$(req POST /claims/claim_demo_unusual/decide "$ASSA" '{"outcome":"Approved","reason":"x"}' | cut -c1-3)"
 check "ATTACK-07 superadmin decides -> 403"  403 "$(req POST /claims/claim_demo_unusual/decide "$SUPER" '{"outcome":"Approved","reason":"x"}' | cut -c1-3)"
+check "ATTACK-24 insurer admin decides -> 403" 403 "$(req POST /claims/claim_demo_unusual/decide "$ADMA" '{"outcome":"Approved","reason":"x"}' | cut -c1-3)"
 check "ATTACK-07 customer decides -> 403"    403 "$(req POST /claims/claim_demo_unusual/decide "$CUST" '{"outcome":"Approved","reason":"x"}' | cut -c1-3)"
 check "ATTACK-12 client recommendation on decide -> 400" 400 "$(req POST /claims/claim_demo_unusual/decide "$MANA" '{"outcome":"Rejected","reason":"x","screeningRecommendation":"STANDARD_REVIEW"}' | cut -c1-3)"
 R=$(req POST /claims/claim_demo_unusual/decide "$MANA" '{"outcome":"Rejected","reason":"Incident reported 323 days late; policy requires notice within 30 days"}')
-check "insurer admin decides (human decision) -> 200" 200 "${R:0:3}"
+check "manager decides (human decision) -> 200" 200 "${R:0:3}"
 check "decision signed with"   ML-DSA-65        "$(echo "${R:4}" | j 'o.integrity.alg')"
 check "customer verifies decision integrity" VALID "$(req GET /claims/claim_demo_unusual/decision/verify "$CUST" | cut -d' ' -f2- | j 'o.integrity.status')"
 
@@ -106,8 +112,11 @@ NEWT="ins_demo_$(date +%s)"
 check "superadmin creates an insurer -> 201"        201 "$(req POST /admin/tenants "$SUPER" "{\"id\":\"$NEWT\",\"name\":\"Demo Mutual\"}" | cut -c1-3)"
 check "superadmin creates its insurer admin -> 201" 201 "$(req POST /admin/users "$SUPER" "{\"username\":\"admin_$NEWT\",\"password\":\"$PW\",\"displayName\":\"Demo Mutual Admin\",\"role\":\"INSURER_ADMIN\",\"tenantId\":\"$NEWT\"}" | cut -c1-3)"
 check "new insurer admin can sign in"               INSURER_ADMIN "$(req POST /auth/login "" "{\"username\":\"admin_$NEWT\",\"password\":\"$PW\"}" | cut -d' ' -f2- | j 'o.actor.role')"
-check "insurer admin adds a colleague -> 201"       201 "$(req POST /tenant/users "$ASSA" "{\"username\":\"colleague_$(date +%s)\",\"password\":\"$PW\",\"displayName\":\"Colleague\"}" | cut -c1-3)"
-check "insurer admin tenant stats -> 200"           200 "$(req GET /tenant/stats "$ASSA" | cut -c1-3)"
+NEWA="assessor_$(date +%s)"
+check "insurer admin adds an assessor -> 201"       201 "$(req POST /tenant/users "$ADMA" "{\"username\":\"$NEWA\",\"password\":\"$PW\",\"displayName\":\"New Assessor\",\"role\":\"ASSESSOR\"}" | cut -c1-3)"
+check "new assessor can sign in"                    ASSESSOR "$(req POST /auth/login "" "{\"username\":\"$NEWA\",\"password\":\"$PW\"}" | cut -d' ' -f2- | j 'o.actor.role')"
+check "superadmin cannot create a superadmin -> 400" 400 "$(req POST /admin/users "$SUPER" "{\"username\":\"root2\",\"password\":\"$PW\",\"displayName\":\"Root\",\"role\":\"SUPERADMIN\"}" | cut -c1-3)"
+check "insurer admin tenant stats -> 200"           200 "$(req GET /tenant/stats "$ADMA" | cut -c1-3)"
 
 echo; echo "== $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

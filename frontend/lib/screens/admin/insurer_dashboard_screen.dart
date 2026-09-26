@@ -30,8 +30,9 @@ Color stageColor(String stage) {
   }
 }
 
-/// Insurer admin portal: the claim queue (GET /claims returns only the actor's tenant, no
-/// Drafts) and the Team tab (tenant accounts and stats).
+/// Insurer portal. GET /claims returns only the actor's tenant, no Drafts.
+/// - ASSESSOR / MANAGER: the claim queue; the detail screen offers the actions of their role.
+/// - INSURER_ADMIN: the same queue READ-ONLY plus the Team tab (staff accounts and stats).
 class InsurerDashboardScreen extends StatefulWidget {
   final InsurerRepository? repository;
   final TenantAdminRepository? tenantRepository;
@@ -45,6 +46,8 @@ class _InsurerDashboardScreenState extends State<InsurerDashboardScreen> {
   late final InsurerRepository _repo = widget.repository ?? InsurerRepository();
   late Future<List<ClaimSummary>> _future;
   int _tab = 0;
+
+  bool get _isAdmin => Session.instance.actor?.isInsurerAdmin ?? false;
 
   @override
   void initState() {
@@ -95,7 +98,15 @@ class _InsurerDashboardScreenState extends State<InsurerDashboardScreen> {
                     onTap: () async {
                       await Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => InsurerClaimDetailsScreen(claimId: claim.id)),
+                        MaterialPageRoute(
+                          builder: (_) => _isAdmin
+                              ? InsurerClaimDetailsScreen(
+                                  claimId: claim.id,
+                                  readOnly: true,
+                                  readOnlyNote: 'Read-only view. Claim actions belong to your assessors and managers.',
+                                )
+                              : InsurerClaimDetailsScreen(claimId: claim.id),
+                        ),
                       );
                       if (mounted) _reload();
                     },
@@ -115,7 +126,7 @@ class _InsurerDashboardScreenState extends State<InsurerDashboardScreen> {
       appBar: AppBar(
         title: Text(
           _tab == 0
-              ? (actor == null ? 'Claim queue' : 'Claim queue · ${actor.tenantId ?? ''}')
+              ? (actor == null ? 'Claim queue' : '${_isAdmin ? 'Claims (read-only)' : 'Claim queue'} · ${actor.tenantId ?? ''}')
               : (actor == null ? 'Team' : 'Team · ${actor.label}'),
           style: const TextStyle(fontSize: 16),
         ),
@@ -127,18 +138,23 @@ class _InsurerDashboardScreenState extends State<InsurerDashboardScreen> {
           IconButton(tooltip: 'Sign out', icon: const Icon(Icons.logout), onPressed: _signOut),
         ],
       ),
-      body: IndexedStack(index: _tab, children: [
-        _queue(),
-        InsurerTeamScreen(repository: widget.tenantRepository),
-      ]),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.list_alt_outlined), label: 'Claims'),
-          NavigationDestination(icon: Icon(Icons.groups_outlined), label: 'Team'),
-        ],
-      ),
+      // Only the insurer admin has a Team tab; assessors and managers see the queue alone.
+      body: _isAdmin
+          ? IndexedStack(index: _tab, children: [
+              _queue(),
+              InsurerTeamScreen(repository: widget.tenantRepository),
+            ])
+          : _queue(),
+      bottomNavigationBar: !_isAdmin
+          ? null
+          : NavigationBar(
+              selectedIndex: _tab,
+              onDestinationSelected: (i) => setState(() => _tab = i),
+              destinations: const [
+                NavigationDestination(icon: Icon(Icons.list_alt_outlined), label: 'Claims'),
+                NavigationDestination(icon: Icon(Icons.groups_outlined), label: 'Team'),
+              ],
+            ),
     );
   }
 }

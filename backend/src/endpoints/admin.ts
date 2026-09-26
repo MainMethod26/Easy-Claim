@@ -18,10 +18,12 @@ import { findUserById, findUserByUsername, publicUser, type UserRow } from './au
 /**
  * Platform and tenant administration (team role model, 26 Sep 2026).
  *
- * /api/v1/admin/*   SUPERADMIN only: insurers (tenants), insurer-admin and superadmin accounts,
- *                   platform statistics. Read-only on claims (the claim routes enforce that).
- * /api/v1/tenant/*  INSURER_ADMIN only: accounts and statistics of its own tenant. The tenant is
- *                   always the token's tenant_id; a tenantId in the body or query is rejected.
+ * /api/v1/admin/*   SUPERADMIN only: insurers (tenants), insurer-admin accounts, platform statistics.
+ *                   Read-only on claims (the claim routes enforce that). SUPERADMIN accounts are never
+ *                   created or re-enabled through the API (bootstrap: scripts/seed-demo-users.mjs).
+ * /api/v1/tenant/*  INSURER_ADMIN only: staff accounts (ASSESSOR, MANAGER, INSURER_ADMIN) and statistics
+ *                   of its own tenant. The tenant is always the token's tenant_id; a tenantId in the body
+ *                   is rejected.
  *
  * Every create/status change is audited. Password hashes never leave the database.
  */
@@ -132,18 +134,15 @@ superadmin.get('/users', validate('query', tenantQuerySchema), async (c) => {
 
 superadmin.post('/users', validate('json', adminCreateUserSchema), async (c) => {
   const body = c.req.valid('json')
-  if (body.role === 'INSURER_ADMIN') {
-    if (!body.tenantId) return c.json({ error: 'tenant_required' }, 422)
-    if (!(await tenantExists(c.env.DB, body.tenantId))) return c.json({ error: 'unknown_tenant' }, 422)
-  } else if (body.tenantId) {
-    return c.json({ error: 'tenant_not_allowed' }, 422)
-  }
-  return createUser(c, { ...body, tenantId: body.role === 'INSURER_ADMIN' ? (body.tenantId as string) : null }, 'admin.user_created')
+  if (!(await tenantExists(c.env.DB, body.tenantId))) return c.json({ error: 'unknown_tenant' }, 422)
+  return createUser(c, { ...body, role: 'INSURER_ADMIN', tenantId: body.tenantId }, 'admin.user_created')
 })
 
 superadmin.patch('/users/:userId', validate('param', userIdParam), validate('json', userStatusSchema), async (c) => {
   const user = await findUserById(c.env.DB, c.req.valid('param').userId)
   if (!user) return c.json(notFound, 404)
+  // Platform accounts are managed outside the API; customers are not administered here.
+  if (user.role === 'SUPERADMIN' && user.id !== c.get('actor').id) return c.json({ error: 'superadmin_managed_offline' }, 409)
   return setUserStatus(c, user, c.req.valid('json').status, 'admin.user_status_changed')
 })
 
@@ -174,7 +173,7 @@ tenantAdmin.get('/users', async (c) => {
 
 tenantAdmin.post('/users', validate('json', tenantCreateUserSchema), async (c) => {
   const body = c.req.valid('json')
-  return createUser(c, { ...body, role: 'INSURER_ADMIN', tenantId: c.get('actor').tenantId }, 'tenant.user_created')
+  return createUser(c, { ...body, tenantId: c.get('actor').tenantId }, 'tenant.user_created')
 })
 
 tenantAdmin.patch('/users/:userId', validate('param', userIdParam), validate('json', userStatusSchema), async (c) => {

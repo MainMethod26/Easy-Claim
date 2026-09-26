@@ -3,7 +3,7 @@
   "info": {
     "title": "EasyClaim API",
     "version": "2.0.0-roles",
-    "description": "Generated from the mounted routes of backend/src/index.ts (see docs/API_CONTRACT.md). Roles: CUSTOMER, INSURER_ADMIN, SUPERADMIN. Every route needs a Bearer JWT except /auth/login and /auth/register. Served at /openapi.json and /swagger only when ENVIRONMENT is development or demo."
+    "description": "Generated from the mounted routes of backend/src/index.ts (see docs/API_CONTRACT.md). Roles: CUSTOMER, ASSESSOR, MANAGER, INSURER_ADMIN, SUPERADMIN. Every route needs a Bearer JWT except /auth/login and /auth/register. Served at /openapi.json and /swagger only when ENVIRONMENT is development or demo."
   },
   "servers": [
     {
@@ -102,6 +102,8 @@
             "type": "string",
             "enum": [
               "CUSTOMER",
+              "ASSESSOR",
+              "MANAGER",
               "INSURER_ADMIN",
               "SUPERADMIN"
             ]
@@ -182,8 +184,7 @@
           "role": {
             "type": "string",
             "enum": [
-              "INSURER_ADMIN",
-              "SUPERADMIN"
+              "INSURER_ADMIN"
             ]
           },
           "tenantId": {
@@ -195,7 +196,7 @@
           "username",
           "password",
           "displayName",
-          "role"
+          "tenantId"
         ]
       },
       "TenantCreateUser": {
@@ -211,12 +212,21 @@
           },
           "displayName": {
             "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "ASSESSOR",
+              "MANAGER",
+              "INSURER_ADMIN"
+            ]
           }
         },
         "required": [
           "username",
           "password",
-          "displayName"
+          "displayName",
+          "role"
         ]
       },
       "UserStatus": {
@@ -1028,7 +1038,7 @@
         "tags": [
           "Platform admin"
         ],
-        "summary": "SUPERADMIN: create an INSURER_ADMIN (tenantId required) or SUPERADMIN (no tenant)",
+        "summary": "SUPERADMIN: create an INSURER_ADMIN for a tenant (superadmins are never created via the API)",
         "requestBody": {
           "required": true,
           "content": {
@@ -1302,7 +1312,7 @@
         "tags": [
           "Tenant admin"
         ],
-        "summary": "INSURER_ADMIN: add another admin to own tenant (tenant from the token)",
+        "summary": "INSURER_ADMIN: add an ASSESSOR, MANAGER or INSURER_ADMIN to own tenant (tenant from the token)",
         "requestBody": {
           "required": true,
           "content": {
@@ -1630,7 +1640,7 @@
         "tags": [
           "Claims"
         ],
-        "summary": "List claims: own (CUSTOMER), own tenant without Drafts (INSURER_ADMIN), or platform-wide without Drafts (SUPERADMIN, optional ?tenantId)",
+        "summary": "List claims: own (CUSTOMER), own tenant without Drafts (ASSESSOR, MANAGER, INSURER_ADMIN), or platform-wide without Drafts (SUPERADMIN, optional ?tenantId)",
         "parameters": [
           {
             "name": "limit",
@@ -2674,6 +2684,67 @@
         }
       }
     },
+    "/api/v1/claims/{claimId}/withdraw": {
+      "post": {
+        "tags": [
+          "Customer"
+        ],
+        "summary": "Withdraw an open claim (owner)",
+        "parameters": [
+          {
+            "name": "claimId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found (also for claims the caller may not see)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "illegal_transition / stale_state / claim_not_editable / already_paid / decision_integrity_failed / ...",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/claims/{claimId}/appeal": {
       "post": {
         "tags": [
@@ -2760,7 +2831,7 @@
         "tags": [
           "Insurer"
         ],
-        "summary": "Submitted → Verified (INSURER_ADMIN of the tenant)",
+        "summary": "Submitted → Verified (ASSESSOR / MANAGER of the tenant)",
         "parameters": [
           {
             "name": "claimId",
@@ -2894,7 +2965,7 @@
         "tags": [
           "Insurer"
         ],
-        "summary": "Screening → Review, Appeal → Review (INSURER_ADMIN)",
+        "summary": "Screening → Review (ASSESSOR / MANAGER); Appeal → Review (MANAGER)",
         "parameters": [
           {
             "name": "claimId",
@@ -3016,7 +3087,7 @@
         "tags": [
           "Screening"
         ],
-        "summary": "Advisory screening signal (INSURER_ADMIN only; customers and SUPERADMIN 403; audited)",
+        "summary": "Advisory screening signal (ASSESSOR / MANAGER only; others 403; audited)",
         "parameters": [
           {
             "name": "claimId",
@@ -3089,7 +3160,7 @@
         "tags": [
           "Decisions"
         ],
-        "summary": "Review → Decision (INSURER_ADMIN); ML-DSA-65 signed decision record",
+        "summary": "Review → Decision (MANAGER only); ML-DSA-65 signed decision record",
         "parameters": [
           {
             "name": "claimId",
@@ -3190,7 +3261,7 @@
         "tags": [
           "Payouts"
         ],
-        "summary": "Decision(Approved) → Paid, SIMULATED (INSURER_ADMIN); empty body; verifies the decision signature and destination",
+        "summary": "Decision(Approved) → Paid, SIMULATED (MANAGER only); empty body; verifies the decision signature and destination",
         "parameters": [
           {
             "name": "claimId",
@@ -3309,7 +3380,7 @@
         "tags": [
           "Stubs"
         ],
-        "summary": "OCR stub (INSURER_ADMIN)",
+        "summary": "OCR stub (ASSESSOR / MANAGER)",
         "responses": {
           "200": {
             "description": "OK",

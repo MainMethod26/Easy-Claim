@@ -51,11 +51,12 @@ flutter run -d chrome --web-port 5174 -t lib/main_admin.dart --dart-define=API_B
 | Username | Role | Insurer (tenant) | Use it for |
 |---|---|---|---|
 | `mike` | CUSTOMER (Mike) | – (policies at Discovery, Sanlam, Old Mutual) | the customer journey |
-| `lerato` | CUSTOMER (Lerato Nkosi) | – | "another customer" attacks |
-| `sipho` | CUSTOMER (Sipho Dlamini) | – (Momentum policy, one submitted claim) | – |
-| `admin_discovery` | INSURER_ADMIN | Discovery (`ins_discovery`) | verify, screen, review, decide, pay; team screen |
-| `admin_sanlam` | INSURER_ADMIN | Sanlam (`ins_sanlam`) | cross-tenant attacks |
-| `superadmin` | SUPERADMIN | – | insurers, accounts, platform stats, read-only claims |
+| `lerato`, `sipho` | CUSTOMER | – | "another customer" attacks |
+| `assessor_discovery` | ASSESSOR | Discovery | verify, screen, review |
+| `manager_discovery` | MANAGER | Discovery | decide, pay |
+| `admin_discovery` | INSURER_ADMIN | Discovery | staff accounts, tenant stats, read-only claims |
+| `assessor_sanlam`, `manager_sanlam`, `admin_sanlam` | same roles | Sanlam | cross-tenant attacks |
+| `superadmin` | SUPERADMIN | – | insurers, insurer admins, platform stats, read-only claims |
 
 Anyone can also register a new customer from the sign-in screen ("Create account").
 
@@ -64,19 +65,21 @@ Anyone can also register a new customer from the sign-in screen ("Create account
 1. **Customer (`mike`)**: sign in → My Covers shows real policies → Submit Claim on the Discovery policy → category,
    eligibility check, describe the loss, claimed amount and bank details, attach a PDF/JPEG/PNG → submit. Claim shows
    as Submitted. (Optional: "Create account" to register a brand-new customer live.)
-2. **Insurer admin (`admin_discovery`)**: the queue shows the claim with its amount → Verify → Screen. The screening
-   card shows the classical and quantum-kernel signals, the overall band and "Review required / Human decision
-   required". Open `claim_demo_unusual` (seeded HIGH anomaly) and screen it: HIGH, and the claim is still just
-   "Screening": nothing was rejected automatically. → Review → Record decision (Approve, reason, optional amount) →
-   the decision card shows "✓ Cryptographically verified · ML-DSA-65 · key id" → Pay (simulated) → Paid.
-   Team tab: tenant stats, the tenant's admins, add a colleague, disable/enable.
-3. **Superadmin (`superadmin`)**: platform dashboard (claims by stage per insurer, users by role) → Insurers: add
+2. **Assessor (`assessor_discovery`)**: the queue shows the claim with its amount → Verify → Screen. The screening
+   card shows the classical and quantum-kernel signals, the band and "Review required / Human decision required".
+   Open `claim_demo_unusual` (seeded HIGH anomaly) and screen it: HIGH, and it is still just "Screening". → Review.
+   The assessor sees "Manager decision required": no Decide or Pay button.
+3. **Manager (`manager_discovery`)**: Record decision (Approve, reason, optional amount) → "✓ Cryptographically
+   verified · ML-DSA-65" → Pay (simulated) → Paid. Reject the HIGH claim with a reason: a human decision, signed.
+4. **Insurer admin (`admin_discovery`)**: Team tab: tenant stats, staff list, add an assessor, disable/enable. Claims
+   tab is read-only, with no action buttons and no screening card.
+5. **Superadmin (`superadmin`)**: platform dashboard (claims by stage per insurer, users by role) → Insurers: add
    "Demo Mutual" → Accounts: create its insurer admin → Claims: read-only list across insurers, open the paid claim.
    There is no Verify/Decide/Pay button anywhere for the superadmin.
-4. **Customer again**: claim shows Paid, the decision and "Decision verified". No model internals.
-5. **Security** (Postman folders 00, 5–8, 11, 12 or the script below): no token 401, wrong password 401 with the same
-   body as an unknown user, a role in the login or register body 400, customer on an insurer action 403, superadmin on
-   any insurer action 403, other customer's claim 404, other insurer's claim or admin account 404, spoofed
+6. **Customer again**: claim shows Paid, the decision and "Decision verified". No model internals.
+7. **Security** (Postman folders 00, 5–8, 11, 12 or the script below): no token 401, wrong password 401 with the same
+   body as an unknown user, a role in the login or register body 400, customer on an insurer action 403, assessor
+   deciding or paying 403, insurer admin or superadmin on any claim action 403, other customer's claim 404, other insurer's claim or admin account 404, spoofed
    `X-User-Id`/`X-Role`/`X-Tenant-Id` ignored, fake risk score ignored/400, pay before decision 409, replayed payout 409.
 
 ## 4b. What each screen looks like
@@ -109,5 +112,5 @@ Decision tampering is demonstrated by the tests (`backend/test/attackSuite.test.
   payout refuses a decision that no longer verifies." Not: "the database is immutable".
 - "Accounts are real (hashed passwords, roles from the database). The demo password is shared for the demo only;
   an identity provider can replace the login later without changing any authorization code."
-- "One insurer admin role does verify, screen, review, decide and pay; every step is audited under that person's id."
+- "Assessors prepare, managers decide and pay, admins only manage accounts: nobody who creates accounts can approve money."
 - Payouts are simulated. No money moves.

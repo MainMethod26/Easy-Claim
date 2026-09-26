@@ -14,8 +14,18 @@ class NewAccountInput {
   const NewAccountInput({required this.username, required this.displayName, required this.password, required this.role, this.tenantId});
 }
 
-/// "Add account" form. With [tenants] the superadmin picks a role and (for insurer admins) an
-/// insurer; without it the form creates an insurer admin for the caller's own tenant.
+/// Roles an insurer admin may create for its own tenant (wire value, label).
+const tenantStaffRoles = <(String, String)>[
+  ('ASSESSOR', 'Assessor'),
+  ('MANAGER', 'Manager'),
+  ('INSURER_ADMIN', 'Insurer admin'),
+];
+
+/// "Add account" form, two modes:
+/// - with [tenants] (platform admin): creates an INSURER_ADMIN for the chosen insurer. There is
+///   no role choice; platform admins cannot be created through the API.
+/// - without [tenants] (insurer admin): creates staff for the caller's own tenant with a role
+///   picker (assessor, manager, insurer admin).
 class NewAccountDialog extends StatefulWidget {
   final String title;
   final List<TenantInfo>? tenants;
@@ -29,11 +39,13 @@ class _NewAccountDialogState extends State<NewAccountDialog> {
   final _username = TextEditingController();
   final _displayName = TextEditingController();
   final _password = TextEditingController();
-  String _role = 'INSURER_ADMIN';
+  String _role = 'ASSESSOR';
   String? _tenantId;
   String? _error;
 
   static final _usernamePattern = RegExp(r'^[A-Za-z0-9_-]{3,64}$');
+
+  bool get _platformMode => widget.tenants != null;
 
   @override
   void initState() {
@@ -63,7 +75,7 @@ class _NewAccountDialogState extends State<NewAccountDialog> {
       setState(() => _error = 'Password must be at least 6 characters.');
       return;
     }
-    if (widget.tenants != null && _role == 'INSURER_ADMIN' && _tenantId == null) {
+    if (_platformMode && _tenantId == null) {
       setState(() => _error = 'Choose the insurer this admin belongs to.');
       return;
     }
@@ -73,8 +85,8 @@ class _NewAccountDialogState extends State<NewAccountDialog> {
         username: _username.text.trim(),
         displayName: _displayName.text.trim(),
         password: _password.text,
-        role: widget.tenants == null ? 'INSURER_ADMIN' : _role,
-        tenantId: _role == 'INSURER_ADMIN' ? _tenantId : null,
+        role: _platformMode ? 'INSURER_ADMIN' : _role,
+        tenantId: _platformMode ? _tenantId : null,
       ),
     );
   }
@@ -91,26 +103,26 @@ class _NewAccountDialogState extends State<NewAccountDialog> {
           TextField(key: const Key('account-displayName'), controller: _displayName, decoration: const InputDecoration(labelText: 'Display name', border: OutlineInputBorder())),
           const SizedBox(height: 12),
           TextField(key: const Key('account-password'), controller: _password, obscureText: true, decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder())),
-          if (tenants != null) ...[
-            const SizedBox(height: 12),
+          const SizedBox(height: 12),
+          if (tenants != null)
+            DropdownButtonFormField<String>(
+              key: const Key('account-tenant'),
+              initialValue: _tenantId,
+              decoration: const InputDecoration(labelText: 'Insurer', border: OutlineInputBorder()),
+              items: [for (final t in tenants) DropdownMenuItem(value: t.id, child: Text(t.name))],
+              onChanged: (v) => setState(() => _tenantId = v),
+            )
+          else
             SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'INSURER_ADMIN', label: Text('Insurer admin')),
-                ButtonSegment(value: 'SUPERADMIN', label: Text('Platform admin')),
-              ],
+              key: const Key('account-role'),
+              segments: [for (final (wire, label) in tenantStaffRoles) ButtonSegment(value: wire, label: Text(label))],
               selected: {_role},
               onSelectionChanged: (v) => setState(() => _role = v.first),
             ),
-            if (_role == 'INSURER_ADMIN') ...[
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                key: const Key('account-tenant'),
-                initialValue: _tenantId,
-                decoration: const InputDecoration(labelText: 'Insurer', border: OutlineInputBorder()),
-                items: [for (final t in tenants) DropdownMenuItem(value: t.id, child: Text(t.name))],
-                onChanged: (v) => setState(() => _tenantId = v),
-              ),
-            ],
+          if (tenants != null) ...[
+            const SizedBox(height: 8),
+            const Text('Creates an insurer admin. Platform admin accounts are managed outside the app.',
+                style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
           ],
           if (_error != null) ...[
             const SizedBox(height: 8),

@@ -2,12 +2,15 @@
 
 One application: a Flutter client, one Cloudflare Worker API, one D1 schema, one offline quantum pipeline.
 
-**Roles (team decision, 26 Sep 2026):** `CUSTOMER` (platform-level, self-registers, holds policies with several insurers),
-`INSURER_ADMIN` (the insurance owner's admin: one role per insurer/tenant that verifies, screens, reviews, decides and pays
-its own tenant's claims and manages its own admin accounts), `SUPERADMIN` (platform operator: creates insurers and their
-admins, sees platform stats and a read-only cross-tenant claim list; never acts on a claim).
-Contract: [API_CONTRACT.md](API_CONTRACT.md). Security view: [SECURITY_INTEGRATION.md](SECURITY_INTEGRATION.md).
-How to run it: [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md).
+**Roles (final, decided by the team on 26 Sep 2026):**
+
+| Role | Tenant | Can | Cannot |
+|---|---|---|---|
+| `CUSTOMER` | – | register, file and track own claims, appeal | see anyone else's data, screening signals |
+| `ASSESSOR` | required | verify, screen, review, request information on its insurer's claims; see screening signals | decide, pay, re-open appeals |
+| `MANAGER` | required | everything an assessor does + decide, pay (simulated), re-open appeals | act on another insurer's claims |
+| `INSURER_ADMIN` | required | manage its insurer's staff (create assessors, managers, admins; enable/disable), tenant stats, read its insurer's claims | move a claim, see screening signals |
+| `SUPERADMIN` | – | create insurers and insurer admins, platform stats, read all insurers' claims | move a claim, see screening signals; cannot be created through the API |
 
 ## Repository map (one place per responsibility)
 
@@ -17,6 +20,7 @@ How to run it: [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md).
 | Backend API | `backend/src/` — `index.ts` (middleware + mounts), `endpoints/*` (routes), `security/*` (auth, RBAC, object access, state machine, audit, evidence, ledger, ML-DSA), `screening/*` (signal reader), `integrity/*` (decision verify, public key) |
 | Authentication + accounts | `backend/src/security/actor.ts` (`requireActor`, the only place identity is established); `backend/src/endpoints/auth.ts` (login, register, me) over the `users` table (migration 0009) with PBKDF2 hashes (`security/password.ts`) |
 | Administration | `backend/src/endpoints/admin.ts` (`/admin/*` SUPERADMIN, `/tenant/*` INSURER_ADMIN) |
+| Scheduled jobs | `backend/src/jobs/expireInfoNeeded.ts` (nightly Info Needed → Expired, audited as SYSTEM) |
 | Claim lifecycle | `backend/src/security/claimStateMachine.ts` + `claimAccess.ts` (`transitionClaim`) |
 | Screening | offline `quantum/` (Python) → `quantum/results/*.sql` → D1 `screening_signals` → read-only `backend/src/screening/` |
 | Decisions + PQC | `backend/src/endpoints/claimsInsurer.ts` + `backend/src/security/integrity.ts` (ML-DSA-65, `@noble/post-quantum`) |
@@ -50,13 +54,13 @@ Customer claim ─► Evidence (R2, SHA-256) ─► Submitted ─► Verified �
                           ├── classical anomaly (one-class RBF SVM)
                           └── quantum-kernel anomaly (PennyLane simulator)
                                                                         │
-                                  Human review (INSURER_ADMIN) ────────────┘
+                                  Human review (ASSESSOR) ─────────────────┘
                                                                         ▼
-                                  Decision (INSURER_ADMIN) ─► ML-DSA-65 signature over the decision bundle
+                                  Decision (MANAGER) ─► ML-DSA-65 signature over the decision bundle
                                                         (amounts, destination hash, evidence digest,
                                                          screening signal seen, rules version)
                                                                         ▼
-                                  Payout (INSURER_ADMIN, simulated) ─► verifies signature + destination first
+                                  Payout (MANAGER, simulated) ─► verifies signature + destination first
                                                                         ▼
                                   audit_events (append-only) ─► D1
 ```
@@ -78,9 +82,9 @@ Customer claim ─► Evidence (R2, SHA-256) ─► Submitted ─► Verified �
   from changing it, and it does not cover data outside the signed bundle.
 - **Accounts are real but minimal.** Username + PBKDF2 password in D1, 1-hour HS256 tokens. No revocation, reset or MFA yet;
   an identity provider can replace the issuer without touching `requireActor` (BACKEND-SEC-019).
-- **Superadmin is not a super-user on claims.** It can create insurers and accounts and read, never verify, decide or pay.
-- **One insurer role.** Merging assessor and manager removed the Phase 3 separation of duties (the same person can decide
-  and pay). Recorded as a KNOWN LIMITATION; the audit trail still records who did each step.
+- **Administrators are not super-users on claims.** INSURER_ADMIN and SUPERADMIN manage accounts and read; neither can
+  verify, decide or pay, so an account administrator cannot also approve money.
+- **Separation of duties.** Assessors prepare claims; only managers decide and pay (Phase 3 rule, kept).
 
 ## Stage model (backend is authoritative)
 

@@ -23,20 +23,18 @@ class SuperadminRepository {
   Future<List<UserAccount>> users({String? tenantId}) async =>
       _users(await _api.get(tenantId == null ? '/admin/users' : '/admin/users?tenantId=${Uri.encodeQueryComponent(tenantId)}'));
 
-  /// `tenantId` is sent only for INSURER_ADMIN (the backend rejects it for SUPERADMIN).
+  /// Creates an insurer admin for [tenantId]. Platform admins cannot be created through the API.
   Future<UserAccount> createUser({
     required String username,
     required String password,
     required String displayName,
-    required String role,
-    String? tenantId,
+    required String tenantId,
   }) async {
     final body = await _api.post('/admin/users', body: {
       'username': username.trim(),
       'password': password,
       'displayName': displayName.trim(),
-      'role': role,
-      if (role == 'INSURER_ADMIN' && tenantId != null) 'tenantId': tenantId,
+      'tenantId': tenantId,
     });
     return UserAccount.fromJson(body['user'] as Map<String, dynamic>);
   }
@@ -52,8 +50,8 @@ class SuperadminRepository {
   }
 }
 
-/// INSURER_ADMIN account management for its own tenant (/tenant/*). The tenant always comes
-/// from the token; nothing here names it.
+/// INSURER_ADMIN staff management for its own tenant (/tenant/*). The tenant always comes from
+/// the token; nothing here names it.
 class TenantAdminRepository {
   final ApiClient _api;
   TenantAdminRepository({ApiClient? api}) : _api = api ?? ApiClient.shared;
@@ -64,8 +62,9 @@ class TenantAdminRepository {
 
   Future<List<UserAccount>> users() async => _users(await _api.get('/tenant/users'));
 
-  Future<UserAccount> createUser({required String username, required String password, required String displayName}) async {
-    final body = await _api.post('/tenant/users', body: {'username': username.trim(), 'password': password, 'displayName': displayName.trim()});
+  /// [role] is ASSESSOR, MANAGER or INSURER_ADMIN.
+  Future<UserAccount> createUser({required String username, required String password, required String displayName, required String role}) async {
+    final body = await _api.post('/tenant/users', body: {'username': username.trim(), 'password': password, 'displayName': displayName.trim(), 'role': role});
     return UserAccount.fromJson(body['user'] as Map<String, dynamic>);
   }
 

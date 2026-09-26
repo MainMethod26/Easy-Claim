@@ -2,8 +2,12 @@ import { env } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
 import {
   superadmin,
-  insurerA,
-  insurerB,
+  assessorA,
+  assessorB,
+  insurerAdminA,
+  insurerAdminB,
+  managerA,
+  managerB,
   auditRows,
   call,
   claimStage,
@@ -16,12 +20,12 @@ import {
 
 describe('tenant isolation', () => {
   it('TENANT-001 tenant B assessor cannot read a tenant A claim (404, audited as cross_tenant)', async () => {
-    const res = await call('/claims/claim_disc_101/timeline', { as: insurerB })
+    const res = await call('/claims/claim_disc_101/timeline', { as: assessorB })
     expect(res.status).toBe(404)
     expect(await res.text()).not.toContain('user123')
     const rows = await auditRows('authz.claim_access_denied', 'claim_disc_101')
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ actor_id: 'usr_admin_sanlam', actor_role: 'INSURER_ADMIN', actor_tenant_id: 'ins_sanlam', outcome: 'denied' })
+    expect(rows[0]).toMatchObject({ actor_id: 'assessor_b1', actor_role: 'ASSESSOR', actor_tenant_id: 'ins_sanlam', outcome: 'denied' })
     expect(JSON.parse(rows[0].details as string)).toMatchObject({ reason: 'cross_tenant', exists: true })
     // the denial row names the actor's context only, never the target claim's tenant or owner
     const row = JSON.stringify(rows[0])
@@ -42,9 +46,9 @@ describe('tenant isolation', () => {
   it('TENANT-001c unsubmitted drafts are invisible to insurer staff of the same tenant', async () => {
     const res = await call('/claims/initiate', { method: 'POST', as: customerA, json: { policyId: 'pol_disc_001' } })
     const { claimId } = (await res.json()) as { claimId: string }
-    expect((await call(`/claims/${claimId}/timeline`, { as: insurerA })).status).toBe(404)
-    expect((await call(`/claims/${claimId}/verify`, { method: 'POST', as: insurerA })).status).toBe(404)
-    const list = (await (await call('/claims', { as: insurerA })).json()) as { claims: { id: string }[] }
+    expect((await call(`/claims/${claimId}/timeline`, { as: managerA })).status).toBe(404)
+    expect((await call(`/claims/${claimId}/verify`, { method: 'POST', as: managerA })).status).toBe(404)
+    const list = (await (await call('/claims', { as: managerA })).json()) as { claims: { id: string }[] }
     expect(list.claims.map((c) => c.id)).not.toContain(claimId)
     const rows = await auditRows('authz.claim_access_denied', claimId)
     expect(JSON.parse(rows[0].details as string)).toMatchObject({ reason: 'draft' })
@@ -52,10 +56,10 @@ describe('tenant isolation', () => {
 
   it('TENANT-002 tenant A staff cannot transition a tenant C claim through any insurer route; stage unchanged', async () => {
     for (const step of ['verify', 'screen', 'review', 'request-info', 'pay']) {
-      expect((await call(`/claims/claim_mom_103/${step}`, { method: 'POST', as: insurerA })).status).toBe(404)
-      expect((await call(`/claims/claim_mom_103/${step}`, { method: 'POST', as: insurerA })).status).toBe(404)
+      expect((await call(`/claims/claim_mom_103/${step}`, { method: 'POST', as: managerA })).status).toBe(404)
+      expect((await call(`/claims/claim_mom_103/${step}`, { method: 'POST', as: managerA })).status).toBe(404)
     }
-    expect((await call('/claims/claim_mom_103/decide', { method: 'POST', as: insurerA, json: { outcome: 'Approved', reason: 'test' } })).status).toBe(404)
+    expect((await call('/claims/claim_mom_103/decide', { method: 'POST', as: managerA, json: { outcome: 'Approved', reason: 'test' } })).status).toBe(404)
     expect(await claimStage('claim_mom_103')).toMatchObject({ stage: 'Submitted', status: 'Pending' })
     expect(await auditRows('claim.stage_changed', 'claim_mom_103')).toHaveLength(0)
     const denials = await auditRows('authz.claim_access_denied', 'claim_mom_103')
@@ -64,34 +68,34 @@ describe('tenant isolation', () => {
   })
 
   it('TENANT-002b tenant B manager cannot decide or pay a tenant A claim', async () => {
-    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: insurerB, json: { outcome: 'Approved', reason: 'test' } })).status).toBe(404)
-    expect((await call('/claims/claim_disc_101/pay', { method: 'POST', as: insurerB })).status).toBe(404)
+    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: managerB, json: { outcome: 'Approved', reason: 'test' } })).status).toBe(404)
+    expect((await call('/claims/claim_disc_101/pay', { method: 'POST', as: managerB })).status).toBe(404)
     expect(await claimStage('claim_disc_101')).toMatchObject({ stage: 'Review', status: 'Processing' })
   })
 
   it('TENANT-003 tenant B assessor cannot read a tenant A decision', async () => {
-    expect((await call('/claims/claim_disc_101/decision', { as: insurerB })).status).toBe(404)
+    expect((await call('/claims/claim_disc_101/decision', { as: managerB })).status).toBe(404)
   })
 
   it('TENANT-003b cross-tenant and non-existent claims are indistinguishable', async () => {
-    const cross = await call('/claims/claim_disc_101/timeline', { as: insurerB })
-    const missing = await call('/claims/claim_nope/timeline', { as: insurerB })
+    const cross = await call('/claims/claim_disc_101/timeline', { as: managerB })
+    const missing = await call('/claims/claim_nope/timeline', { as: managerB })
     expect(cross.status).toBe(missing.status)
     expect(await cross.json()).toEqual(await missing.json())
   })
 
   it('TENANT-004 evidence resource isolation: tenant B staff cannot list a tenant A claim\'s evidence (404)', async () => {
     // Phase 2 added the evidence routes; full upload/download/verify isolation is in test/evidence.test.ts.
-    expect((await call('/claims/claim_disc_101/evidence', { as: insurerB })).status).toBe(404)
-    expect((await call('/claims/claim_disc_101/evidence', { as: insurerA })).status).toBe(200)
+    expect((await call('/claims/claim_disc_101/evidence', { as: managerB })).status).toBe(404)
+    expect((await call('/claims/claim_disc_101/evidence', { as: managerA })).status).toBe(200)
   })
 
   it('TENANT-005 a claim with no tenant is visible to no insurer (fail closed)', async () => {
     await env.DB.prepare(
       "INSERT INTO claims (id, user_id, policy_id, stage, status) VALUES ('claim_orphan', 'user123', 'pol_disc_001', 'Submitted', 'Pending')"
     ).run()
-    expect((await call('/claims/claim_orphan/timeline', { as: insurerA })).status).toBe(404)
-    expect((await call('/claims/claim_orphan/verify', { method: 'POST', as: insurerA })).status).toBe(404)
+    expect((await call('/claims/claim_orphan/timeline', { as: managerA })).status).toBe(404)
+    expect((await call('/claims/claim_orphan/verify', { method: 'POST', as: managerA })).status).toBe(404)
     const rows = await auditRows('authz.claim_access_denied', 'claim_orphan')
     expect(JSON.parse(rows[0].details as string)).toMatchObject({ reason: 'tenant_unset' })
     // the owner can still see it
@@ -102,7 +106,7 @@ describe('tenant isolation', () => {
     const idsWhere = async (sql: string, v: string) =>
       (await env.DB.prepare(`SELECT id FROM claims WHERE ${sql} ORDER BY id`).bind(v).all<{ id: string }>()).results.map((r) => r.id)
 
-    const a = (await (await call('/claims', { as: insurerA })).json()) as { claims: { id: string; tenant_id: string }[] }
+    const a = (await (await call('/claims', { as: managerA })).json()) as { claims: { id: string; tenant_id: string }[] }
     expect(a.claims.map((c) => c.id).sort()).toEqual(await idsWhere("tenant_id = ? AND stage <> 'Draft'", 'ins_discovery'))
     expect(a.claims).toContainEqual(expect.objectContaining({ id: 'claim_disc_101' }))
     expect(a.claims.every((c) => c.tenant_id === 'ins_discovery')).toBe(true)
@@ -110,7 +114,7 @@ describe('tenant isolation', () => {
     expect(JSON.stringify(a.claims)).not.toContain('user_id')
     expect(JSON.stringify(a.claims)).not.toContain('user123')
 
-    const b = (await (await call('/claims', { as: insurerB })).json()) as { claims: { id: string; tenant_id: string }[] }
+    const b = (await (await call('/claims', { as: managerB })).json()) as { claims: { id: string; tenant_id: string }[] }
     expect(b.claims.map((c) => c.id).sort()).toEqual(await idsWhere("tenant_id = ? AND stage <> 'Draft'", 'ins_sanlam'))
     expect(b.claims.map((c) => c.id)).not.toContain('claim_disc_101')
 
@@ -125,7 +129,7 @@ describe('tenant isolation', () => {
     expect(JSON.stringify(all.claims)).not.toContain('user_id')
     const onlyB = (await (await call('/claims?tenantId=ins_sanlam', { as: superadmin })).json()) as { claims: { id: string }[] }
     expect(onlyB.claims.map((c) => c.id).sort()).toEqual(b.claims.map((c) => c.id).sort())
-    expect((await call('/claims?limit=500', { as: insurerA })).status).toBe(400)
+    expect((await call('/claims?limit=500', { as: managerA })).status).toBe(400)
   })
 
   it('TENANT-007 initiate copies tenant from the policy; a policy without tenant is not eligible', async () => {
@@ -145,18 +149,18 @@ describe('insurer transitions (role + tenant + state machine)', () => {
   it('STATE-001 valid role + tenant: full path Submitted → … → Paid, each step audited', async () => {
     const id = await createSubmittedClaim()
 
-    expect((await call(`/claims/${id}/verify`, { method: 'POST', as: insurerA })).status).toBe(200)
+    expect((await call(`/claims/${id}/verify`, { method: 'POST', as: managerA })).status).toBe(200)
     expect(await claimStage(id)).toMatchObject({ stage: 'Verified' })
-    expect((await call(`/claims/${id}/screen`, { method: 'POST', as: insurerA })).status).toBe(200)
-    expect((await call(`/claims/${id}/review`, { method: 'POST', as: insurerA })).status).toBe(200)
+    expect((await call(`/claims/${id}/screen`, { method: 'POST', as: managerA })).status).toBe(200)
+    expect((await call(`/claims/${id}/review`, { method: 'POST', as: managerA })).status).toBe(200)
     expect(await claimStage(id)).toMatchObject({ stage: 'Review' })
 
-    const decide = await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { outcome: 'Approved', reason: 'test' } })
+    const decide = await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Approved', reason: 'test' } })
     expect(decide.status).toBe(200)
     expect(await claimStage(id)).toMatchObject({ stage: 'Decision', status: 'Approved' })
     expect(await (await call(`/claims/${id}/decision`, { as: customerA })).json()).toMatchObject({ decision: 'Approved' })
 
-    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })).status).toBe(200)
+    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })).status).toBe(200)
     expect(await claimStage(id)).toMatchObject({ stage: 'Paid' })
 
     const changes = await auditRows('claim.stage_changed', id)
@@ -175,48 +179,55 @@ describe('insurer transitions (role + tenant + state machine)', () => {
 
   it('STATE-002 correct role, wrong tenant → 404 and no change', async () => {
     const id = await createSubmittedClaim()
-    expect((await call(`/claims/${id}/verify`, { method: 'POST', as: insurerB })).status).toBe(404)
+    expect((await call(`/claims/${id}/verify`, { method: 'POST', as: managerB })).status).toBe(404)
     expect(await claimStage(id)).toMatchObject({ stage: 'Submitted' })
   })
 
-  it('STATE-003 insufficient role → 403 (superadmin and customer cannot pay), audited', async () => {
+  it('STATE-003 insufficient role → 403 (assessor, insurer admin, superadmin and customer cannot pay), audited', async () => {
     const id = await createSubmittedClaim()
-    for (const step of ['verify', 'screen', 'review']) await call(`/claims/${id}/${step}`, { method: 'POST', as: insurerA })
-    await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { outcome: 'Approved', reason: 'test' } })
+    for (const step of ['verify', 'screen', 'review']) await call(`/claims/${id}/${step}`, { method: 'POST', as: assessorA })
+    await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Approved', reason: 'test' } })
 
     const before = (await auditRows('authz.role_denied')).length
+    const smBefore = (await auditRows('claim.transition_rejected', id)).length
+    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: assessorA })).status).toBe(403) // state machine: MANAGER only
+    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: insurerAdminA })).status).toBe(403)
     expect((await call(`/claims/${id}/pay`, { method: 'POST', as: superadmin })).status).toBe(403)
     expect((await call(`/claims/${id}/pay`, { method: 'POST', as: customerA })).status).toBe(403)
     expect(await claimStage(id)).toMatchObject({ stage: 'Decision' })
-    expect((await auditRows('authz.role_denied')).length).toBe(before + 2)
+    expect((await auditRows('authz.role_denied')).length).toBe(before + 3)
+    expect((await auditRows('claim.transition_rejected', id)).length).toBe(smBefore + 1)
   })
 
   it('STATE-004 illegal transitions are rejected with 409 (skip verification, pay before decision)', async () => {
     const id = await createSubmittedClaim()
-    expect((await call(`/claims/${id}/screen`, { method: 'POST', as: insurerA })).status).toBe(409) // Submitted → Screening
-    expect((await call(`/claims/${id}/review`, { method: 'POST', as: insurerA })).status).toBe(409)
-    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { outcome: 'Approved', reason: 'test' } })).status).toBe(409)
-    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })).status).toBe(409)
+    expect((await call(`/claims/${id}/screen`, { method: 'POST', as: managerA })).status).toBe(409) // Submitted → Screening
+    expect((await call(`/claims/${id}/review`, { method: 'POST', as: managerA })).status).toBe(409)
+    expect((await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Approved', reason: 'test' } })).status).toBe(409)
+    expect((await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })).status).toBe(409)
     expect(await claimStage(id)).toMatchObject({ stage: 'Submitted' })
   })
 
-  it('STATE-005 a rejected decision cannot be paid, but can be appealed and re-reviewed by the insurer admin', async () => {
+  it('STATE-005 a rejected decision cannot be paid, but can be appealed and re-reviewed by the manager only', async () => {
     const id = await createSubmittedClaim()
-    for (const step of ['verify', 'screen', 'review']) await call(`/claims/${id}/${step}`, { method: 'POST', as: insurerA })
-    await call(`/claims/${id}/decide`, { method: 'POST', as: insurerA, json: { outcome: 'Rejected', reason: 'test' } })
+    for (const step of ['verify', 'screen', 'review']) await call(`/claims/${id}/${step}`, { method: 'POST', as: assessorA })
+    await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Rejected', reason: 'test' } })
 
-    expect(await (await call(`/claims/${id}/pay`, { method: 'POST', as: insurerA })).json()).toEqual({ error: 'not_approved' })
+    expect(await (await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })).json()).toEqual({ error: 'not_approved' })
     expect((await call(`/claims/${id}/appeal`, { method: 'POST', as: customerA, json: { reason: 'New evidence' } })).status).toBe(200)
     expect(await claimStage(id)).toMatchObject({ stage: 'Appeal' })
     expect((await call(`/claims/${id}/review`, { method: 'POST', as: superadmin })).status).toBe(403) // platform operator never re-opens
-    expect((await call(`/claims/${id}/review`, { method: 'POST', as: insurerA })).status).toBe(200)
+    expect((await call(`/claims/${id}/review`, { method: 'POST', as: insurerAdminA })).status).toBe(403) // administers accounts only
+    expect((await call(`/claims/${id}/review`, { method: 'POST', as: assessorA })).status).toBe(403) // Appeal → Review is MANAGER-only
+    expect(await claimStage(id)).toMatchObject({ stage: 'Appeal' })
+    expect((await call(`/claims/${id}/review`, { method: 'POST', as: managerA })).status).toBe(200)
   })
 
   it('STATE-006 request-info round trip: insurer asks, customer answers, claim returns to Screening', async () => {
     const id = await createSubmittedClaim()
-    await call(`/claims/${id}/verify`, { method: 'POST', as: insurerA })
-    await call(`/claims/${id}/screen`, { method: 'POST', as: insurerA })
-    expect((await call(`/claims/${id}/request-info`, { method: 'POST', as: insurerA })).status).toBe(200)
+    await call(`/claims/${id}/verify`, { method: 'POST', as: managerA })
+    await call(`/claims/${id}/screen`, { method: 'POST', as: managerA })
+    expect((await call(`/claims/${id}/request-info`, { method: 'POST', as: managerA })).status).toBe(200)
     expect(await claimStage(id)).toMatchObject({ stage: 'Info Needed' })
     const answer = await call(`/claims/${id}/screening`, {
       method: 'PATCH',
@@ -244,18 +255,33 @@ describe('insurer transitions (role + tenant + state machine)', () => {
     expect((await auditRows('authz.role_denied')).length).toBe(roleDenialsBefore + 6)
   })
 
-  it('RBAC-002 admin cannot transition claims', async () => {
-    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: superadmin, json: { outcome: 'Approved', reason: 'test' } })).status).toBe(403)
+  it('RBAC-002 admins (superadmin, insurer admin) cannot transition claims; an assessor cannot decide', async () => {
+    for (const who of [superadmin, insurerAdminA, assessorA]) {
+      expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: who, json: { outcome: 'Approved', reason: 'test' } })).status).toBe(403)
+    }
+    expect((await call('/claims/claim_disc_101/request-info', { method: 'POST', as: insurerAdminA })).status).toBe(403)
+    expect(await claimStage('claim_disc_101')).toMatchObject({ stage: 'Review' })
+  })
+
+  it('TENANT-INSURER-ADMIN insurer admin lists only its tenant (read-only); other tenant 404', async () => {
+    const a = (await (await call('/claims', { as: insurerAdminA })).json()) as { claims: { id: string; tenant_id: string; user_id?: string }[] }
+    expect(a.claims.map((c) => c.id)).toContain('claim_disc_101')
+    expect(a.claims.every((c) => c.tenant_id === 'ins_discovery' && c.user_id === undefined)).toBe(true)
+    const b = (await (await call('/claims', { as: insurerAdminB })).json()) as { claims: { id: string; tenant_id: string }[] }
+    expect(b.claims.map((c) => c.id)).toContain('claim_sanlam_102')
+    expect(b.claims.every((c) => c.tenant_id === 'ins_sanlam')).toBe(true)
+    expect((await call('/claims/claim_sanlam_102/timeline', { as: insurerAdminA })).status).toBe(404)
+    expect((await call('/claims/claim_sanlam_102/decision', { as: insurerAdminB })).status).toBe(200)
   })
 
   it('decide rejects invalid or extra fields (mass assignment)', async () => {
-    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: insurerA, json: { outcome: 'Paid', reason: 'test' } })).status).toBe(400)
-    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: insurerA, json: { outcome: 'Approved', reason: 'test', amount: 1000000 } })).status).toBe(400)
+    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: managerA, json: { outcome: 'Paid', reason: 'test' } })).status).toBe(400)
+    expect((await call('/claims/claim_disc_101/decide', { method: 'POST', as: managerA, json: { outcome: 'Approved', reason: 'test', amount: 1000000 } })).status).toBe(400)
     expect(await claimStage('claim_disc_101')).toMatchObject({ stage: 'Review' })
   })
 
   it('AUDIT-001 cross-tenant and role denials are recorded with the acting tenant / actor id', async () => {
-    await call('/claims/claim_disc_101/verify', { method: 'POST', as: insurerB })
+    await call('/claims/claim_disc_101/verify', { method: 'POST', as: managerB })
     await call('/claims/claim_disc_101/pay', { method: 'POST', as: customerA })
     const denied = await env.DB.prepare("SELECT * FROM audit_events WHERE outcome = 'denied'").all<Record<string, unknown>>()
     expect(denied.results.length).toBeGreaterThanOrEqual(2)

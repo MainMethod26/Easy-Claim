@@ -28,8 +28,12 @@ function devVar(name) {
 // Same list as src/security/demoUsers.ts (kept in sync by test/demoUsers.test.ts).
 const DEMO_USERS = [
   { id: 'usr_superadmin', username: 'superadmin', role: 'SUPERADMIN', tenantId: null, displayName: 'EasyClaim Platform Admin' },
-  { id: 'usr_admin_discovery', username: 'admin_discovery', role: 'INSURER_ADMIN', tenantId: 'ins_discovery', displayName: 'Discovery Claims Admin' },
-  { id: 'usr_admin_sanlam', username: 'admin_sanlam', role: 'INSURER_ADMIN', tenantId: 'ins_sanlam', displayName: 'Sanlam Claims Admin' },
+  { id: 'usr_admin_discovery', username: 'admin_discovery', role: 'INSURER_ADMIN', tenantId: 'ins_discovery', displayName: 'Discovery Insurer Admin' },
+  { id: 'usr_admin_sanlam', username: 'admin_sanlam', role: 'INSURER_ADMIN', tenantId: 'ins_sanlam', displayName: 'Sanlam Insurer Admin' },
+  { id: 'assessor_a1', username: 'assessor_discovery', role: 'ASSESSOR', tenantId: 'ins_discovery', displayName: 'Discovery Assessor' },
+  { id: 'manager_a1', username: 'manager_discovery', role: 'MANAGER', tenantId: 'ins_discovery', displayName: 'Discovery Claims Manager' },
+  { id: 'assessor_b1', username: 'assessor_sanlam', role: 'ASSESSOR', tenantId: 'ins_sanlam', displayName: 'Sanlam Assessor' },
+  { id: 'manager_b1', username: 'manager_sanlam', role: 'MANAGER', tenantId: 'ins_sanlam', displayName: 'Sanlam Claims Manager' },
   { id: 'user123', username: 'mike', role: 'CUSTOMER', tenantId: null, displayName: 'Mike' },
   { id: 'user456', username: 'lerato', role: 'CUSTOMER', tenantId: null, displayName: 'Lerato Nkosi' },
   { id: 'user789', username: 'sipho', role: 'CUSTOMER', tenantId: null, displayName: 'Sipho Dlamini' },

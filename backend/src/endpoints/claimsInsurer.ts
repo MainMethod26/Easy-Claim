@@ -28,7 +28,7 @@ import { getSigner, signDecision, verifyDecision } from '../security/integrity'
  * approved amount to the destination snapshotted at decision time, once. No money moves.
  */
 const router = new Hono<AppEnv>()
-const insurerOnly = requireRole('INSURER_ADMIN')
+const insurerOnly = requireRole('ASSESSOR', 'MANAGER')
 const notFound = { error: 'not_found' } as const
 
 function respond(c: Context<AppEnv>, claimId: string, from: string, to: ClaimStage) {
@@ -61,7 +61,7 @@ router.post('/:claimId/screen', insurerOnly, validate('param', claimIdParam), as
   return c.json({ status: 'transitioned', claimId: claim.id, from: claim.stage, to: 'Screening', riskSignals })
 })
 
-// Screening → Review, and Appeal → Review.
+// Screening → Review, and Appeal → Review (the latter is MANAGER-only in the state machine).
 router.post('/:claimId/review', insurerOnly, validate('param', claimIdParam), async (c) => {
   const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'insurer')
   if (!claim) return c.json(notFound, 404)
@@ -80,7 +80,7 @@ router.post('/:claimId/request-info', insurerOnly, validate('param', claimIdPara
 })
 
 /**
- * Review → Decision (INSURER_ADMIN). Records an insert-only decision in the same batch as
+ * Review → Decision (MANAGER only). Records an insert-only decision in the same batch as
  * the stage change. For an approval the approved amount defaults to, and can never exceed,
  * the amount the customer claimed; the payout destination is snapshotted by hash.
  */
@@ -189,7 +189,7 @@ router.post('/:claimId/decide', insurerOnly, validate('param', claimIdParam), va
 })
 
 /**
- * Decision → Paid (INSURER_ADMIN). SIMULATED payout: no request body is accepted (amount and
+ * Decision → Paid (MANAGER only). SIMULATED payout: no request body is accepted (amount and
  * destination are never client-supplied); the amount comes from the recorded approved
  * decision, the destination must still hash to the value snapshotted at decision time, and
  * exactly one payout row can exist per claim. An optional Idempotency-Key header makes a
@@ -248,7 +248,7 @@ router.post('/:claimId/pay', insurerOnly, validate('param', claimIdParam), async
     return blocked('already_paid', 409, { payoutId: existing.id })
   }
 
-  // State validation (edge + role); transitionClaim produces the audited 403/409.
+  // State validation (edge + MANAGER role); transitionClaim produces the audited 403/409.
   const pre = checkTransition(claim.stage, 'Paid', actor.role)
   if (!pre.ok) {
     const t = await transitionClaim(c, claim, 'Paid')

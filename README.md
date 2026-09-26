@@ -1,9 +1,9 @@
 # EasyClaim
 
 EasyClaim is a claims platform concept for South African insurance customers (GKHack26, Cyber + Quantum track).
-Three roles: **customers** see their covers and file and track claims; each **insurer's admin** verifies, screens,
-reviews, decides and pays its own insurer's claims and manages its team; a **superadmin** runs the platform (insurers,
-accounts, stats) without ever touching a claim. Security surrounds every step: the backend is authoritative and the app
+Five roles: **customers** file and track claims; each insurer's **assessors** verify, screen and review them and its
+**managers** decide and pay; the **insurer admin** manages that insurer's staff; a **superadmin** runs the platform
+(insurers, insurer admins, stats). Admins never touch a claim. Security surrounds every step: the backend is authoritative and the app
 is only its interface.
 
 ```
@@ -40,8 +40,8 @@ flutter pub get
 flutter run -d chrome --web-port 5173 --dart-define=API_BASE_URL=http://127.0.0.1:8787/api/v1
 ```
 
-Sign in with a demo account, password `1234567` (local demo only): `mike` (customer), `admin_discovery` / `admin_sanlam`
-(insurer admins), `superadmin`. Or register a new customer from the sign-in screen. Offline tokens for Postman/curl:
+Sign in with a demo account, password `1234567` (local demo only): `mike` (customer), `assessor_discovery`,
+`manager_discovery`, `admin_discovery` (Discovery staff), `superadmin`. Or register a new customer from the sign-in screen. Offline tokens for Postman/curl:
 `npm run token -- --demo` or `--postman`.
 
 ## Checks
@@ -58,17 +58,16 @@ bash docs/integration/live-demo.sh          # against a running local Worker
 | Capability | Status | Where |
 |---|---|---|
 | Accounts + authentication | IMPLEMENTED: `users` table with PBKDF2 passwords; login / register / me; HS256 JWT verified by the Worker (pinned alg, iss/aud, exp/iat, per-role TTL, fail closed). Reset, MFA, revocation, identity provider PLANNED | `backend/src/endpoints/auth.ts`, `backend/src/security/actor.ts` |
-| Roles + administration | IMPLEMENTED: CUSTOMER / INSURER_ADMIN / SUPERADMIN; superadmin manages insurers and accounts, insurer admin manages its team | `backend/src/endpoints/admin.ts` |
+| Roles + administration | IMPLEMENTED: CUSTOMER / ASSESSOR / MANAGER / INSURER_ADMIN / SUPERADMIN; superadmin manages insurers and insurer admins, insurer admin manages its staff | `backend/src/endpoints/admin.ts` |
 | Authorization + tenants | IMPLEMENTED: role per route and per transition; owner / same-tenant object checks (404 when not allowed); superadmin read-only; strict schemas | `backend/src/security/*` |
 | Claim lifecycle | IMPLEMENTED: Draft → Submitted → Verified → Screening → Review → Decision → Paid; Info Needed, Appeal. Withdrawn/Expired have no route/job | `claimStateMachine.ts` |
 | Evidence | IMPLEMENTED: private R2, PDF/JPEG/PNG ≤ 10 MiB, magic bytes, SHA-256, VALID/TAMPERED check | `endpoints/evidence.ts` |
 | Screening (Phase 4) | IMPLEMENTED, advisory: classical + quantum-kernel anomaly signal (simulator, synthetic data). Did **not** beat the classical baseline | `quantum/`, `backend/src/screening/`, `docs/quantum/` |
-| Decisions + PQC (Phase 3, 5) | IMPLEMENTED: insurer admin only, insert-only record, ML-DSA-65 signature, verify route, payout refuses a decision that no longer verifies | `claimsInsurer.ts`, `security/integrity.ts` |
+| Decisions + PQC (Phase 3, 5) | IMPLEMENTED: MANAGER only, insert-only record, ML-DSA-65 signature, verify route, payout refuses a decision that no longer verifies | `claimsInsurer.ts`, `security/integrity.ts` |
 | Payout | IMPLEMENTED, **simulated** (no payment rail) | `/claims/:id/pay` |
 | Audit | IMPLEMENTED: append-only `audit_events` for changes and refusals | `security/audit.ts` |
-| Flutter app | IMPLEMENTED against the real API (customer app with registration, insurer admin portal with team management, superadmin portal) | `frontend/lib` |
+| Flutter app | IMPLEMENTED against the real API (customer app with registration, assessor/manager claim portal, insurer-admin team portal, superadmin portal) | `frontend/lib` |
 | Stubs | `/client/*`, `/profile*`, `/activities/*`, `/ocr/process` return fixed data | `docs/API_CONTRACT.md` |
 
 Open decisions and planned work: [docs/security/BACKEND_SECURITY_HANDOFF.md](docs/security/BACKEND_SECURITY_HANDOFF.md)
-(appeal limit, identity provider, per-environment config). Separation of duties and ADMIN scope were settled by the
-three-role decision: see `docs/SECURITY_INTEGRATION.md` §2.
+(appeal limit, identity provider, per-environment config, decider = payer).

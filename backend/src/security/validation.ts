@@ -95,12 +95,14 @@ const displayName = z.string().trim().min(2).max(100)
 export const loginSchema = z.object({ username, password }).strict()
 export const registerSchema = z.object({ username, password, displayName }).strict()
 
-/** SUPERADMIN creates insurer admins (tenant required) or other superadmins (no tenant). */
+/** SUPERADMIN creates INSURER_ADMIN accounts for a tenant. Superadmins cannot be created via the API. */
 export const adminCreateUserSchema = z
-  .object({ username, password, displayName, role: z.enum(['INSURER_ADMIN', 'SUPERADMIN']), tenantId: id.optional() })
+  .object({ username, password, displayName, role: z.literal('INSURER_ADMIN').default('INSURER_ADMIN'), tenantId: id })
   .strict()
-/** INSURER_ADMIN creates further admins for its own tenant; the tenant comes from the token. */
-export const tenantCreateUserSchema = z.object({ username, password, displayName }).strict()
+/** INSURER_ADMIN creates staff (assessor, manager, another admin) for its own tenant; tenant from the token. */
+export const tenantCreateUserSchema = z
+  .object({ username, password, displayName, role: z.enum(['ASSESSOR', 'MANAGER', 'INSURER_ADMIN']) })
+  .strict()
 export const userStatusSchema = z.object({ status: z.enum(['active', 'disabled']) }).strict()
 export const userIdParam = z.object({ userId: id })
 export const createTenantSchema = z

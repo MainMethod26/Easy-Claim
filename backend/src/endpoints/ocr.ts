@@ -7,7 +7,7 @@ const router = new Hono<AppEnv>()
 
 // Stub: no OCR engine exists yet. Restricted to insurer roles; customers use
 // POST /claims/:claimId/evidence-ocr instead.
-router.post('/process', requireRole('INSURER_ADMIN'), (c) => c.json({ extracted: true }))
+router.post('/process', requireRole('ASSESSOR', 'MANAGER'), (c) => c.json({ extracted: true }))
 
 // Queue messages are untrusted input: validate shape before acting on them.
 const claimEventSchema = z.object({

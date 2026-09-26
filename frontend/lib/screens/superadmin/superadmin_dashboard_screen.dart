@@ -66,6 +66,12 @@ class _SuperadminDashboardScreenState extends State<SuperadminDashboardScreen> {
                 const SizedBox(width: 10),
                 _tile(UserRole.superadmin.label, '${users('SUPERADMIN')}', Icons.shield_outlined),
               ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                _tile(UserRole.assessor.label, '${users('ASSESSOR')}', Icons.fact_check_outlined),
+                const SizedBox(width: 10),
+                _tile(UserRole.manager.label, '${users('MANAGER')}', Icons.gavel_outlined),
+              ]),
               const SizedBox(height: 16),
               StageStatsCard(title: 'All claims by stage', stats: s.claims),
               const SizedBox(height: 16),

@@ -27,6 +27,9 @@ different machines and in different Claude sessions. These rules keep the securi
 | `0004_*.sql` | Phase 2 (evidence storage, hashes) |
 | `0005_*.sql` | Phase 3 (decision records, rules version, payout approvals) |
 | `0006_*.sql` | Phase 4 (screening signals) |
+| `0007_*.sql`, `0008_*.sql` | Phase 4 completion, Phase 5 |
+| `0009_evidence_ocr.sql` | backend team (OCR text) |
+| `0010_users.sql` | integration pass (accounts) |
 | `0007_*.sql` | Phase 4 completion (screening signal integrity) |
 | `0008_*.sql` | Phase 5 (ML-DSA decision integrity) |
 

@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 
-/// The three roles of the team's model. Anything else from the backend is [unknown] and
-/// gets no screens at all.
+/// The five roles of the final model. Anything else from the backend is [unknown] and gets no
+/// screens at all.
 enum UserRole {
   customer('CUSTOMER', 'Customer'),
+  assessor('ASSESSOR', 'Assessor'),
+  manager('MANAGER', 'Claims manager'),
   insurerAdmin('INSURER_ADMIN', 'Insurer admin'),
   superadmin('SUPERADMIN', 'Platform admin'),
   unknown('', 'Unknown');
@@ -53,7 +55,12 @@ class AuthActor {
 
   UserRole get userRole => UserRole.fromWire(role);
   bool get isCustomer => userRole == UserRole.customer;
+  bool get isAssessor => userRole == UserRole.assessor;
+  bool get isManager => userRole == UserRole.manager;
   bool get isInsurerAdmin => userRole == UserRole.insurerAdmin;
+
+  /// Assessors and managers work claims (verify … review; managers also decide and pay).
+  bool get isClaimStaff => isAssessor || isManager;
   bool get isSuperadmin => userRole == UserRole.superadmin;
 
   /// Human-readable name for greetings.

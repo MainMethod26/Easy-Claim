@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/auth/session.dart';
 import '../../data/repositories/repositories.dart';
-import '../auth_screen.dart' show DemoAccountsPanel;
-import 'insurer_dashboard_screen.dart';
-import '../superadmin/superadmin_shell.dart';
+import '../auth_screen.dart' show DemoAccountsPanel, homeFor;
 
 /// Admin portal sign-in (entry point lib/main_admin.dart). Same backend login as the customer
 /// app; this entry point only admits insurer admins and platform admins.
@@ -38,15 +36,15 @@ class _AdminAuthScreenState extends State<AdminAuthScreen> {
     });
     try {
       final actor = await _auth.signIn(_usernameController.text, _passwordController.text);
-      if (!actor.isInsurerAdmin && !actor.isSuperadmin) {
+      if (!actor.isClaimStaff && !actor.isInsurerAdmin && !actor.isSuperadmin) {
         Session.instance.signOut();
-        if (mounted) setState(() => _error = 'This sign-in is for insurer and platform admins.');
+        if (mounted) setState(() => _error = 'This sign-in is for insurer staff and platform admins.');
         return;
       }
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => actor.isSuperadmin ? const SuperadminShell() : const InsurerDashboardScreen()),
+        MaterialPageRoute(builder: (_) => homeFor(actor)),
       );
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -80,14 +78,14 @@ class _AdminAuthScreenState extends State<AdminAuthScreen> {
                 const Text('Admin Portal',
                     style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 6),
-                const Text('Insurer admins and platform admins',
+                const Text('Insurer staff and platform admins',
                     style: TextStyle(color: Color(0xFFCBD5E1))),
                 const SizedBox(height: 32),
                 TextField(
                   key: const Key('admin-username'),
                   controller: _usernameController,
                   autocorrect: false,
-                  decoration: _field('Username (e.g. admin_discovery)', Icons.person),
+                  decoration: _field('Username (e.g. manager_discovery)', Icons.person),
                 ),
                 const SizedBox(height: 16),
                 TextField(

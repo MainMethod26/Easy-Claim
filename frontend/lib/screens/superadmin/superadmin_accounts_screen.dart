@@ -43,7 +43,7 @@ class _SuperadminAccountsScreenState extends State<SuperadminAccountsScreen> {
     final input = await showDialog<NewAccountInput>(
       context: context,
       builder: (_) => NewAccountDialog(
-        title: 'Add account',
+        title: 'Add insurer admin',
         tenants: [for (final t in tenants) TenantInfo(id: t.id, name: t.name)],
       ),
     );
@@ -53,8 +53,7 @@ class _SuperadminAccountsScreenState extends State<SuperadminAccountsScreen> {
         username: input.username,
         password: input.password,
         displayName: input.displayName,
-        role: input.role,
-        tenantId: input.tenantId,
+        tenantId: input.tenantId!,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Account ${input.username} created.')));
@@ -110,7 +109,13 @@ class _SuperadminAccountsScreenState extends State<SuperadminAccountsScreen> {
                 ),
                 const SizedBox(height: 12),
                 if (data.users.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('No accounts match this filter.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF64748B)))),
-                for (final u in data.users) AccountTile(user: u, isSelf: u.id == me?.id, onToggle: () => _toggle(u)),
+                for (final u in data.users)
+                  AccountTile(
+                    user: u,
+                    isSelf: u.id == me?.id,
+                    // Platform admin accounts are managed outside the app (backend: superadmin_managed_offline).
+                    onToggle: u.role == 'SUPERADMIN' ? null : () => _toggle(u),
+                  ),
               ],
             ),
           ),

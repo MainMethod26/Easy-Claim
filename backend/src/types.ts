@@ -1,10 +1,17 @@
-// Team role model (26 Sep 2026): a platform SUPERADMIN, one INSURER_ADMIN role per insurer
-// (tenant), and platform-level CUSTOMERs. See docs/ARCHITECTURE.md.
-export const ROLES = ['CUSTOMER', 'INSURER_ADMIN', 'SUPERADMIN'] as const
+// Final role model (26 Sep 2026, decided by the team): CUSTOMER; insurer staff ASSESSOR and MANAGER
+// (separation of duties: only a MANAGER decides and pays); INSURER_ADMIN manages its insurer's staff;
+// SUPERADMIN runs the platform. See docs/ARCHITECTURE.md.
+export const ROLES = ['CUSTOMER', 'ASSESSOR', 'MANAGER', 'INSURER_ADMIN', 'SUPERADMIN'] as const
 export type Role = (typeof ROLES)[number]
 
-/** Roles that act on behalf of an insurer tenant. Their tokens MUST carry tenant_id. */
-export const INSURER_ROLES: readonly Role[] = ['INSURER_ADMIN']
+/** Insurer staff who work claims (transitions). Their tokens MUST carry tenant_id. */
+export const INSURER_ROLES: readonly Role[] = ['ASSESSOR', 'MANAGER']
+
+/** Every role that belongs to one insurer tenant (tenant_id required in the token and in users). */
+export const TENANT_ROLES: readonly Role[] = ['ASSESSOR', 'MANAGER', 'INSURER_ADMIN']
+
+/** Roles an INSURER_ADMIN may create inside its own tenant. */
+export const TENANT_STAFF_ROLES = ['ASSESSOR', 'MANAGER', 'INSURER_ADMIN'] as const
 
 /** Identifier format shared by actor ids, tenant ids, claim ids and policy ids. */
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
@@ -14,11 +21,14 @@ export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
  *
  * - CUSTOMER: platform-level user; tenantId is always null (a customer holds policies
  *   with several insurers, see seed_sa_data.sql). Access is by ownership (claims.user_id).
- * - INSURER_ADMIN: the insurer's administrator; tenantId is the insurer they own and is
- *   required. Works every insurer step of a claim (verify ... pay) and manages the tenant's
- *   staff accounts. Access is by tenant (claims.tenant_id).
- * - SUPERADMIN: platform operator; no tenant. Creates insurers and insurer admins and reads
- *   platform-wide data. Never verifies, decides or pays a claim (tenant isolation).
+ * - ASSESSOR: insurer staff; verifies, screens, reviews and requests information on its tenant's
+ *   submitted claims. tenantId required.
+ * - MANAGER: insurer staff; everything an assessor does plus decide, pay and re-open appeals.
+ *   tenantId required.
+ * - INSURER_ADMIN: the insurer's administrator; manages the tenant's staff accounts and sees its
+ *   claims read-only. Never moves a claim. tenantId required.
+ * - SUPERADMIN: platform operator; no tenant. Creates insurers and insurer admins, reads platform
+ *   data. Never moves a claim. Cannot be created through the API.
  */
 export interface Actor {
   id: string

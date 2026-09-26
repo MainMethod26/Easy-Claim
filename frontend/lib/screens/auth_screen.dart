@@ -15,6 +15,10 @@ import 'superadmin/superadmin_shell.dart';
 const demoAccountHints = <(String, String)>[
   ('mike', 'Customer · Mike'),
   ('lerato', 'Customer · Lerato Nkosi'),
+  ('assessor_discovery', 'Assessor · Discovery'),
+  ('manager_discovery', 'Claims manager · Discovery'),
+  ('assessor_sanlam', 'Assessor · Sanlam'),
+  ('manager_sanlam', 'Claims manager · Sanlam'),
   ('admin_discovery', 'Insurer admin · Discovery'),
   ('admin_sanlam', 'Insurer admin · Sanlam'),
   ('superadmin', 'Platform admin'),
@@ -23,7 +27,7 @@ const demoAccountHints = <(String, String)>[
 /// Where each role lands after signing in. Routing is UX only; the backend authorizes every call.
 Widget homeFor(AuthActor actor) {
   if (actor.isSuperadmin) return const SuperadminShell();
-  if (actor.isInsurerAdmin) return const InsurerDashboardScreen();
+  if (actor.isInsurerAdmin || actor.isClaimStaff) return const InsurerDashboardScreen();
   return const MainNavigationScreen();
 }
 

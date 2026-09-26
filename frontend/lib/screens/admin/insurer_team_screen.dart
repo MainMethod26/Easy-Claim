@@ -6,7 +6,8 @@ import '../../data/models/claim_stage.dart';
 import '../../data/repositories/admin_repositories.dart';
 import '../superadmin/account_widgets.dart';
 
-/// The insurer admin's own tenant: name, claims by stage, the admin accounts, add / disable.
+/// The insurer admin's own tenant: name, claims by stage, the staff accounts (assessors, managers,
+/// insurer admins), add / enable / disable.
 class InsurerTeamScreen extends StatefulWidget {
   final TenantAdminRepository? repository;
   const InsurerTeamScreen({super.key, this.repository});
@@ -39,16 +40,16 @@ class _InsurerTeamScreenState extends State<InsurerTeamScreen> {
 
   void _reload() => setState(() => _future = _load());
 
-  Future<void> _addAdmin() async {
+  Future<void> _addStaff() async {
     final input = await showDialog<NewAccountInput>(
       context: context,
-      builder: (_) => const NewAccountDialog(title: 'Add insurer admin'),
+      builder: (_) => const NewAccountDialog(title: 'Add staff'),
     );
     if (input == null) return;
     try {
-      await _repo.createUser(username: input.username, password: input.password, displayName: input.displayName);
+      await _repo.createUser(username: input.username, password: input.password, displayName: input.displayName, role: input.role);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Admin ${input.username} added.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${UserRole.fromWire(input.role).label} ${input.username} added.')));
       _reload();
     } catch (e) {
       if (mounted) showErrorSnack(context, e);
@@ -84,16 +85,16 @@ class _InsurerTeamScreenState extends State<InsurerTeamScreen> {
               StageStatsCard(title: 'Claims by stage', stats: data.stats.claims),
               const SizedBox(height: 16),
               Row(children: [
-                const Expanded(child: Text('Admins', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
+                const Expanded(child: Text('Staff', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
                 FilledButton.icon(
-                  key: const Key('add-admin'),
-                  onPressed: _addAdmin,
+                  key: const Key('add-staff'),
+                  onPressed: _addStaff,
                   icon: const Icon(Icons.person_add_alt_1, size: 18),
-                  label: const Text('Add admin'),
+                  label: const Text('Add staff'),
                 ),
               ]),
               const SizedBox(height: 8),
-              if (data.users.isEmpty) const Text('No admin accounts yet.', style: TextStyle(color: Color(0xFF64748B))),
+              if (data.users.isEmpty) const Text('No staff accounts yet.', style: TextStyle(color: Color(0xFF64748B))),
               for (final u in data.users) AccountTile(user: u, isSelf: u.id == me?.id, onToggle: () => _toggle(u)),
               const SizedBox(height: 12),
               Text(

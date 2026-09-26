@@ -144,14 +144,13 @@ Status: NOT EXPLOITABLE today (not mounted). Required before any of these routes
 - **Action:** someone with Cloudflare access checks the deployed version; if affected, redeploy from the fixed code and
   rotate `JWT_SECRET` (`wrangler secret put JWT_SECRET`), which invalidates every token it issued.
 
-### BACKEND-SEC-025 — Three-role model and real accounts (26 Sep 2026, team decision)
-- **Decision:** roles are `CUSTOMER`, `INSURER_ADMIN` (one insurer role: verify, screen, review, decide, pay; manages
-  own-tenant admins) and `SUPERADMIN` (platform: insurers, accounts, stats; read-only on claims). `ASSESSOR`, `MANAGER`
-  and `ADMIN` are gone. This answers 015 (no separation of duties on the insurer side, KNOWN LIMITATION, compensated by
-  per-actor audit + ML-DSA signed decisions) and 020 (admin is platform-wide and never a claim actor).
-- **Implemented:** `users` table (migration 0009, PBKDF2-SHA256 hashes), `POST /auth/login`, `POST /auth/register`
-  (customers only), `/admin/*`, `/tenant/*`, superadmin read-only claim access; `backend/test/accounts.test.ts`,
-  ATTACK-21..23. Demo accounts are seeded locally only (`npm run db:seed:users:local`, password from `.dev.vars`).
-- **Still yours:** password reset, MFA, token revocation on disable (today ≤ 1 h), raising `MIN_PASSWORD_LENGTH` (6,
-  hackathon setting), bootstrapping the first superadmin on a real deployment
+### BACKEND-SEC-025 — Final role model and real accounts (26 Sep 2026, team decision)
+- **Roles:** `CUSTOMER`; `ASSESSOR` (verify, screen, review, request info); `MANAGER` (+ decide, pay, re-open appeals:
+  MANAGER-only, Phase 3 separation kept); `INSURER_ADMIN` (own-tenant staff accounts, tenant stats, read-only claims, no
+  transitions, no risk signals); `SUPERADMIN` (tenants, insurer-admin accounts, platform stats, read-only claims, no
+  transitions; cannot be created or disabled via the API). Answers 020 (admin scope).
+- **Implemented:** `users` table (migration 0010, PBKDF2-SHA256), `POST /auth/login`, `POST /auth/register` (customers
+  only), `/admin/*`, `/tenant/*`; tests `accounts.test.ts`, ATTACK-21..25.
+- **Still yours:** 015 (the same manager may decide and pay), password reset, MFA, token revocation on disable (≤ 1 h),
+  raising `MIN_PASSWORD_LENGTH` (6), bootstrapping the first superadmin on a real deployment
   (`node scripts/seed-demo-users.mjs --remote --only superadmin --password '<strong>'`).

@@ -56,8 +56,12 @@ ENVIRONMENT = "production"
 # .dev.vars only the listed names and existing [vars], which would silently drop DEMO_LOGIN_PASSWORD.
 
 # Workers AI for evidence OCR (queue consumer, src/endpoints/ocr.ts). Advisory text only.
-[ai]
-binding = "AI"
+# DISABLED in this file on purpose: an [ai] binding is always remote, so with it `wrangler dev` and the
+# vitest suite demand a CLOUDFLARE_API_TOKEN and fail for everyone offline. The OCR code skips itself when
+# AI is not bound. To enable OCR on a deployed Worker, uncomment the two lines below before `wrangler deploy`
+# (or add the Workers AI binding in the dashboard).
+# [ai]
+# binding = "AI"
 
 # Nightly job: Info Needed -> Expired after 30 days (src/jobs/expireInfoNeeded.ts), audited.
 [triggers]

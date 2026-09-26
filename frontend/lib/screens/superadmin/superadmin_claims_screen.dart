@@ -84,7 +84,11 @@ class _SuperadminClaimsScreenState extends State<SuperadminClaimsScreen> {
                     ),
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => InsurerClaimDetailsScreen(claimId: claim.id, readOnly: true)),
+                      MaterialPageRoute(builder: (_) => InsurerClaimDetailsScreen(
+                        claimId: claim.id,
+                        readOnly: true,
+                        readOnlyNote: 'Read-only view. Actions on this claim belong to its insurer staff.',
+                      )),
                     ),
                   ),
                 ),

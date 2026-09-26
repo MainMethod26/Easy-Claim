@@ -77,12 +77,16 @@ export async function call(path: string, opts: CallOptions = {}): Promise<Respon
 
 // Seed data: tenant A = ins_discovery (claim_disc_101, Review), tenant B = ins_sanlam
 // (claim_sanlam_102, Decision/Approved), tenant C = ins_momentum (claim_mom_103, Submitted).
-// Team role model (26 Sep 2026): CUSTOMER, INSURER_ADMIN (one per tenant), SUPERADMIN.
+// Final role model (26 Sep 2026): CUSTOMER, ASSESSOR, MANAGER, INSURER_ADMIN, SUPERADMIN.
 // Ids match src/security/demoUsers.ts (seeded by test/setup.ts).
 export const customerA = { id: 'user123', role: 'CUSTOMER' } as const // username mike; owns claim_disc_101, claim_sanlam_102
 export const customerB = { id: 'user456', role: 'CUSTOMER' } as const // username lerato; owns no claims
-export const insurerA = { id: 'usr_admin_discovery', role: 'INSURER_ADMIN', tenantId: 'ins_discovery' } as const
-export const insurerB = { id: 'usr_admin_sanlam', role: 'INSURER_ADMIN', tenantId: 'ins_sanlam' } as const
+export const assessorA = { id: 'assessor_a1', role: 'ASSESSOR', tenantId: 'ins_discovery' } as const // assessor_discovery
+export const managerA = { id: 'manager_a1', role: 'MANAGER', tenantId: 'ins_discovery' } as const // manager_discovery
+export const assessorB = { id: 'assessor_b1', role: 'ASSESSOR', tenantId: 'ins_sanlam' } as const // assessor_sanlam
+export const managerB = { id: 'manager_b1', role: 'MANAGER', tenantId: 'ins_sanlam' } as const // manager_sanlam
+export const insurerAdminA = { id: 'usr_admin_discovery', role: 'INSURER_ADMIN', tenantId: 'ins_discovery' } as const // admin_discovery
+export const insurerAdminB = { id: 'usr_admin_sanlam', role: 'INSURER_ADMIN', tenantId: 'ins_sanlam' } as const // admin_sanlam
 export const superadmin = { id: 'usr_superadmin', role: 'SUPERADMIN' } as const
 
 
@@ -136,7 +140,7 @@ export async function createReadyDraft(): Promise<string> {
 export async function createReviewedClaim(): Promise<string> {
   const claimId = await createSubmittedClaim()
   for (const step of ['verify', 'screen', 'review']) {
-    const res = await call(`/claims/${claimId}/${step}`, { method: 'POST', as: insurerA })
+    const res = await call(`/claims/${claimId}/${step}`, { method: 'POST', as: assessorA })
     if (res.status !== 200) throw new Error(`${step} failed: ${res.status}`)
   }
   return claimId

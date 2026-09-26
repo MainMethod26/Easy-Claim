@@ -13,7 +13,7 @@ import { ID_PATTERN, ROLES, type Actor, type AppEnv, type Role } from '../types'
  *     required; a missing one refuses every request rather than skipping the check)
  *   - exp and iat are REQUIRED (hono only checks them when present); exp must be in the
  *     future and at most MAX_TOKEN_TTL_SECONDS[role] away, nbf is checked when present
- *   - sub: actor id, role: one of ROLES, tenant_id: required for INSURER_ADMIN,
+ *   - sub: actor id, role: one of ROLES, tenant_id: required for ASSESSOR, MANAGER, INSURER_ADMIN,
  *     forbidden for CUSTOMER, optional for ADMIN
  *
  * Every failure returns null (401) with no detail. hono's Jwt* error messages embed the
@@ -31,6 +31,8 @@ export const MIN_SECRET_BYTES = 32
 /** Longest accepted remaining lifetime per role (privileged roles get shorter tokens). */
 export const MAX_TOKEN_TTL_SECONDS: Record<Role, number> = {
   CUSTOMER: 24 * 3600,
+  ASSESSOR: 8 * 3600,
+  MANAGER: 8 * 3600,
   INSURER_ADMIN: 8 * 3600,
   SUPERADMIN: 8 * 3600,
 }
@@ -101,7 +103,7 @@ export function validateClaims(payload: unknown, now: number): ClaimValidation {
   if (tenantId !== null && (typeof tenantId !== 'string' || !ID_PATTERN.test(tenantId))) return { ok: false, reason: 'bad_tenant' }
   if (r === 'CUSTOMER' && tenantId !== null) return { ok: false, reason: 'customer_with_tenant' }
   if (r === 'SUPERADMIN' && tenantId !== null) return { ok: false, reason: 'superadmin_with_tenant' }
-  if (r === 'INSURER_ADMIN' && tenantId === null) return { ok: false, reason: 'staff_without_tenant' }
+  if ((r === 'ASSESSOR' || r === 'MANAGER' || r === 'INSURER_ADMIN') && tenantId === null) return { ok: false, reason: 'staff_without_tenant' }
 
   return { ok: true, actor: { id: sub, role: r, tenantId } }
 }

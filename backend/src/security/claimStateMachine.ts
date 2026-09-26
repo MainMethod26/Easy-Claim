@@ -37,25 +37,26 @@ export const MAIN_PATH: readonly ClaimStage[] = [
 export type TransitionActor = Role | 'SYSTEM'
 
 const CUSTOMER: TransitionActor[] = ['CUSTOMER']
-const INSURER: TransitionActor[] = ['INSURER_ADMIN']
+const INSURER: TransitionActor[] = ['ASSESSOR', 'MANAGER']
+const MANAGER_ONLY: TransitionActor[] = ['MANAGER']
 const SYSTEM: TransitionActor[] = ['SYSTEM']
 
 /**
  * Allowed transitions and who may perform each. Anything absent is illegal.
- * SUPERADMIN deliberately has no claim transitions (platform operator, never a claim
- * outcome). The insurer side is one role, INSURER_ADMIN (team decision, 26 Sep 2026): it
- * verifies, screens, reviews, decides and pays. KNOWN LIMITATION: the assessor/manager
- * separation of duties from Phase 3 no longer exists; see docs/SECURITY_INTEGRATION.md.
+ * INSURER_ADMIN and SUPERADMIN deliberately have no claim transitions: they administer accounts
+ * and read, never decide claim outcomes. Decision, payout and re-opening an appeal are
+ * MANAGER-only (Phase 3 separation of duties): assessors prepare a claim (verify, screen,
+ * review, request info) but do not decide it or pay it.
  */
 export const TRANSITIONS: Readonly<Record<ClaimStage, Partial<Record<ClaimStage, TransitionActor[]>>>> = {
   Draft: { Submitted: CUSTOMER, Withdrawn: CUSTOMER },
   Submitted: { Verified: INSURER, Withdrawn: CUSTOMER },
   Verified: { Screening: INSURER, Withdrawn: CUSTOMER },
   Screening: { Review: INSURER, 'Info Needed': INSURER, Withdrawn: CUSTOMER },
-  Review: { Decision: INSURER, 'Info Needed': INSURER, Withdrawn: CUSTOMER },
+  Review: { Decision: MANAGER_ONLY, 'Info Needed': INSURER, Withdrawn: CUSTOMER },
   'Info Needed': { Screening: CUSTOMER, Withdrawn: CUSTOMER, Expired: SYSTEM },
-  Decision: { Paid: INSURER, Appeal: CUSTOMER },
-  Appeal: { Review: INSURER },
+  Decision: { Paid: MANAGER_ONLY, Appeal: CUSTOMER },
+  Appeal: { Review: MANAGER_ONLY },
   Paid: {},
   Withdrawn: {},
   Expired: {},

@@ -38,6 +38,8 @@ class ApiException implements Exception {
         return 'A platform admin does not belong to an insurer.';
       case 'tenant_exists':
         return 'An insurer with that id already exists.';
+      case 'superadmin_managed_offline':
+        return 'Platform admin accounts are managed outside the app.';
       case 'cannot_change_own_status':
         return 'You cannot disable your own account.';
       case 'auth_unavailable':
