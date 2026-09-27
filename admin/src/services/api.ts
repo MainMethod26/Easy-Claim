@@ -1,5 +1,12 @@
 import type { AuthUser, Claim, DecisionIntegrity, EvidenceItem, PayoutDetails, RiskSignals, Role, TenantId, TimelineEntry } from '../types'
 
+/**
+ * The team backend. Cloudflare Pages cannot proxy /api/* to another domain, so the app calls the
+ * Worker directly (its ALLOWED_ORIGINS includes easy-claim-admin-frontend.pages.dev and local dev).
+ * Override with VITE_API_BASE at build time.
+ */
+export const API_BASE: string = import.meta.env.VITE_API_BASE ?? 'https://easy-claim-backend.pasekamabitsela22.workers.dev'
+
 const AUTH_STORAGE_KEY = 'easyclaim_admin_auth'
 
 export class ApiService {
@@ -99,7 +106,7 @@ export class ApiService {
 
   // Authenticate against Cloudflare Worker backend (/api/v1/auth/login)
   static async login(username: string, password = '1234567'): Promise<AuthUser> {
-    const res = await fetch('/api/v1/auth/login', {
+    const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
@@ -112,11 +119,13 @@ export class ApiService {
 
     const data = await res.json()
     const actor = data.actor || {}
+    // Role and tenant come only from the backend's verified answer; never guess a default role.
+    if (!actor.role || !data.token) throw new Error('Sign-in response did not include a role')
     const user: AuthUser = {
-      id: actor.id || username,
+      id: actor.id,
       name: actor.displayName || username,
-      role: (actor.role as Role) || 'MANAGER',
-      tenantId: (actor.tenantId as TenantId) || 'ins_discovery',
+      role: actor.role as Role,
+      tenantId: (actor.tenantId ?? null) as TenantId,
       token: data.token,
     }
     this.setUser(user)
@@ -129,7 +138,7 @@ export class ApiService {
 
   // Fetch real claims for the active tenant
   static async fetchClaims(): Promise<Claim[]> {
-    const res = await fetch('/api/v1/claims?limit=100', {
+    const res = await fetch(`${API_BASE}/api/v1/claims?limit=50`, {
       headers: this.getHeaders(),
     })
     if (!res.ok) {
@@ -143,7 +152,7 @@ export class ApiService {
 
   // Fetch single claim details
   static async fetchClaimById(claimId: string): Promise<Claim | null> {
-    const res = await fetch(`/api/v1/claims/${claimId}`, {
+    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}`, {
       headers: this.getHeaders(),
     })
     if (!res.ok) return null
@@ -153,7 +162,7 @@ export class ApiService {
 
   // Fetch real claim lifecycle timeline
   static async fetchTimeline(claimId: string): Promise<TimelineEntry[]> {
-    const res = await fetch(`/api/v1/claims/${claimId}/timeline`, {
+    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/timeline`, {
       headers: this.getHeaders(),
     })
     if (!res.ok) return []
@@ -163,7 +172,7 @@ export class ApiService {
 
   // Fetch real quantum anomaly screening signal
   static async fetchRiskSignals(claimId: string): Promise<RiskSignals | null> {
-    const res = await fetch(`/api/v1/claims/${claimId}/risk-signals`, {
+    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/risk-signals`, {
       headers: this.getHeaders(),
     })
     if (!res.ok) return null
@@ -173,7 +182,7 @@ export class ApiService {
 
   // Fetch real ML-DSA-65 post-quantum decision verification
   static async verifyDecisionIntegrity(claimId: string): Promise<DecisionIntegrity> {
-    const res = await fetch(`/api/v1/claims/${claimId}/decision/verify`, {
+    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/decision/verify`, {
       headers: this.getHeaders(),
     })
     if (!res.ok) {
@@ -195,7 +204,7 @@ export class ApiService {
 
   // Fetch real payout details
   static async fetchPayout(claimId: string): Promise<PayoutDetails | null> {
-    const res = await fetch(`/api/v1/claims/${claimId}/payout`, {
+    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/payout`, {
       headers: this.getHeaders(),
     })
     if (!res.ok) return null
@@ -204,7 +213,7 @@ export class ApiService {
 
   // Fetch real evidence items
   static async fetchEvidence(claimId: string): Promise<EvidenceItem[]> {
-    const res = await fetch(`/api/v1/claims/${claimId}/evidence`, {
+    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/evidence`, {
       headers: this.getHeaders(),
     })
     if (!res.ok) return []
@@ -228,11 +237,11 @@ export class ApiService {
   // Fetch real append-only audit trail
   static async fetchAuditEvents(): Promise<any[]> {
     const role = this.user?.role
-    let endpoint = '/api/v1/activities/audit-trail'
+    let endpoint = `${API_BASE}/api/v1/activities/audit-trail`
     if (role === 'INSURER_ADMIN') {
-      endpoint = '/api/v1/tenant/audit?limit=50'
+      endpoint = `${API_BASE}/api/v1/tenant/audit?limit=50`
     } else if (role === 'SUPERADMIN') {
-      endpoint = '/api/v1/admin/audit?limit=50'
+      endpoint = `${API_BASE}/api/v1/admin/audit?limit=50`
     }
 
     let res = await fetch(endpoint, {
@@ -240,8 +249,8 @@ export class ApiService {
     })
     
     // Fallback if role-specific audit route is forbidden or unavailable
-    if (!res.ok && endpoint !== '/api/v1/activities/audit-trail') {
-      res = await fetch('/api/v1/activities/audit-trail', {
+    if (!res.ok && endpoint !== `${API_BASE}/api/v1/activities/audit-trail`) {
+      res = await fetch(`${API_BASE}/api/v1/activities/audit-trail`, {
         headers: this.getHeaders(),
       })
     }
@@ -266,7 +275,7 @@ export class ApiService {
 
   // Real State Machine Action Handlers
   static async executeTransition(claimId: string, action: 'verify' | 'screen' | 'review' | 'request-info'): Promise<{ ok: boolean; message: string }> {
-    const res = await fetch(`/api/v1/claims/${claimId}/${action}`, {
+    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/${action}`, {
       method: 'POST',
       headers: this.getHeaders(),
     })
@@ -278,7 +287,7 @@ export class ApiService {
   }
 
   static async decideClaim(claimId: string, outcome: 'Approved' | 'Rejected', reason: string, approvedAmountCents?: number): Promise<{ ok: boolean; message: string }> {
-    const res = await fetch(`/api/v1/claims/${claimId}/decide`, {
+    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/decide`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ outcome, reason, approvedAmountCents }),
@@ -291,11 +300,12 @@ export class ApiService {
   }
 
   static async payClaim(claimId: string): Promise<{ ok: boolean; message: string }> {
-    const res = await fetch(`/api/v1/claims/${claimId}/pay`, {
+    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/pay`, {
       method: 'POST',
       headers: {
         ...this.getHeaders(),
-        'Idempotency-Key': `payout_${claimId}_${Date.now()}`,
+        // Stable per claim: a retried or double-clicked payout is answered from the ledger, never paid twice.
+        'Idempotency-Key': `payout_${claimId}`,
       },
     })
     const data = await res.json().catch(() => ({}))

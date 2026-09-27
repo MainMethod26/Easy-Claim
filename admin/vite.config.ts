@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || 'https://easy-claim-backend.ndlovubhekani17.workers.dev',
+        target: process.env.VITE_API_URL || 'https://easy-claim-backend.pasekamabitsela22.workers.dev',
         changeOrigin: true,
         secure: false,
       },
