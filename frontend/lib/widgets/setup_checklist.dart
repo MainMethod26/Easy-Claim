@@ -65,7 +65,9 @@ class _SetupChecklistState extends State<SetupChecklist> {
             key: key,
             contentPadding: EdgeInsets.zero,
             leading: Icon(done ? Icons.check_circle : Icons.radio_button_unchecked, color: done ? const Color(0xFF15803D) : EcColors.inkMuted),
-            title: Text(title, style: TextStyle(fontWeight: FontWeight.w700, decoration: done && !widget.alwaysShow ? TextDecoration.lineThrough : null)),
+            // No strike-through for done steps: the green tick says it, and titles such as the
+            // EasyClaim ID must stay readable.
+            title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
             subtitle: Text(subtitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: onTap,
