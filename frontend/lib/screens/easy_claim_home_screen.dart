@@ -3,6 +3,9 @@ import '../widgets/setup_checklist.dart';
 import 'link_policy_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../core/auth/session.dart';
+import '../core/theme/ec_status_colors.dart';
+import '../core/theme/ec_tokens.dart';
+import '../core/widgets/ec_tap_target.dart';
 import '../core/widgets/state_views.dart';
 import '../data/models/api_models.dart';
 import '../data/models/claim_stage.dart';
@@ -106,7 +109,7 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
     final actor = Session.instance.actor;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: EcColors.surface,
       body: PictureBackground(
         imageOpacity: 0.36,
         child: SafeArea(
@@ -114,7 +117,7 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
           bottom: false,
           child: Column(
             children: [
-              if (showSimulatedStatus) const MobileStatusBar(time: '9:41', color: Color(0xFF0F172A)),
+              if (showSimulatedStatus) const MobileStatusBar(time: '9:41', color: EcColors.ink),
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: _home.refresh,
@@ -131,19 +134,21 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
                             Row(children: [
                               NotificationBellButton(unreadCount: _home.actionCount, onTap: _showNotifications),
                               const SizedBox(width: 12.0),
-                              GestureDetector(
+                              EcTapTarget(
                                 onTap: widget.onNavigateToProfile,
+                                label: 'Profile',
+                                borderRadius: BorderRadius.circular(EcRadius.sm),
                                 child: Container(
                                   width: 48.0,
                                   height: 48.0,
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(4.0),
+                                    color: EcColors.surface,
+                                    borderRadius: BorderRadius.circular(EcRadius.sm),
                                     boxShadow: [
                                       BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 10, offset: const Offset(0, 4)),
                                     ],
                                   ),
-                                  child: const Center(child: Icon(Icons.person, color: Color(0xFFFF5500), size: 30.0)),
+                                  child: const Center(child: Icon(Icons.person, color: EcColors.brand, size: 30.0)),
                                 ),
                               ),
                             ]),
@@ -151,11 +156,11 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
                         ),
                         const SizedBox(height: 20.0),
                         const Text('WELCOME BACK',
-                            style: TextStyle(color: Color(0xFF64748B), fontSize: 11.0, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+                            style: TextStyle(color: EcColors.inkMuted, fontSize: 11.0, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
                         const SizedBox(height: 2.0),
                         Text(
                           (actor?.label ?? 'Customer').toUpperCase(),
-                          style: const TextStyle(color: Color(0xFF0F172A), fontSize: 18.0, fontWeight: FontWeight.w900, letterSpacing: -0.2),
+                          style: const TextStyle(color: EcColors.ink, fontSize: 18.0, fontWeight: FontWeight.w900, letterSpacing: -0.2),
                         ),
                         const SizedBox(height: 10.0),
                         _buildStatusBanner(),
@@ -193,22 +198,22 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
     final IconData icon;
     if (_home.actionCount > 0) {
       text = _home.actionCount == 1 ? 'One claim needs your attention.' : '${_home.actionCount} claims need your attention.';
-      color = const Color(0xFFEA580C);
+      color = EcColors.brandText; // ≥ 4.5:1 on the light tint
       icon = Icons.error_outline_rounded;
     } else if (_home.claims.any((c) => c.stage != BackendStage.paid)) {
       text = 'Your claims are in progress. No action needed from you right now.';
-      color = const Color(0xFF2563EB);
+      color = EcStatusColors.light.info.foreground;
       icon = Icons.hourglass_top_rounded;
     } else {
       text = 'No open claims.';
-      color = const Color(0xFF16A34A);
+      color = EcStatusColors.light.success.foreground;
       icon = Icons.check_circle_rounded;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(4.0),
+        borderRadius: EcRadius.card,
         border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Row(children: [
@@ -234,9 +239,8 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
     final stage = presentStage(primary.stage, status: primary.status);
     final others = _home.claims.where((c) => c.id != primary.id).toList();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      GestureDetector(
-        onTap: widget.onViewStagesTapped,
-        child: ActiveClaimCard(
+      _claimCard(
+        ActiveClaimCard(
           title: primary.title,
           claimant: Session.instance.actor?.label ?? 'You',
           amount: formatRand(primary.claimedAmountCents),
@@ -244,18 +248,19 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
           currentStep: stage.stage?.stepIndex ?? 0,
           logoName: primary.insurerName ?? 'EasyClaim',
         ),
+        'Latest claim: ${primary.title}, ${stage.label}. Open claim stages',
       ),
       const SizedBox(height: 10),
       Container(
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          color: EcColors.surfaceAlt,
+          borderRadius: EcRadius.card,
+          border: Border.all(color: EcColors.line),
         ),
         child: Row(children: [
-          const Icon(Icons.arrow_forward_rounded, color: Color(0xFFFF5500), size: 18),
+          const Icon(Icons.arrow_forward_rounded, color: EcColors.brand, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(nextStepFor(primary.stage, status: primary.status),
@@ -265,16 +270,16 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
       ),
       if (others.isNotEmpty) ...[
         const SizedBox(height: 14),
-        const Text('Other claims', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w700)),
+        const Text('Other claims', style: TextStyle(color: EcColors.inkMuted, fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         for (final c in others.take(4))
           Container(
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              color: EcColors.surface,
+              borderRadius: EcRadius.card,
+              border: Border.all(color: EcColors.line),
             ),
             child: Row(children: [
               Expanded(
@@ -282,11 +287,18 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
                     style: const TextStyle(fontWeight: FontWeight.w600)),
               ),
               Text(presentStage(c.stage, status: c.status).label,
-                  style: const TextStyle(color: Color(0xFFFF5500), fontWeight: FontWeight.w700)),
+                  style: const TextStyle(color: EcColors.brandText, fontWeight: FontWeight.w700)),
             ]),
           ),
       ],
     ]);
+  }
+
+  /// The latest-claim card opens the claim stages when that destination exists.
+  Widget _claimCard(Widget card, String label) {
+    final onTap = widget.onViewStagesTapped;
+    if (onTap == null) return card;
+    return EcTapTarget(onTap: onTap, label: label, excludeChildSemantics: false, child: card);
   }
 
   Widget _buildShortcuts() {
@@ -296,37 +308,47 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
       (Icons.timeline_rounded, 'Claim stages', widget.onViewStagesTapped),
       (Icons.link, 'Link policy', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LinkPolicyScreen()))),
     ];
-    return GridView.count(
-      crossAxisCount: 4,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 10,
-      childAspectRatio: 0.9,
-      children: [
-        for (final (icon, label, onTap) in items)
-          GestureDetector(
-            onTap: onTap,
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+    // A row of equal-height tiles (not a fixed aspect-ratio grid) so labels can wrap and the
+    // tiles grow with larger text sizes instead of overflowing.
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (i, (icon, label, onTap)) in items.indexed) ...[
+            if (i > 0) const SizedBox(width: 10),
+            Expanded(
+              child: EcTapTarget(
+                onTap: onTap,
+                label: label,
+                child: Opacity(
+                  opacity: onTap == null ? 0.5 : 1.0,
+                  child: Container(
+                  constraints: const BoxConstraints(minHeight: 84),
+                  padding: const EdgeInsets.symmetric(horizontal: EcSpace.xs, vertical: EcSpace.sm),
+                  decoration: BoxDecoration(
+                    color: EcColors.surfaceSunken,
+                    borderRadius: EcRadius.card,
+                    border: Border.all(color: EcColors.line),
+                  ),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(icon, color: EcColors.brand),
+                    const SizedBox(height: 6),
+                    Text(label,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: EcColors.ink)),
+                  ]),
+                  ),
+                ),
               ),
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(icon, color: const Color(0xFFFF5500)),
-                const SizedBox(height: 6),
-                Text(label,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
-              ]),
             ),
-          ),
-      ],
+          ],
+        ],
+      ),
     );
   }
 
   Widget _buildSectionTitle(String title) => Text(
         title,
-        style: const TextStyle(color: Color(0xFF0F172A), fontSize: 18.0, fontWeight: FontWeight.w800, letterSpacing: -0.2),
+        style: const TextStyle(color: EcColors.ink, fontSize: 18.0, fontWeight: FontWeight.w800, letterSpacing: -0.2),
       );
 }

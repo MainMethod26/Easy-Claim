@@ -13,6 +13,10 @@ class EcColors {
   static const brand = Color(0xFFFF5500);
   static const brandDark = Color(0xFFFF6D00);
 
+  /// Orange for text and small icons on white/light surfaces. The brand orange is only ~3:1 on
+  /// white, so it stays for filled buttons and backgrounds; this one is ≥ 4.5:1 (WCAG AA).
+  static const brandText = Color(0xFFC2410C);
+
   // Slate neutrals (light theme).
   static const ink = Color(0xFF0F172A); // headings, primary text
   static const inkMuted = Color(0xFF64748B); // secondary text

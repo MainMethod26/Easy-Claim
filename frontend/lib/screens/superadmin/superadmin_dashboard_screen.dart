@@ -94,7 +94,7 @@ class _SuperadminDashboardScreenState extends State<SuperadminDashboardScreen> {
               const SizedBox(height: 12),
               const Text(
                 'Platform admins manage insurers and accounts. Claims are read-only here: verifying, deciding and paying belong to the insurer admin.',
-                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
               ),
             ],
           ),

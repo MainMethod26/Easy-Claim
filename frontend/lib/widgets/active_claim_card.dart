@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/ec_tokens.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'claim_stepper.dart';
 import '../services/logo_dev_service.dart';
@@ -60,7 +61,7 @@ class _ActiveClaimCardState extends State<ActiveClaimCard> {
               const Text(
                 'Active claim',
                 style: TextStyle(
-                  color: Color(0xFFFF5500),
+                  color: EcColors.brandText,
                   fontSize: 13.0,
                   fontWeight: FontWeight.w700,
                   letterSpacing: -0.2,

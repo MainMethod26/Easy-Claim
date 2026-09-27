@@ -68,7 +68,7 @@ class _SuperadminClaimsScreenState extends State<SuperadminClaimsScreen> {
                 },
               ),
               const SizedBox(height: 6),
-              const Text('Read-only. Actions on a claim belong to its insurer admin.', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+              const Text('Read-only. Actions on a claim belong to its insurer admin.', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
               const SizedBox(height: 8),
               if (data.claims.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('No submitted claims.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF64748B)))),
               for (final claim in data.claims)

@@ -58,10 +58,11 @@ class EcAdminShell extends StatelessWidget {
     final extended = width >= EcBreakpoints.expanded;
 
     final appBar = AppBar(
-      title: Text(pageTitle),
+      title: Text(pageTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
       actions: [
         ...actions,
-        _ScopeBadge(label: scopeLabel, icon: scopeIcon),
+        // Long insurer names must not push the account menu off a phone screen.
+        _ScopeBadge(label: scopeLabel, icon: scopeIcon, maxWidth: compact ? 132 : 280),
         const SizedBox(width: EcSpace.sm),
         _UserMenu(name: userName, role: userRole, onSignOut: onSignOut),
         const SizedBox(width: EcSpace.sm),
@@ -154,26 +155,33 @@ class _Brand extends StatelessWidget {
 }
 
 class _ScopeBadge extends StatelessWidget {
-  const _ScopeBadge({required this.label, required this.icon});
+  const _ScopeBadge({required this.label, required this.icon, required this.maxWidth});
   final String label;
   final IconData icon;
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: EcSpace.md, vertical: 6),
-      decoration: BoxDecoration(
-        border: Border.all(color: theme.colorScheme.outline),
-        borderRadius: BorderRadius.circular(EcRadius.pill),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: theme.colorScheme.onSurfaceVariant),
-          const SizedBox(width: 6),
-          Text(label, style: theme.textTheme.labelMedium),
-        ],
+    return Center(
+      child: Tooltip(
+        message: label,
+        child: Container(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          padding: const EdgeInsets.symmetric(horizontal: EcSpace.md, vertical: 6),
+          decoration: BoxDecoration(
+            border: Border.all(color: theme.colorScheme.outline),
+            borderRadius: BorderRadius.circular(EcRadius.pill),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Flexible(child: Text(label, style: theme.textTheme.labelMedium, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -197,12 +205,16 @@ class _UserMenu extends StatelessWidget {
       itemBuilder: (_) => [
         PopupMenuItem<String>(
           enabled: false,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(name ?? 'Signed in', style: theme.textTheme.titleSmall),
-              if (role != null) Text(role!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-            ],
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 240),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name ?? 'Signed in', style: theme.textTheme.titleSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (role != null)
+                  Text(role!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant), maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
+            ),
           ),
         ),
         const PopupMenuDivider(),

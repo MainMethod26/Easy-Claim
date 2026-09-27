@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/auth/session.dart';
 import '../../core/widgets/state_views.dart';
+import '../../core/theme/ec_tokens.dart';
 import '../../core/widgets/admin/ec_confirm_dialog.dart';
+import '../../core/widgets/admin/ec_data_table.dart';
+import '../../core/widgets/admin/ec_section.dart';
+import '../../core/widgets/admin/ec_status_chip.dart';
 import '../../core/widgets/trust_cards.dart';
 import '../../widgets/claim_messages_panel.dart';
 import '../../data/models/api_models.dart';
@@ -119,18 +123,28 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
     final stage = file.claim.stage;
     // UX only: the backend refuses decide / pay / appeal re-review for anyone but a MANAGER.
     final isManager = Session.instance.actor?.isManager ?? false;
-    Widget button(String label, IconData icon, VoidCallback onPressed, {Color color = const Color(0xFF2563EB)}) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: ElevatedButton.icon(
-            onPressed: _busy ? null : onPressed,
-            icon: Icon(icon, color: Colors.white),
-            label: Text(label, style: const TextStyle(color: Colors.white)),
-            style: ElevatedButton.styleFrom(backgroundColor: color, minimumSize: const Size(double.infinity, 48)),
-          ),
+    // Theme buttons: the next step of the workflow is a filled (brand) button, side actions are
+    // outlined. Full width, at least 48 px tall.
+    const fullWidth = Size(double.infinity, 48);
+    Widget button(String label, IconData icon, VoidCallback onPressed, {bool secondary = false}) => Padding(
+          padding: const EdgeInsets.only(bottom: EcSpace.sm),
+          child: secondary
+              ? OutlinedButton.icon(
+                  onPressed: _busy ? null : onPressed,
+                  icon: Icon(icon),
+                  label: Text(label),
+                  style: OutlinedButton.styleFrom(minimumSize: fullWidth),
+                )
+              : FilledButton.icon(
+                  onPressed: _busy ? null : onPressed,
+                  icon: Icon(icon),
+                  label: Text(label),
+                  style: FilledButton.styleFrom(minimumSize: fullWidth),
+                ),
         );
     Widget note(String text) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Text(text, style: const TextStyle(color: Color(0xFF64748B), fontStyle: FontStyle.italic)),
+          padding: const EdgeInsets.only(bottom: EcSpace.sm),
+          child: Text(text, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontStyle: FontStyle.italic)),
         );
     Future<void> advance(String action, String done) => _run(() async {
           await _insurer.advance(widget.claimId, action);
@@ -174,21 +188,21 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
       case BackendStage.screening:
         return [
           button('Move to review', Icons.rate_review_outlined, () => advance('review', 'Claim moved to review')),
-          button('Request information', Icons.help_outline, requestInfo, color: const Color(0xFFD97706)),
+          button('Request information', Icons.help_outline, requestInfo, secondary: true),
         ];
       case BackendStage.review:
         return [
           if (isManager)
-            button('Record decision', Icons.gavel, () => _openDecisionForm(file.claim), color: const Color(0xFF0F766E))
+            button('Record decision', Icons.gavel, () => _openDecisionForm(file.claim))
           else
             note('Manager decision required.'),
-          button('Request information', Icons.help_outline, requestInfo, color: const Color(0xFFD97706)),
+          button('Request information', Icons.help_outline, requestInfo, secondary: true),
         ];
       case BackendStage.decision:
         if (file.claim.status == 'Approved' && !file.payout.isPaid) {
           if (!isManager) return [note('Manager payout required.')];
           return [
-            button('Pay claim (simulated)', Icons.payments_outlined, pay, color: const Color(0xFFEA580C)),
+            button('Pay claim (simulated)', Icons.payments_outlined, pay),
           ];
         }
         return [note(file.claim.status == 'Rejected' ? 'Rejected. The customer may appeal.' : 'Decision recorded.')];
@@ -212,12 +226,19 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text(widget.readOnly ? '${widget.claimId} (read-only)' : widget.claimId, style: const TextStyle(fontSize: 15)),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        // "Claim · claim_7f3a…9c2e": short id with the full value in a tooltip.
+        title: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Claim · '),
+          Flexible(child: EcIdText(widget.claimId)),
+          if (widget.readOnly) ...[
+            const SizedBox(width: EcSpace.sm),
+            const EcStatusChip(label: 'Read-only', icon: Icons.visibility_outlined),
+          ],
+        ]),
         actions: [IconButton(tooltip: 'Refresh', icon: const Icon(Icons.refresh), onPressed: _reload)],
       ),
       body: FutureBuilder<_ClaimFile>(
@@ -228,102 +249,101 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
           final file = snap.data!;
           final c = file.claim;
           final stage = presentStage(c.stage, status: c.status);
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _section('Claim', [
-                _kv('Stage', stage.label),
-                _kv('Status', c.status),
-                _kv('Policy', '${c.planName ?? c.policyId} (${c.policyId})'),
-                if (c.insurerName != null) _kv('Insurer', c.insurerName!),
-                _kv('Category', c.category ?? '—'),
-                _kv('Incident date', c.incidentDate ?? '—'),
-                _kv('Claimed amount', formatRand(c.claimedAmountCents)),
-                _kv('Payout account', c.payoutAccountLast4 == null ? 'Not provided' : '${c.payoutBankName ?? ''} ••••${c.payoutAccountLast4}'),
-                if (c.causeOfLoss != null) ...[
-                  const SizedBox(height: 8),
-                  const Text('What happened', style: TextStyle(color: Color(0xFF475569))),
-                  const SizedBox(height: 4),
-                  Text(c.causeOfLoss!),
+          return Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 960),
+              child: ListView(
+                padding: const EdgeInsets.all(EcSpace.lg),
+                children: [
+                  _section('Claim', [
+                    _kv('Stage', stage.label),
+                    _kv('Status', c.status),
+                    _kv('Policy', '${c.planName ?? c.policyId} (${c.policyId})'),
+                    if (c.insurerName != null) _kv('Insurer', c.insurerName!),
+                    _kv('Category', c.category ?? '—'),
+                    _kv('Incident date', c.incidentDate ?? '—'),
+                    _kv('Claimed amount', formatRand(c.claimedAmountCents)),
+                    _kv('Payout account', c.payoutAccountLast4 == null ? 'Not provided' : '${c.payoutBankName ?? ''} ••••${c.payoutAccountLast4}'),
+                    if (c.causeOfLoss != null) ...[
+                      const SizedBox(height: EcSpace.sm),
+                      Text('What happened', style: TextStyle(color: muted)),
+                      const SizedBox(height: EcSpace.xs),
+                      Text(c.causeOfLoss!),
+                    ],
+                  ]),
+                  _section('Evidence (${file.evidence.length})', [
+                    if (file.evidence.isEmpty) Text('No evidence uploaded.', style: TextStyle(color: muted)),
+                    for (final e in file.evidence)
+                      Material(
+                        type: MaterialType.transparency,
+                        child: ListTile(
+                          key: Key('evidence-${e.id}'),
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          onTap: () => openEvidence(context, _claims, widget.claimId, e),
+                          trailing: Text('Open', style: TextStyle(color: theme.brightness == Brightness.dark ? theme.colorScheme.primary : EcColors.brandText, fontWeight: FontWeight.w600)),
+                          leading: Icon(e.mimeType == 'application/pdf' ? Icons.picture_as_pdf : Icons.image_outlined),
+                          title: Text(e.displayName),
+                          subtitle: Text('SHA-256 ${e.sha256.length > 16 ? e.sha256.substring(0, 16) : e.sha256}… · ${(e.sizeBytes / 1024).toStringAsFixed(0)} KB'),
+                        ),
+                      ),
+                  ]),
+                  if (!widget.readOnly) ScreeningCard(signals: file.signals), // cards carry their own 12 px bottom margin
+                  _section('Decision', [
+                    if (file.decision.isPending)
+                      Text('No decision yet.', style: TextStyle(color: muted))
+                    else ...[
+                      Text(file.decision.decision, style: theme.textTheme.titleLarge),
+                      if (file.decision.approvedAmountCents != null) _kv('Approved amount', formatRand(file.decision.approvedAmountCents)),
+                      if (file.decision.reason != null) _kv('Reason', file.decision.reason!),
+                      if (file.decision.decidedByRole != null) _kv('Decided by', file.decision.decidedByRole!),
+                    ],
+                  ]),
+                  if (!file.decision.isPending) DecisionIntegrityCard(integrity: _integrity, onVerify: _busy ? null : _verifyIntegrity),
+                  _section('Payout', [
+                    if (file.payout.isPaid) ...[
+                      _kv('Paid', formatRand(file.payout.paidAmountCents)),
+                      _kv('To account', '••••${file.payout.accountLast4 ?? ''}'),
+                      _kv('Status', file.payout.payoutStatus ?? '—'),
+                    ] else
+                      Text('Not paid.', style: TextStyle(color: muted)),
+                  ]),
+                  if (c.stage != BackendStage.draft)
+                    ClaimMessagesPanel(claimId: widget.claimId, canPost: !widget.readOnly, repository: _claims, title: 'Messages with the customer'),
+                  if (widget.readOnly)
+                    Text(widget.readOnlyNote, style: TextStyle(color: muted, fontStyle: FontStyle.italic))
+                  else
+                    _section('Actions', [
+                      if (_busy) const LoadingView() else ..._actions(file),
+                    ]),
                 ],
-              ]),
-              _section('Evidence (${file.evidence.length})', [
-                if (file.evidence.isEmpty) const Text('No evidence uploaded.', style: TextStyle(color: Color(0xFF64748B))),
-                for (final e in file.evidence)
-                  Material(
-                    type: MaterialType.transparency,
-                    child: ListTile(
-                    key: Key('evidence-${e.id}'),
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    onTap: () => openEvidence(context, _claims, widget.claimId, e),
-                    trailing: const Text('Open', style: TextStyle(color: Color(0xFFFF5500), fontWeight: FontWeight.w600)),
-                    leading: Icon(e.mimeType == 'application/pdf' ? Icons.picture_as_pdf : Icons.image_outlined),
-                    title: Text(e.displayName),
-                    subtitle: Text('SHA-256 ${e.sha256.length > 16 ? e.sha256.substring(0, 16) : e.sha256}… · ${(e.sizeBytes / 1024).toStringAsFixed(0)} KB'),
-                  ),
-                  ),
-              ]),
-              if (!widget.readOnly) ScreeningCard(signals: file.signals),
-              _section('Decision', [
-                if (file.decision.isPending)
-                  const Text('No decision yet.', style: TextStyle(color: Color(0xFF64748B)))
-                else ...[
-                  Text(file.decision.decision, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                  if (file.decision.approvedAmountCents != null) _kv('Approved amount', formatRand(file.decision.approvedAmountCents)),
-                  if (file.decision.reason != null) _kv('Reason', file.decision.reason!),
-                  if (file.decision.decidedByRole != null) _kv('Decided by', file.decision.decidedByRole!),
-                ],
-              ]),
-              if (!file.decision.isPending) DecisionIntegrityCard(integrity: _integrity, onVerify: _busy ? null : _verifyIntegrity),
-              _section('Payout', [
-                if (file.payout.isPaid) ...[
-                  _kv('Paid', formatRand(file.payout.paidAmountCents)),
-                  _kv('To account', '••••${file.payout.accountLast4 ?? ''}'),
-                  _kv('Status', file.payout.payoutStatus ?? '—'),
-                ] else
-                  const Text('Not paid.', style: TextStyle(color: Color(0xFF64748B))),
-              ]),
-              if (c.stage != BackendStage.draft)
-                ClaimMessagesPanel(claimId: widget.claimId, canPost: !widget.readOnly, repository: _claims, title: 'Messages with the customer'),
-              const SizedBox(height: 8),
-              if (widget.readOnly)
-                Text(widget.readOnlyNote,
-                    style: const TextStyle(color: Color(0xFF64748B), fontStyle: FontStyle.italic))
-              else if (_busy)
-                const LoadingView()
-              else
-                ..._actions(file),
-            ],
+              ),
+            ),
           );
         },
       ),
     );
   }
 
-  Widget _section(String title, List<Widget> children) => Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+  /// One card per part of the claim file (theme card: 8 px radius, 1 px border).
+  Widget _section(String title, List<Widget> children) => _spaced(
+        EcSection(
+          title: title,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
         ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title.toUpperCase(),
-              style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8, fontSize: 12)),
-          const SizedBox(height: 10),
-          ...children,
-        ]),
       );
 
-  Widget _kv(String k, String v) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: 130, child: Text(k, style: const TextStyle(color: Color(0xFF475569)))),
-          Expanded(child: Text(v, style: const TextStyle(fontWeight: FontWeight.w600))),
-        ]),
+  Widget _spaced(Widget child) => Padding(padding: const EdgeInsets.only(bottom: EcSpace.md), child: child);
+
+  Widget _kv(String k, String v) => Builder(
+        builder: (context) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SizedBox(width: 130, child: Text(k, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
+            Expanded(child: Text(v, style: const TextStyle(fontWeight: FontWeight.w600))),
+          ]),
+        ),
       );
 }
 
@@ -387,7 +407,7 @@ class _DecisionDialogState extends State<_DecisionDialog> {
             onSelectionChanged: (v) => setState(() => _approve = v.first),
           ),
           const SizedBox(height: 12),
-          TextField(controller: _reason, maxLines: 3, decoration: const InputDecoration(labelText: 'Reason', border: OutlineInputBorder())),
+          TextField(controller: _reason, maxLines: 3, decoration: const InputDecoration(labelText: 'Reason')),
           if (_approve) ...[
             const SizedBox(height: 12),
             TextField(
@@ -396,17 +416,16 @@ class _DecisionDialogState extends State<_DecisionDialog> {
               decoration: InputDecoration(
                 labelText: 'Approved amount (Rand, optional)',
                 helperText: 'Empty = full claimed amount (${formatRand(widget.claimedAmountCents)})',
-                border: const OutlineInputBorder(),
               ),
             ),
           ],
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(_error!, style: const TextStyle(color: Color(0xFFDC2626))),
+            Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ],
           const SizedBox(height: 8),
-          const Text('The decision is recorded once and signed by the server.',
-              style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+          Text('The decision is recorded once and signed by the server.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ]),
       ),
       actions: [

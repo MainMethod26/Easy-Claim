@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../core/theme/ec_tokens.dart';
+import '../core/widgets/ec_tap_target.dart';
+
 class NotificationBellButton extends StatefulWidget {
   final VoidCallback onTap;
   final int unreadCount;
@@ -19,13 +22,14 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) {
-        setState(() => _isPressed = false);
-        widget.onTap();
-      },
-      onTapCancel: () => setState(() => _isPressed = false),
+    final n = widget.unreadCount;
+    return EcTapTarget(
+      onTap: widget.onTap,
+      label: n > 0
+          ? 'Notifications, $n need${n == 1 ? 's' : ''} attention'
+          : 'Notifications',
+      borderRadius: BorderRadius.circular(16.0),
+      onPressedChanged: (p) => setState(() => _isPressed = p),
       child: AnimatedScale(
         scale: _isPressed ? 0.94 : 1.0,
         duration: const Duration(milliseconds: 110),
@@ -63,7 +67,7 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
             children: [
               const Icon(
                 Icons.notifications_rounded,
-                color: Color(0xFFFF5500),
+                color: EcColors.brand,
                 size: 26.0,
               ),
               if (widget.unreadCount > 0)
@@ -71,7 +75,10 @@ class _NotificationBellButtonState extends State<NotificationBellButton> {
                   top: 7.0,
                   right: 7.0,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1.5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4.5,
+                      vertical: 1.5,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFF5500),
                       shape: BoxShape.circle,

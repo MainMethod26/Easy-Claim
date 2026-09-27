@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/ec_tokens.dart';
 
 import '../data/models/onboarding_models.dart';
 import '../data/repositories/repositories.dart';
@@ -63,7 +64,7 @@ class _SetupChecklistState extends State<SetupChecklist> {
           child: ListTile(
             key: key,
             contentPadding: EdgeInsets.zero,
-            leading: Icon(done ? Icons.check_circle : Icons.radio_button_unchecked, color: done ? const Color(0xFF15803D) : const Color(0xFF94A3B8)),
+            leading: Icon(done ? Icons.check_circle : Icons.radio_button_unchecked, color: done ? const Color(0xFF15803D) : EcColors.inkMuted),
             title: Text(title, style: TextStyle(fontWeight: FontWeight.w700, decoration: done && !widget.alwaysShow ? TextDecoration.lineThrough : null)),
             subtitle: Text(subtitle),
             trailing: const Icon(Icons.chevron_right),

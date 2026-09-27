@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../core/theme/ec_tokens.dart';
+import '../core/widgets/ec_tap_target.dart';
 import '../data/models/api_models.dart';
 import '../widgets/claims_wizard_modal.dart';
 
@@ -24,10 +26,10 @@ class PolicyDetailsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(policy.planName, style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w800, fontSize: 20)),
+        title: Text(policy.planName, style: const TextStyle(color: EcColors.ink, fontWeight: FontWeight.w800, fontSize: 20)),
         backgroundColor: Colors.white,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
+        iconTheme: const IconThemeData(color: EcColors.ink),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -37,22 +39,22 @@ class PolicyDetailsScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                color: EcColors.surfaceAlt,
+                borderRadius: EcRadius.card,
+                border: Border.all(color: EcColors.line),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.shield_outlined, size: 40, color: Color(0xFF0F172A)),
+                  const Icon(Icons.shield_outlined, size: 40, color: EcColors.ink),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(policy.insurerName ?? 'Insurer',
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: EcColors.ink)),
                         const SizedBox(height: 4),
-                        Text('Policy ${policy.id} · ${policy.status}', style: const TextStyle(fontSize: 14, color: Color(0xFF64748B))),
+                        Text('Policy ${policy.id} · ${policy.status}', style: const TextStyle(fontSize: 14, color: EcColors.inkMuted)),
                       ],
                     ),
                   ),
@@ -61,10 +63,10 @@ class PolicyDetailsScreen extends StatelessWidget {
             ),
             if (!policy.isActive) ...[
               const SizedBox(height: 12),
-              const Text('Claims can only be made on an active policy.', style: TextStyle(color: Color(0xFFD97706))),
+              const Text('Claims can only be made on an active policy.', style: TextStyle(color: Color(0xFFB45309))), // amber-700: AA on white
             ],
             const SizedBox(height: 32),
-            const Text('Manage policy', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+            const Text('Manage policy', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: EcColors.ink)),
             const SizedBox(height: 16),
             Expanded(
               child: GridView.count(
@@ -76,7 +78,7 @@ class PolicyDetailsScreen extends StatelessWidget {
                     icon: Icons.assignment_late_rounded,
                     title: 'Submit claim',
                     subtitle: policy.isActive ? 'File a new claim' : 'Policy not active',
-                    color: const Color(0xFFFF5500),
+                    color: EcColors.brand,
                     onTap: policy.isActive ? () => _startClaimFlow(context) : () => _notAvailable(context, 'Claiming on an inactive policy'),
                   ),
                   _buildOptionCard(
@@ -116,14 +118,15 @@ class PolicyDetailsScreen extends StatelessWidget {
     required Color color,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
+    return EcTapTarget(
       onTap: onTap,
+      label: '$title. $subtitle',
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          color: EcColors.surface,
+          borderRadius: EcRadius.card,
+          border: Border.all(color: EcColors.line),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
         ),
         child: Column(
@@ -135,9 +138,9 @@ class PolicyDetailsScreen extends StatelessWidget {
               child: Icon(icon, color: color, size: 28),
             ),
             const SizedBox(height: 12),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Color(0xFF0F172A))),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: EcColors.ink)),
             const SizedBox(height: 4),
-            Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+            Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: EcColors.inkMuted)),
           ],
         ),
       ),

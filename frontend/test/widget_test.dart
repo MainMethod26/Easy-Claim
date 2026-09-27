@@ -396,7 +396,7 @@ void main() {
       expect(find.byKey(const Key('toggle-admin_discovery')), findsOneWidget);
       await tester.tap(find.byKey(const Key('add-account')));
       await _settle(tester);
-      expect(find.text('Platform admin'), findsNothing); // no way to create a platform admin
+      expect(find.descendant(of: find.byType(AlertDialog), matching: find.text('Platform admin')), findsNothing); // no way to create a platform admin
       await tester.enterText(find.byKey(const Key('account-username')), 'admin2');
       await tester.enterText(find.byKey(const Key('account-displayName')), 'Admin Two');
       await tester.enterText(find.byKey(const Key('account-password')), '1234567');

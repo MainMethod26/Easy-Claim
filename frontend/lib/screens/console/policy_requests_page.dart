@@ -66,8 +66,9 @@ class _PolicyRequestsPageState extends State<PolicyRequestsPage> {
         EcPageHeader(
           title: 'Policy requests',
           subtitle: 'Customers asking to link a policy they hold with you. Open a request to check the client and documents.',
-          trailing: SizedBox(
-            width: 320,
+          // Up to 320 px wide; narrower on phones so the header never overflows.
+          trailing: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
             child: TextField(
               key: const Key('easyclaim-search'),
               controller: _search,

@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../core/theme/ec_tokens.dart';
 import '../core/api/api_client.dart';
 import '../core/widgets/state_views.dart';
 import '../data/models/api_models.dart';
@@ -10,9 +11,9 @@ import '../providers/claims_wizard_provider.dart';
 import 'claim_stepper.dart';
 import '../screens/link_policy_screen.dart';
 
-const _orange = Color(0xFFFF5500);
-const _ink = Color(0xFF0F172A);
-const _muted = Color(0xFF64748B);
+const _orange = EcColors.brand;
+const _ink = EcColors.ink;
+const _muted = EcColors.inkMuted;
 
 /// Customer claim wizard. Every step is backed by the API (docs/API_CONTRACT.md):
 /// initiate → verify-eligibility → PATCH screening → PUT payout-details → POST evidence →
@@ -208,7 +209,7 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('STEP ${_w.stepNumber} OF ${_w.stepCount}',
-                style: const TextStyle(color: _orange, fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: 0.6)),
+                style: const TextStyle(color: EcColors.brandText, fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: 0.6)),
             const SizedBox(height: 4),
             Text(_w.step.title, style: const TextStyle(color: _ink, fontSize: 22, fontWeight: FontWeight.w900)),
             const SizedBox(height: 10),
@@ -217,7 +218,7 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
               child: LinearProgressIndicator(
                 value: _w.stepNumber / _w.stepCount,
                 minHeight: 6,
-                backgroundColor: const Color(0xFFE2E8F0),
+                backgroundColor: EcColors.line,
                 valueColor: const AlwaysStoppedAnimation(_orange),
               ),
             ),
@@ -288,9 +289,9 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
         hintText: hint,
         isDense: true,
         filled: true,
-        fillColor: const Color(0xFFF8FAFC),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+        fillColor: EcColors.surfaceAlt,
+        border: OutlineInputBorder(borderRadius: EcRadius.card, borderSide: const BorderSide(color: EcColors.line)),
+        enabledBorder: OutlineInputBorder(borderRadius: EcRadius.card, borderSide: const BorderSide(color: EcColors.line)),
       );
 
   Widget _stepPolicy() {
@@ -315,10 +316,10 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
         for (final p in policies)
           Card(
             elevation: 0,
-            color: _w.selectedPolicy?.id == p.id ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
+            color: _w.selectedPolicy?.id == p.id ? const Color(0xFFFFF7ED) : EcColors.surfaceAlt,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-              side: BorderSide(color: _w.selectedPolicy?.id == p.id ? _orange : const Color(0xFFE2E8F0)),
+              borderRadius: EcRadius.card,
+              side: BorderSide(color: _w.selectedPolicy?.id == p.id ? _orange : EcColors.line),
             ),
             child: ListTile(
               leading: Icon(_w.selectedPolicy?.id == p.id ? Icons.radio_button_checked : Icons.radio_button_off, color: _orange),
@@ -349,7 +350,7 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
 
   Widget _check(String label, bool? value) {
     final (icon, color, text) = switch (value) {
-      true => (Icons.check_circle, const Color(0xFF16A34A), 'Confirmed'),
+      true => (Icons.check_circle, const Color(0xFF15803D), 'Confirmed'), // green-700: AA as text
       false => (Icons.cancel, const Color(0xFFDC2626), 'Not confirmed'),
       null => (Icons.remove_circle_outline, _muted, 'Not checked yet'),
     };

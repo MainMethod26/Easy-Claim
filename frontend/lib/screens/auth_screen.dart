@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/ec_tokens.dart';
 import '../core/api/api_exception.dart';
 import '../core/auth/session.dart';
 import '../data/repositories/repositories.dart';
@@ -214,7 +215,7 @@ class _AuthScreenState extends State<AuthScreen> {
             key: const Key('create-account'),
             onPressed: _busy ? null : _openRegister,
             child: const Text('New to EasyClaim? Create account',
-                style: TextStyle(color: Color(0xFFFF5500), fontWeight: FontWeight.w700)),
+                style: TextStyle(color: EcColors.brandText, fontWeight: FontWeight.w700)),
           ),
         ),
         Center(
@@ -266,12 +267,12 @@ class _AuthScreenState extends State<AuthScreen> {
               suffixIcon: isPassword
                   ? IconButton(
                       icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility,
-                          color: const Color(0xFF94A3B8), size: 20.0),
+                          color: EcColors.inkMuted, size: 20.0),
                       onPressed: onTogglePassword,
                     )
                   : null,
               hintText: hint,
-              hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13.5),
+              hintStyle: const TextStyle(color: EcColors.inkMuted, fontSize: 13.5),
               border: InputBorder.none,
             ),
           ),

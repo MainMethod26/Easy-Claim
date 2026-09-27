@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/ec_tokens.dart';
 
 class ClaimStepper extends StatelessWidget {
   final int activeIndex;
@@ -95,10 +96,10 @@ class ClaimStepper extends StatelessWidget {
                       duration: const Duration(milliseconds: 300),
                       style: TextStyle(
                         color: isCurrent
-                            ? const Color(0xFFFF5500)
+                            ? EcColors.brandText
                             : (isPast
-                                ? const Color(0xFF0F172A)
-                                : const Color(0xFF94A3B8)),
+                                ? EcColors.ink
+                                : EcColors.inkMuted),
                         fontSize: 10.5,
                         fontWeight: isCurrent
                             ? FontWeight.w800

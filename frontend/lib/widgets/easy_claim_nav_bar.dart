@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../core/theme/ec_tokens.dart';
+import '../core/widgets/ec_tap_target.dart';
+
 class EasyClaimNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
@@ -14,10 +17,10 @@ class EasyClaimNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: EcColors.surface,
         border: const Border(
           top: BorderSide(
-            color: Color(0xFFE2E8F0), // Subtle light border
+            color: EcColors.line, // Subtle light border
             width: 1.0,
           ),
         ),
@@ -25,10 +28,7 @@ class EasyClaimNavBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 8.0,
-            vertical: 10.0,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 10.0),
           child: Row(
             children: [
               Expanded(
@@ -111,21 +111,21 @@ class _NavBarItemState extends State<_NavBarItem> {
 
   @override
   Widget build(BuildContext context) {
-    final color = widget.isSelected ? const Color(0xFFFF5500) : const Color(0xFF64748B);
+    final color = widget.isSelected ? EcColors.brandText : EcColors.inkMuted;
 
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) {
-        setState(() => _isPressed = false);
-        widget.onTap();
-      },
-      onTapCancel: () => setState(() => _isPressed = false),
-      behavior: HitTestBehavior.opaque,
+    // Focusable tab: announced as "<label>, selected" with Enter/Space activation and a focus ring.
+    return EcTapTarget(
+      onTap: widget.onTap,
+      label: widget.label,
+      selected: widget.isSelected,
+      onPressedChanged: (p) => setState(() => _isPressed = p),
+      focusRingColor: EcColors.brandText,
       child: AnimatedOpacity(
         opacity: _isPressed ? 0.6 : 1.0,
         duration: const Duration(milliseconds: 100),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Stack(
               clipBehavior: Clip.none,
@@ -164,10 +164,14 @@ class _NavBarItemState extends State<_NavBarItem> {
             const SizedBox(height: 4.0),
             Text(
               widget.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: color,
                 fontSize: 12.0,
-                fontWeight: widget.isSelected ? FontWeight.w700 : FontWeight.w500,
+                fontWeight: widget.isSelected
+                    ? FontWeight.w700
+                    : FontWeight.w500,
               ),
             ),
           ],

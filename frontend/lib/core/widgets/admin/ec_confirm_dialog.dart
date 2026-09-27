@@ -6,6 +6,9 @@ import '../../theme/ec_tokens.dart';
 /// change a role). A reason is required and returned to the caller, which sends it to the
 /// backend so it lands in the audit trail. This is a UX guard only — the server still
 /// authorises and validates every request.
+///
+/// Where the endpoint takes no reason yet, callers pass a [reasonLabel]/[reasonHelper] that
+/// says so, so the dialog never promises that the text is stored.
 Future<String?> showEcConfirmWithReason(
   BuildContext context, {
   required String title,
@@ -13,6 +16,8 @@ Future<String?> showEcConfirmWithReason(
   required String confirmLabel,
   bool destructive = false,
   int minReasonLength = 5,
+  String reasonLabel = 'Reason (recorded in the audit log)',
+  String? reasonHelper,
 }) {
   final controller = TextEditingController();
   return showDialog<String>(
@@ -38,7 +43,11 @@ Future<String?> showEcConfirmWithReason(
                     maxLength: 500,
                     maxLines: 3,
                     minLines: 2,
-                    decoration: InputDecoration(labelText: 'Reason (recorded in the audit log)', helperText: 'At least $minReasonLength characters'),
+                    decoration: InputDecoration(
+                      labelText: reasonLabel,
+                      helperText: reasonHelper ?? 'At least $minReasonLength characters',
+                      helperMaxLines: 3,
+                    ),
                     onChanged: (_) => setState(() {}),
                   ),
                 ],

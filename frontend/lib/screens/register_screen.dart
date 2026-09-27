@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/ec_tokens.dart';
 import '../core/api/api_exception.dart';
 import '../data/repositories/repositories.dart';
 import '../widgets/easy_claim_logo.dart';
@@ -87,7 +88,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
               suffixIcon: password
                   ? IconButton(
-                      icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, size: 20, color: const Color(0xFF94A3B8)),
+                      icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, size: 20, color: EcColors.inkMuted),
                       onPressed: () => setState(() => _obscure = !_obscure),
                     )
                   : null,

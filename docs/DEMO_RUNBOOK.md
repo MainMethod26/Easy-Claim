@@ -1,7 +1,34 @@
-# Demo runbook (local)
+# Demo runbook
 
-Everything runs on one laptop: the Worker with local D1/R2 (Miniflare) and the Flutter app. No cloud account needed.
-Verified on Windows 11, Node 24, wrangler 4.141, Flutter 3.47.5 on 26 Sep 2026.
+Two ways to demo: **live** on the team's Cloudflare account (nothing to install), or **local** on one laptop (Worker
+with local D1/R2 via Miniflare plus the Flutter app). Updated 27 Sep 2026 (migrations 0001-0014).
+
+## Live (team Cloudflare account)
+
+| What | URL |
+|---|---|
+| App (customers and all staff roles, one app routed by role) | https://easy-claim-frontend.pages.dev |
+| React insurer portal (assessor / manager view, real sign-in form) | https://easy-claim-admin-frontend.pages.dev |
+| API | `https://<worker>.workers.dev/api/v1` (see `backend/wrangler.toml`) |
+
+The live build lists the demo accounts on the sign-in screen (`--dart-define=SHOW_DEMO_ACCOUNTS=true`); the demo
+password is `1234567` for every account in section 3. `claim_demo_normal` has already been approved and paid on
+live; `claim_demo_unusual` (HIGH anomaly) is left open for the demo. File a fresh claim as `mike` to show the full path.
+
+**Deploying** (team account `077883a9c8271d3b7bc8b28d6756cf9f`; D1 database `easy-claim-db` is the v2 database):
+
+```bash
+cd backend
+npm run deploy:live        # typecheck, apply pending remote migrations, wrangler deploy
+cd ../frontend
+flutter build web --release --dart-define=API_BASE_URL=<api url> --dart-define=SHOW_DEMO_ACCOUNTS=true
+CLOUDFLARE_ACCOUNT_ID=077883a9c8271d3b7bc8b28d6756cf9f npx wrangler pages deploy build/web --project-name easy-claim-frontend
+```
+Pushing to GitHub does **not** deploy anything; the Pages projects are direct uploads. Always deploy with the
+committed `wrangler.toml` (older copies point at a deleted database). Secrets (`JWT_SECRET`, `MLDSA_SEED`, `PII_KEY`,
+`DEMO_LOGIN_PASSWORD`) live only in Cloudflare; never print or commit them.
+
+# Local
 
 ## 0. Prerequisites
 
@@ -20,9 +47,9 @@ Verified on Windows 11, Node 24, wrangler 4.141, Flutter 3.47.5 on 26 Sep 2026.
 ```bash
 cd backend
 npm install
-npm run setup:local        # creates backend/.dev.vars: JWT_SECRET, MLDSA_SEED (random) and DEMO_LOGIN_PASSWORD=1234567
+npm run setup:local        # creates backend/.dev.vars: JWT_SECRET, MLDSA_SEED, PII_KEY (random), DEMO_LOGIN_PASSWORD=1234567
                            # an older .dev.vars? run: npm run setup:local -- --add-missing
-npm run demo:setup:local   # migrations 0001..0009, seed, demo accounts, quantum screening signals, the NORMAL + HIGH demo claims
+npm run demo:setup:local   # migrations 0001..0014, seed, demo accounts, quantum screening signals, the NORMAL + HIGH demo claims (with payout details)
 npm run dev                # http://127.0.0.1:8787 ; wait until `curl http://127.0.0.1:8787/api/v1/claims` answers 401
 ```
 
@@ -46,7 +73,7 @@ flutter run -d chrome --web-port 5174 -t lib/main_admin.dart --dart-define=API_B
 ```
 (5174 must be added to `ALLOWED_ORIGINS` for the second web app.)
 
-## 3. Demo accounts (local only, password `1234567`)
+## 3. Demo accounts (password `1234567`, local and live)
 
 | Username | Role | Insurer (tenant) | Use it for |
 |---|---|---|---|
@@ -54,9 +81,9 @@ flutter run -d chrome --web-port 5174 -t lib/main_admin.dart --dart-define=API_B
 | `lerato`, `sipho` | CUSTOMER | – | "another customer" attacks |
 | `assessor_discovery` | ASSESSOR | Discovery | verify, screen, review |
 | `manager_discovery` | MANAGER | Discovery | decide, pay |
-| `admin_discovery` | INSURER_ADMIN | Discovery | staff accounts, tenant stats, read-only claims |
+| `admin_discovery` | INSURER_ADMIN | Discovery | staff, policy requests, required documents, audit, read-only claims |
 | `assessor_sanlam`, `manager_sanlam`, `admin_sanlam` | same roles | Sanlam | cross-tenant attacks |
-| `superadmin` | SUPERADMIN | – | insurers, insurer admins, platform stats, read-only claims |
+| `superadmin` | SUPERADMIN | – | insurer applications, insurers, insurer admins, security and integrity views. **No claim access** |
 
 Anyone can also register a new customer from the sign-in screen ("Create account").
 
@@ -64,22 +91,30 @@ Anyone can also register a new customer from the sign-in screen ("Create account
 
 1. **Customer (`mike`)**: sign in → My Covers shows real policies → Submit Claim on the Discovery policy → category,
    eligibility check, describe the loss, claimed amount and bank details, attach a PDF/JPEG/PNG → submit. Claim shows
-   as Submitted. (Optional: "Create account" to register a brand-new customer live.)
+   as Submitted. A claim left as Draft shows "Continue" and reopens the wizard where it stopped. (Optional: "Create
+   account" to register a brand-new customer; Home shows a "Get set up" checklist: My details → EasyClaim ID → Link a
+   policy.)
 2. **Assessor (`assessor_discovery`)**: the queue shows the claim with its amount → Verify → Screen. The screening
    card shows the classical and quantum-kernel signals, the band and "Review required / Human decision required".
    Open `claim_demo_unusual` (seeded HIGH anomaly) and screen it: HIGH, and it is still just "Screening". → Review.
-   The assessor sees "Manager decision required": no Decide or Pay button.
+   The assessor sees "Manager decision required": no Decide or Pay button. Evidence rows open the file itself.
+   **Hand-off:** "Request information" asks for a message and moves the claim to Info Needed. As `mike`, the claim
+   shows the insurer's message with "Upload more" and "Reply"; sending the reply moves it back to Screening. Both sides
+   see the same message thread on the claim (Help → "Message your insurer" leads there too). The customer can also
+   Withdraw (with a reason) or, after a rejection, Appeal; the reason is shown to staff.
 3. **Manager (`manager_discovery`)**: Record decision (Approve, reason, optional amount) → "✓ Cryptographically
-   verified · ML-DSA-65" → Pay (simulated) → Paid. Reject the HIGH claim with a reason: a human decision, signed.
-4. **Insurer admin (`admin_discovery`)**: Team tab: tenant stats, staff list, add an assessor, disable/enable. Claims
-   tab is read-only, with no action buttons and no screening card.
-5. **Superadmin (`superadmin`)**: platform dashboard (claims by stage per insurer, users by role) → Insurers: add
-   "Demo Mutual" → Accounts: create its insurer admin → Claims: read-only list across insurers, open the paid claim.
-   There is no Verify/Decide/Pay button anywhere for the superadmin.
+   verified · ML-DSA-65" → Pay (simulated, asks for confirmation) → Paid. Reject the HIGH claim with a reason: a
+   human decision, signed. The manager's queue holds only Review and Appeal claims.
+4. **Insurer admin (`admin_discovery`)**: Team: staff list, add an assessor, disable/enable (disabling signs that
+   person out at once). Claims is read-only, with no action buttons and no screening card. Policy requests, Required
+   docs and Audit log are described in 5d-5e.
+5. **Superadmin (`superadmin`)**: Overview (claim counts by stage per insurer, users by role) → Applications →
+   Insurers → Insurer admins → Security → Integrity → Audit log. There is no Claims tab and no claim action: the
+   superadmin manages insurers and their admins only.
    **Consoles** (one app, chosen by role after sign-in): the insurer admin gets Overview (KPIs, claims by stage,
-   screening bands, decision signatures), Claims (read-only), Team and Audit log. The superadmin gets Overview,
-   Insurers, Accounts, Claims (read-only), Security centre, Integrity & crypto and Global audit log. Assessors and
-   managers get "My queue" (the stages their role acts on) and All claims. Every number is defined in
+   screening bands, decision signatures), Claims (read-only), Policy requests, Required docs, Team and Audit log. The
+   superadmin gets Overview, Applications, Insurers, Insurer admins, Security, Integrity and Audit log. Assessors
+   (Submitted, Verified, Screening) and managers (Review, Appeal) get "My queue" and All claims. Every number is defined in
    `docs/admin/METRICS.md`; screenshots are in `docs/admin/screenshots/`.
    **Onboarding a new insurer and customer (27 Sep 2026):**
    a. On the sign-in screen, "Are you an insurer? Register your company". Fill in company, FSP number, contact
@@ -98,7 +133,8 @@ Anyone can also register a new customer from the sign-in screen ("Create account
       customer's covers, and the normal claim journey (steps 1–3) works on it.
    The superadmin never sees claims: `/claims` is 403 and every claim URL is 404 for it.
 6. **Customer again**: claim shows Paid, the decision and "Decision verified". No model internals.
-7. **Security** (Postman folders 00, 5–8, 11, 12 or the script below): no token 401, wrong password 401 with the same
+7. **Security** (Postman folders 00, 5–8, 11, 12 or the script below; tokens are re-checked against the account on
+   every request, five wrong passwords lock an account for 15 minutes): no token 401, wrong password 401 with the same
    body as an unknown user, a role in the login or register body 400, customer on an insurer action 403, assessor
    deciding or paying 403, insurer admin or superadmin on any claim action 403, other customer's claim 404, other insurer's claim or admin account 404, spoofed
    `X-User-Id`/`X-Role`/`X-Tenant-Id` ignored, fake risk score ignored/400, pay before decision 409, replayed payout 409.

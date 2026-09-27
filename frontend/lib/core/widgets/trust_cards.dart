@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/ec_tokens.dart';
 
 import '../../data/models/api_models.dart';
 
@@ -61,7 +62,7 @@ class ScreeningCard extends StatelessWidget {
                 style: const TextStyle(color: Color(0xFF64748B), fontStyle: FontStyle.italic, fontSize: 12.5),
               ),
               Text('Model ${s.modelVersion} · ${s.execution}',
-                  style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5)),
+                  style: const TextStyle(color: EcColors.inkMuted, fontSize: 11.5)),
             ]),
     );
   }
@@ -146,10 +147,11 @@ class DecisionIntegrityCard extends StatelessWidget {
 
 Widget _row(String label, String value) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(children: [
-        Text(label, style: const TextStyle(color: Color(0xFF475569))),
-        const Spacer(),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+      // Flexible on both sides: long values wrap on narrow phones and at large text sizes.
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Flexible(child: Text(label, style: const TextStyle(color: Color(0xFF475569)))),
+        const SizedBox(width: EcSpace.md),
+        Expanded(child: Text(value, textAlign: TextAlign.end, style: const TextStyle(fontWeight: FontWeight.w700))),
       ]),
     );
 
@@ -165,15 +167,16 @@ class _CardShell extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          color: EcColors.surface,
+          borderRadius: EcRadius.card,
+          border: Border.all(color: EcColors.line),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Text(title.toUpperCase(),
-                style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8, fontSize: 12, color: Color(0xFF0F172A))),
-            const Spacer(),
+            Expanded(
+              child: Text(title.toUpperCase(),
+                  style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8, fontSize: 12, color: EcColors.ink)),
+            ),
             ?trailing,
           ]),
           const SizedBox(height: 10),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/ec_tokens.dart';
 import 'neumorphic_button.dart';
 import '../data/models/api_models.dart';
 import '../data/models/claim_stage.dart';
@@ -54,7 +55,7 @@ class NotificationsSheet extends StatelessWidget {
                     Text(nextStepFor(c.stage, status: c.status), style: const TextStyle(color: Color(0xFF475569))),
                     const SizedBox(height: 4),
                     Text('${c.category ?? 'Claim'} · ${c.id}',
-                        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5)),
+                        style: const TextStyle(color: EcColors.inkMuted, fontSize: 11.5)),
                   ]),
                 ),
               ]),

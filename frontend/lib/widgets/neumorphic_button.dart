@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 
-enum NeumorphicButtonVariant {
-  primaryOrange,
-  secondaryBlue,
-  outlineOrange,
-}
+import '../core/theme/ec_tokens.dart';
+import '../core/widgets/ec_tap_target.dart';
+
+enum NeumorphicButtonVariant { primaryOrange, secondaryBlue, outlineOrange }
 
 class NeumorphicButton extends StatefulWidget {
   final VoidCallback? onTap;
@@ -17,6 +16,9 @@ class NeumorphicButton extends StatefulWidget {
   final BorderRadius? borderRadius;
   final EdgeInsetsGeometry? padding;
 
+  /// Screen-reader label; defaults to [text]. Needed when only [child] is given.
+  final String? semanticLabel;
+
   const NeumorphicButton({
     super.key,
     this.onTap,
@@ -28,6 +30,7 @@ class NeumorphicButton extends StatefulWidget {
     this.variant = NeumorphicButtonVariant.primaryOrange,
     this.borderRadius,
     this.padding,
+    this.semanticLabel,
   });
 
   @override
@@ -41,25 +44,30 @@ class _NeumorphicButtonState extends State<NeumorphicButton> {
   Widget build(BuildContext context) {
     final radius = widget.borderRadius ?? BorderRadius.circular(18.0);
 
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) {
-        setState(() => _isPressed = false);
-        widget.onTap?.call();
-      },
-      onTapCancel: () => setState(() => _isPressed = false),
-      child: AnimatedScale(
-        scale: _isPressed ? 0.975 : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: AnimatedContainer(
+    final enabled = widget.onTap != null;
+    // A real button: focusable, Enter/Space activate it, announced with its label. [height] is a
+    // minimum so larger text sizes grow the button instead of clipping it.
+    return EcTapTarget(
+      onTap: widget.onTap,
+      label: widget.semanticLabel ?? widget.text ?? '',
+      borderRadius: radius,
+      onPressedChanged: (p) => setState(() => _isPressed = p),
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.5,
+        child: AnimatedScale(
+          scale: _isPressed ? 0.975 : 1.0,
           duration: const Duration(milliseconds: 110),
           curve: Curves.easeOutCubic,
-          width: widget.width,
-          height: widget.height,
-          padding: widget.padding ?? const EdgeInsets.symmetric(horizontal: 20.0),
-          decoration: _buildDecoration(radius),
-          child: widget.child ?? _buildDefaultChild(),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 110),
+            curve: Curves.easeOutCubic,
+            width: widget.width,
+            constraints: BoxConstraints(minHeight: widget.height),
+            padding:
+                widget.padding ?? const EdgeInsets.symmetric(horizontal: 20.0),
+            decoration: _buildDecoration(radius),
+            child: widget.child ?? _buildDefaultChild(),
+          ),
         ),
       ),
     );
@@ -74,14 +82,8 @@ class _NeumorphicButtonState extends State<NeumorphicButton> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: _isPressed
-                ? const [
-                    Color(0xFFD63E00),
-                    Color(0xFFF24E00),
-                  ]
-                : const [
-                    Color(0xFFFF6600),
-                    Color(0xFFFF4800),
-                  ],
+                ? const [Color(0xFFD63E00), Color(0xFFF24E00)]
+                : const [Color(0xFFFF6600), Color(0xFFFF4800)],
           ),
           border: Border.all(
             color: _isPressed
@@ -191,7 +193,7 @@ class _NeumorphicButtonState extends State<NeumorphicButton> {
 
   Widget _buildDefaultChild() {
     final isPrimary = widget.variant == NeumorphicButtonVariant.primaryOrange;
-    final textColor = isPrimary ? Colors.white : const Color(0xFFFF5500);
+    final textColor = isPrimary ? Colors.white : EcColors.brandText;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -202,13 +204,16 @@ class _NeumorphicButtonState extends State<NeumorphicButton> {
           const SizedBox(width: 8.0),
         ],
         if (widget.text != null)
-          Text(
-            widget.text!,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 15.0,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.2,
+          Flexible(
+            child: Text(
+              widget.text!,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 15.0,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+              ),
             ),
           ),
       ],

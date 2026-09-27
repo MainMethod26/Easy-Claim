@@ -1,4 +1,6 @@
 import '../core/auth/session.dart';
+import '../core/theme/ec_status_colors.dart';
+import '../core/theme/ec_tokens.dart';
 import 'auth_screen.dart';
 import 'package:flutter/material.dart';
 import '../widgets/setup_checklist.dart';
@@ -37,7 +39,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: EcColors.surface,
       body: AuroraBackground(
         child: SafeArea(
           top: true,
@@ -50,7 +52,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const Text(
                 'My Profile & Settings',
                 style: TextStyle(
-                  color: Color(0xFF0F172A),
+                  color: EcColors.ink,
                   fontSize: 26,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.4,
@@ -59,7 +61,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 4),
               const Text(
                 'Personal details, data consent & security controls',
-                style: TextStyle(color: Color(0xFF64748B), fontSize: 13.5),
+                style: TextStyle(color: EcColors.inkMuted, fontSize: 13.5),
               ),
               const SizedBox(height: 20),
 
@@ -72,7 +74,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(22),
+                  borderRadius: EcRadius.card,
                   border: Border.all(color: Colors.white24),
                   boxShadow: [
                     BoxShadow(
@@ -92,7 +94,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         shape: BoxShape.circle,
                       ),
                       child: const Center(
-                        child: Icon(Icons.person_rounded, color: Color(0xFFFF5500), size: 36),
+                        child: Icon(Icons.person_rounded, color: EcColors.brand, size: 36),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -102,17 +104,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           Row(
                             children: [
-                              Text(
-                                Session.instance.actor?.label ?? 'Not signed in',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
+                              Flexible(
+                                child: Text(
+                                  Session.instance.actor?.label ?? 'Not signed in',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           Text(
                             _roleLine,
                             style: const TextStyle(color: Colors.white70, fontSize: 12),
@@ -137,7 +143,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildSettingsCard([
                 _buildActionRow(
                   icon: Icons.headset_mic_rounded,
-                  iconColor: const Color(0xFFFF5500),
+                  iconColor: EcColors.brand,
                   title: 'Help and messages',
                   subtitle: 'Message your insurer about a claim, complaints route',
                   onTap: () {
@@ -149,17 +155,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     );
                   },
                 ),
-                const Divider(color: Color(0xFFE2E8F0), height: 1),
+                const Divider(color: EcColors.line, height: 1),
                 _buildActionRow(
                   icon: Icons.gavel_rounded,
-                  iconColor: const Color(0xFFF59E0B),
+                  iconColor: EcColors.warning,
                   title: 'Short-Term Insurance Ombudsman',
                   subtitle: 'Independent statutory mediator contact details',
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Ombudsman for Short-Term Insurance: 0860 726 890 (see Help for more)'),
-                        backgroundColor: Color(0xFFFF5500),
+                        backgroundColor: EcColors.brand,
                       ),
                     );
                   },
@@ -172,11 +178,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Center(
                 child: TextButton.icon(
                   onPressed: _signOut,
-                  icon: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
-                  label: const Text(
+                  icon: Icon(Icons.logout_rounded, color: EcStatusColors.light.danger.foreground),
+                  label: Text(
                     'Sign Out',
                     style: TextStyle(
-                      color: Color(0xFFEF4444),
+                      color: EcStatusColors.light.danger.foreground,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -196,7 +202,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Text(
         title,
         style: const TextStyle(
-          color: Color(0xFFFF6D00),
+          color: EcColors.brandText, // brand orange is below 4.5:1 on white at this size
           fontSize: 11.5,
           fontWeight: FontWeight.w800,
           letterSpacing: 1.1,
@@ -207,12 +213,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildSettingsCard(List<Widget> children) {
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      color: EcColors.surface,
+      borderRadius: EcRadius.card,
+      clipBehavior: Clip.antiAlias,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          borderRadius: EcRadius.card,
+          border: Border.all(color: EcColors.line),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -241,7 +248,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         height: 40,
         decoration: BoxDecoration(
           color: iconColor.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: EcRadius.card,
         ),
         child: Icon(icon, color: iconColor, size: 22),
       ),
@@ -251,7 +258,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Text(
               title,
               style: const TextStyle(
-                color: Color(0xFF0F172A),
+                color: EcColors.ink,
                 fontWeight: FontWeight.w700,
                 fontSize: 14.5,
               ),
@@ -261,14 +268,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
-                color: const Color(0xFFF0FDF4),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFF16A34A)),
+                color: EcStatusColors.light.success.background,
+                borderRadius: BorderRadius.circular(EcRadius.sm),
+                border: Border.all(color: EcStatusColors.light.success.foreground),
               ),
               child: Text(
                 badge,
-                style: const TextStyle(
-                  color: Color(0xFF16A34A),
+                style: TextStyle(
+                  color: EcStatusColors.light.success.foreground,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                 ),
@@ -278,9 +285,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       subtitle: Text(
         subtitle,
-        style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+        style: const TextStyle(color: EcColors.inkMuted, fontSize: 12),
       ),
-      trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFCBD5E1), size: 14),
+      trailing: const Icon(Icons.arrow_forward_ios_rounded, color: EcColors.inkSubtle, size: 14),
     );
   }
 

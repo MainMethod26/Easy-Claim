@@ -3,6 +3,8 @@ import 'package:file_picker/file_picker.dart';
 import '../core/api/api_client.dart';
 import '../widgets/claim_messages_panel.dart';
 import '../widgets/claims_wizard_modal.dart';
+import '../core/theme/ec_status_colors.dart';
+import '../core/theme/ec_tokens.dart';
 import '../core/widgets/state_views.dart';
 import '../core/widgets/trust_cards.dart';
 import '../data/models/api_models.dart';
@@ -144,7 +146,7 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep claim')),
           FilledButton(
             key: const Key('confirm-withdraw'),
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB91C1C)),
+            style: FilledButton.styleFrom(backgroundColor: EcStatusColors.light.danger.foreground),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Withdraw'),
           ),
@@ -210,9 +212,9 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                   children: [
                     const Text('Claim activity',
-                        style: TextStyle(color: Color(0xFF0F172A), fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
+                        style: TextStyle(color: EcColors.ink, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
                     const SizedBox(height: 2),
-                    const Text('The six stages of your claim', style: TextStyle(color: Color(0xFF64748B), fontSize: 13.5)),
+                    const Text('The six stages of your claim', style: TextStyle(color: EcColors.inkMuted, fontSize: 13.5)),
                     const SizedBox(height: 14),
                     if (claims.isEmpty)
                       const EmptyView(message: 'No claims yet. Start one from the home screen.', icon: Icons.assignment_outlined)
@@ -247,8 +249,8 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
       decoration: InputDecoration(
         labelText: 'Claim',
         filled: true,
-        fillColor: const Color(0xFFF8FAFC),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        fillColor: EcColors.surfaceAlt,
+        border: OutlineInputBorder(borderRadius: EcRadius.card),
       ),
       items: [
         for (final c in claims)
@@ -272,11 +274,11 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
       _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text(c.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
-          Text(stage.label, style: const TextStyle(color: Color(0xFFFF5500), fontWeight: FontWeight.w800)),
+          Text(stage.label, style: const TextStyle(color: EcColors.brandText, fontWeight: FontWeight.w800)),
         ]),
         const SizedBox(height: 4),
         Text('${c.insurerName ?? 'Insurer'} · claimed ${formatRand(c.claimedAmountCents)} · ${v.evidenceCount} evidence file(s)',
-            style: const TextStyle(color: Color(0xFF64748B))),
+            style: const TextStyle(color: EcColors.inkMuted)),
         const SizedBox(height: 10),
         Text(nextStepFor(c.stage, status: c.status), style: const TextStyle(fontWeight: FontWeight.w600)),
       ])),
@@ -314,14 +316,14 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
         for (var i = 0; i < v.timeline.entries.length; i++) _stageRow(i, v.timeline.entries[i], v.timeline.currentStage),
         if (stage.sideState != null) ...[
           const SizedBox(height: 6),
-          Text('Current status: ${stage.label}', style: const TextStyle(color: Color(0xFFD97706), fontWeight: FontWeight.w700)),
+          Text('Current status: ${stage.label}', style: const TextStyle(color: Color(0xFFB45309), fontWeight: FontWeight.w700)),
         ],
       ])),
       _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('DECISION', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8, fontSize: 12)),
         const SizedBox(height: 8),
         if (v.decision.isPending)
-          const Text('No decision yet.', style: TextStyle(color: Color(0xFF64748B)))
+          const Text('No decision yet.', style: TextStyle(color: EcColors.inkMuted))
         else ...[
           Text(v.decision.decision, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
           if (v.decision.approvedAmountCents != null) Text('Approved amount: ${formatRand(v.decision.approvedAmountCents)}'),
@@ -342,7 +344,7 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
         else if (v.payout.accountLast4 != null)
           Text('Not paid yet. Payout account: ${v.payout.bankName ?? ''} ••••${v.payout.accountLast4}')
         else
-          const Text('No payout account on this claim.', style: TextStyle(color: Color(0xFF64748B))),
+          const Text('No payout account on this claim.', style: TextStyle(color: EcColors.inkMuted)),
       ])),
       if (c.stage != 'Draft') ClaimMessagesPanel(claimId: c.id, repository: _repo, title: 'Messages with your insurer'),
       if (const ['Draft', 'Submitted', 'Verified', 'Screening', 'Review', 'Info Needed'].contains(c.stage))
@@ -351,8 +353,8 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
           child: TextButton.icon(
             key: const Key('withdraw-claim'),
             onPressed: () => _withdraw(c.id),
-            icon: const Icon(Icons.close, color: Color(0xFFB91C1C)),
-            label: const Text('Withdraw this claim', style: TextStyle(color: Color(0xFFB91C1C))),
+            icon: Icon(Icons.close, color: EcStatusColors.light.danger.foreground),
+            label: Text('Withdraw this claim', style: TextStyle(color: EcStatusColors.light.danger.foreground)),
           ),
         ),
     ]);
@@ -360,7 +362,8 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
 
   Widget _stageRow(int index, TimelineEntry e, String current) {
     final isCurrent = e.stage == current;
-    final color = e.completed ? const Color(0xFF16A34A) : (isCurrent ? const Color(0xFFFF5500) : const Color(0xFFCBD5E1));
+    // Darker tones than before so the white step number stays readable (≥ 4.5:1).
+    final color = e.completed ? EcStatusColors.light.success.foreground : (isCurrent ? EcColors.brandText : EcColors.inkMuted);
     final date = e.date;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -376,7 +379,7 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
         Expanded(child: Text(e.stage, style: TextStyle(fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600))),
         if (date != null)
           Text('${date.toLocal().year}-${date.toLocal().month.toString().padLeft(2, '0')}-${date.toLocal().day.toString().padLeft(2, '0')}',
-              style: const TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+              style: const TextStyle(color: EcColors.inkMuted, fontSize: 12)),
       ]),
     );
   }
@@ -386,9 +389,9 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          color: EcColors.surface,
+          borderRadius: EcRadius.card,
+          border: Border.all(color: EcColors.line),
         ),
         child: child,
       );

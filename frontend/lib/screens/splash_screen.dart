@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../core/theme/ec_tokens.dart';
 import '../widgets/easy_claim_logo.dart';
 import '../widgets/neumorphic_button.dart';
 import '../widgets/picture_background.dart';
@@ -102,7 +103,7 @@ class _SplashScreenState extends State<SplashScreen>
                           Text(
                             'OFFICIAL EASYCLAIM NETWORK',
                             style: TextStyle(
-                              color: Color(0xFFFF5500),
+                              color: EcColors.brandText,
                               fontSize: 11.5,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 0.6,

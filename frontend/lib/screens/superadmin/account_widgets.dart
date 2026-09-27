@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../core/auth/session.dart';
+import '../../core/theme/ec_tokens.dart';
+import '../../core/widgets/admin/ec_confirm_dialog.dart';
+import '../../core/widgets/admin/ec_data_table.dart';
+import '../../core/widgets/admin/ec_section.dart';
+import '../../core/widgets/admin/ec_status_chip.dart';
 import '../../data/models/api_models.dart';
 import '../../data/models/claim_stage.dart';
 
@@ -98,17 +103,17 @@ class _NewAccountDialogState extends State<NewAccountDialog> {
       title: Text(widget.title),
       content: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(key: const Key('account-username'), controller: _username, autocorrect: false, decoration: const InputDecoration(labelText: 'Username', border: OutlineInputBorder())),
-          const SizedBox(height: 12),
-          TextField(key: const Key('account-displayName'), controller: _displayName, decoration: const InputDecoration(labelText: 'Display name', border: OutlineInputBorder())),
-          const SizedBox(height: 12),
-          TextField(key: const Key('account-password'), controller: _password, obscureText: true, decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder())),
-          const SizedBox(height: 12),
+          TextField(key: const Key('account-username'), controller: _username, autocorrect: false, decoration: const InputDecoration(labelText: 'Username')),
+          const SizedBox(height: EcSpace.md),
+          TextField(key: const Key('account-displayName'), controller: _displayName, decoration: const InputDecoration(labelText: 'Display name')),
+          const SizedBox(height: EcSpace.md),
+          TextField(key: const Key('account-password'), controller: _password, obscureText: true, decoration: const InputDecoration(labelText: 'Password')),
+          const SizedBox(height: EcSpace.md),
           if (tenants != null)
             DropdownButtonFormField<String>(
               key: const Key('account-tenant'),
               initialValue: _tenantId,
-              decoration: const InputDecoration(labelText: 'Insurer', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'Insurer'),
               items: [for (final t in tenants) DropdownMenuItem(value: t.id, child: Text(t.name))],
               onChanged: (v) => setState(() => _tenantId = v),
             )
@@ -121,12 +126,12 @@ class _NewAccountDialogState extends State<NewAccountDialog> {
             ),
           if (tenants != null) ...[
             const SizedBox(height: 8),
-            const Text('Creates an insurer admin. Platform admin accounts are managed outside the app.',
-                style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+            Text('Creates an insurer admin. Platform admin accounts are managed outside the app.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ],
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(_error!, style: const TextStyle(color: Color(0xFFDC2626))),
+            Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ],
         ]),
       ),
@@ -138,32 +143,84 @@ class _NewAccountDialogState extends State<NewAccountDialog> {
   }
 }
 
-/// One account with role, status and an enable/disable switch (never for the signed-in user).
-class AccountTile extends StatelessWidget {
-  final UserAccount user;
-  final bool isSelf;
-  final VoidCallback? onToggle;
-  const AccountTile({super.key, required this.user, this.isSelf = false, this.onToggle});
+/// Staff / admin accounts as a table: name, role, (insurer), status chip and an Enable/Disable
+/// action. Never an action on the signed-in user ([selfId]); rows for which [canToggle] is false
+/// show why instead. [busyIds] shows a spinner on the row whose request is running.
+class AccountsTable extends StatelessWidget {
+  final List<UserAccount> users;
+  final String? selfId;
+  final Set<String> busyIds;
+  final ValueChanged<UserAccount> onToggle;
+  final bool Function(UserAccount u) canToggle;
+  final String Function(UserAccount u)? insurerLabel;
+  final String emptyTitle;
+
+  const AccountsTable({
+    super.key,
+    required this.users,
+    required this.onToggle,
+    this.selfId,
+    this.busyIds = const {},
+    this.canToggle = _always,
+    this.insurerLabel,
+    this.emptyTitle = 'No accounts yet',
+  });
+
+  static bool _always(UserAccount _) => true;
 
   @override
   Widget build(BuildContext context) {
-    final role = UserRole.fromWire(user.role).label;
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: user.isActive ? const Color(0xFFDBEAFE) : const Color(0xFFE2E8F0),
-          child: Icon(user.role == 'SUPERADMIN' ? Icons.shield_outlined : Icons.badge_outlined,
-              color: user.isActive ? const Color(0xFF1D4ED8) : const Color(0xFF64748B)),
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    return EcDataTable<UserAccount>(
+      rows: users,
+      emptyTitle: emptyTitle,
+      columns: [
+        EcColumn(
+          label: 'Name',
+          cell: (u) => Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${u.displayName}${u.id == selfId ? ' (you)' : ''}', style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text('@${u.username}', style: muted),
+          ]),
         ),
-        title: Text('${user.displayName}${isSelf ? ' (you)' : ''}', style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text('@${user.username} · $role${user.tenantId == null ? '' : ' · ${user.tenantId}'} · ${user.isActive ? 'active' : 'disabled'}'),
-        trailing: isSelf || onToggle == null
-            ? null
-            : Switch(key: Key('toggle-${user.username}'), value: user.isActive, onChanged: (_) => onToggle!()),
-      ),
+        EcColumn(label: 'Role', cell: (u) => Text(UserRole.fromWire(u.role).label)),
+        if (insurerLabel != null) EcColumn(label: 'Insurer', cell: (u) => Text(insurerLabel!(u))),
+        EcColumn(label: 'Status', cell: (u) => EcStatusChip.account(u.status)),
+        EcColumn(
+          label: '',
+          cell: (u) {
+            if (u.id == selfId) return Text('Your account', style: muted);
+            if (!canToggle(u)) return Text('Managed outside the app', style: muted);
+            if (busyIds.contains(u.id)) {
+              return const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2));
+            }
+            return u.isActive
+                ? OutlinedButton(key: Key('toggle-${u.username}'), onPressed: () => onToggle(u), child: const Text('Disable'))
+                : FilledButton.tonal(key: Key('toggle-${u.username}'), onPressed: () => onToggle(u), child: const Text('Enable'));
+          },
+        ),
+      ],
     );
   }
+}
+
+/// Asks before an account is enabled or disabled. The reason is for the admin's own check: the
+/// status endpoint takes no reason (the audit log records who changed the account and when).
+/// Returns true when confirmed.
+Future<bool> confirmAccountStatusChange(BuildContext context, UserAccount u) async {
+  final disabling = u.isActive;
+  final reason = await showEcConfirmWithReason(
+    context,
+    title: disabling ? 'Disable ${u.displayName}?' : 'Enable ${u.displayName}?',
+    message: disabling
+        ? '@${u.username} can no longer sign in. You can enable the account again later.'
+        : '@${u.username} can sign in again with their existing password.',
+    confirmLabel: disabling ? 'Disable' : 'Enable',
+    destructive: disabling,
+    reasonLabel: 'Reason',
+    reasonHelper: 'For your own check; not stored. The audit log records who changed the account and when.',
+  );
+  return reason != null;
 }
 
 /// Claims-by-stage summary: total plus one chip per main-path stage.
@@ -174,29 +231,19 @@ class StageStatsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final extra = stats.byStage.keys.where((s) => !BackendStage.mainPath.contains(s)).toList();
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Text(title.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8, fontSize: 12))),
-          Text('${stats.total} total', style: const TextStyle(fontWeight: FontWeight.w700)),
-        ]),
-        const SizedBox(height: 10),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final s in [...BackendStage.mainPath, ...extra])
-            Chip(
-              label: Text('$s ${stats.count(s)}', style: const TextStyle(fontSize: 12)),
-              backgroundColor: stats.count(s) == 0 ? const Color(0xFFF1F5F9) : const Color(0xFFFFF7ED),
-              side: BorderSide.none,
-            ),
-        ]),
+    return EcSection(
+      title: title,
+      trailing: Text('${stats.total} total', style: theme.textTheme.titleSmall?.copyWith(fontFeatures: ecTabularFigures)),
+      child: Wrap(spacing: EcSpace.sm, runSpacing: EcSpace.sm, children: [
+        for (final s in [...BackendStage.mainPath, ...extra])
+          Chip(
+            label: Text('$s ${stats.count(s)}', style: theme.textTheme.labelMedium?.copyWith(fontFeatures: ecTabularFigures)),
+            backgroundColor: stats.count(s) == 0 ? theme.colorScheme.surfaceContainerHighest : theme.colorScheme.primaryContainer,
+            side: BorderSide.none,
+            visualDensity: VisualDensity.compact,
+          ),
       ]),
     );
   }
