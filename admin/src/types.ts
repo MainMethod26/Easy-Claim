@@ -1,4 +1,4 @@
-export type Role = 'ASSESSOR' | 'MANAGER' | 'ADMIN'
+export type Role = 'CUSTOMER' | 'ASSESSOR' | 'MANAGER' | 'INSURER_ADMIN' | 'SUPERADMIN'
 
 export type TenantId = 
   | 'ins_discovery'

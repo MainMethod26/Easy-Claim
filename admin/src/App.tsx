@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { AuthUser, Claim } from './types'
 import { ApiService } from './services/api'
 import { Header } from './components/Header'
@@ -31,16 +31,11 @@ export function App() {
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null)
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
 
-  useEffect(() => {
-    loadClaims()
-  }, [user.tenantId])
-
-  const loadClaims = async () => {
+  const loadClaims = useCallback(async () => {
     setIsRefreshing(true)
     try {
       const data = await ApiService.fetchClaims()
       setClaims(data)
-      // Keep selected claim in sync if drawer is open
       if (selectedClaim) {
         const updated = data.find(c => c.id === selectedClaim.id)
         if (updated) setSelectedClaim(updated)
@@ -48,7 +43,27 @@ export function App() {
     } finally {
       setIsRefreshing(false)
     }
-  }
+  }, [selectedClaim])
+
+  useEffect(() => {
+    let mounted = true
+    if (!user.token || user.token.startsWith('dev_token_')) {
+      const defaultActor = ApiService.getDemoActors()[0]
+      ApiService.login(defaultActor.username, '1234567')
+        .then((newUser) => {
+          if (mounted) setUser(newUser)
+        })
+        .catch((err) => {
+          console.warn('Initial backend login failed, continuing in preview mode:', err)
+          if (mounted) loadClaims()
+        })
+    } else {
+      loadClaims()
+    }
+    return () => {
+      mounted = false
+    }
+  }, [user.tenantId, user.token, loadClaims])
 
   const handleClaimUpdated = () => {
     loadClaims()

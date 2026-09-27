@@ -35,11 +35,12 @@ export class ApiService {
     return headers
   }
 
-  // Pre-configured Dev & Production Demo Profiles
-  static getDemoActors(): { label: string; role: Role; tenantId: TenantId; id: string; description: string }[] {
+  // Pre-configured Dev & Production Demo Profiles matching backend seed
+  static getDemoActors(): { username: string; label: string; role: Role; tenantId: TenantId; id: string; description: string }[] {
     return [
       {
         id: 'manager_a1',
+        username: 'manager_discovery',
         label: 'Discovery Claims Manager (Thabo Sithole)',
         role: 'MANAGER',
         tenantId: 'ins_discovery',
@@ -47,13 +48,23 @@ export class ApiService {
       },
       {
         id: 'assessor_a1',
+        username: 'assessor_discovery',
         label: 'Discovery Assessor (Lerato Dlamini)',
         role: 'ASSESSOR',
         tenantId: 'ins_discovery',
         description: 'Intake verification, quantum screening radar & evidence analysis for Discovery tenant',
       },
       {
+        id: 'usr_admin_discovery',
+        username: 'admin_discovery',
+        label: 'Discovery Insurer Admin (Admin Staff)',
+        role: 'INSURER_ADMIN',
+        tenantId: 'ins_discovery',
+        description: 'Tenant administration, staff management & read-only audit log for Discovery',
+      },
+      {
         id: 'manager_b1',
+        username: 'manager_sanlam',
         label: 'Sanlam Claims Manager (Johan van der Merwe)',
         role: 'MANAGER',
         tenantId: 'ins_sanlam',
@@ -61,47 +72,51 @@ export class ApiService {
       },
       {
         id: 'assessor_b1',
+        username: 'assessor_sanlam',
         label: 'Sanlam Assessor (Zanele Khumalo)',
         role: 'ASSESSOR',
         tenantId: 'ins_sanlam',
         description: 'Case intake & risk screening for Sanlam tenant',
       },
       {
-        id: 'assessor_c1',
-        label: 'OUTsurance Assessor (Kagiso Moloi)',
-        role: 'ASSESSOR',
-        tenantId: 'ins_outsurance',
-        description: 'Motor vehicle incident verification & claims intake for OUTsurance tenant',
+        id: 'usr_admin_sanlam',
+        username: 'admin_sanlam',
+        label: 'Sanlam Insurer Admin (Admin Staff)',
+        role: 'INSURER_ADMIN',
+        tenantId: 'ins_sanlam',
+        description: 'Tenant administration & staff management for Sanlam',
       },
       {
-        id: 'manager_c1',
-        label: 'Momentum Manager (Nandi Ndlovu)',
-        role: 'MANAGER',
-        tenantId: 'ins_momentum',
-        description: 'Multiply health benefits decision authority for Momentum tenant',
+        id: 'usr_superadmin',
+        username: 'superadmin',
+        label: 'EasyClaim Superadmin (Platform Operator)',
+        role: 'SUPERADMIN',
+        tenantId: 'ins_discovery',
+        description: 'Platform overview, tenants & platform-wide security audit',
       },
     ]
   }
 
-  // Authenticate against Cloudflare Worker backend
-  static async login(id: string, role: Role, tenantId: TenantId): Promise<AuthUser> {
-    const res = await fetch('/api/v1/profile/login', {
+  // Authenticate against Cloudflare Worker backend (/api/v1/auth/login)
+  static async login(username: string, password = '1234567'): Promise<AuthUser> {
+    const res = await fetch('/api/v1/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, idNumber: id, role, tenantId }),
+      body: JSON.stringify({ username, password }),
     })
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      throw new Error(err.error || `Authentication failed for ${role} on ${tenantId}`)
+      throw new Error(err.error || `Authentication failed for ${username}`)
     }
 
     const data = await res.json()
+    const actor = data.actor || {}
     const user: AuthUser = {
-      id: data.profile?.id || id,
-      name: `${data.profile?.first_name || role} (${data.profile?.last_name || tenantId})`,
-      role: (data.profile?.role as Role) || role,
-      tenantId: (data.profile?.tenant_id as TenantId) || tenantId,
+      id: actor.id || username,
+      name: actor.displayName || username,
+      role: (actor.role as Role) || 'MANAGER',
+      tenantId: (actor.tenantId as TenantId) || 'ins_discovery',
       token: data.token,
     }
     this.setUser(user)
@@ -212,12 +227,41 @@ export class ApiService {
 
   // Fetch real append-only audit trail
   static async fetchAuditEvents(): Promise<any[]> {
-    const res = await fetch('/api/v1/activities/audit-trail', {
+    const role = this.user?.role
+    let endpoint = '/api/v1/activities/audit-trail'
+    if (role === 'INSURER_ADMIN') {
+      endpoint = '/api/v1/tenant/audit?limit=50'
+    } else if (role === 'SUPERADMIN') {
+      endpoint = '/api/v1/admin/audit?limit=50'
+    }
+
+    let res = await fetch(endpoint, {
       headers: this.getHeaders(),
     })
+    
+    // Fallback if role-specific audit route is forbidden or unavailable
+    if (!res.ok && endpoint !== '/api/v1/activities/audit-trail') {
+      res = await fetch('/api/v1/activities/audit-trail', {
+        headers: this.getHeaders(),
+      })
+    }
+
     if (!res.ok) return []
     const data = await res.json()
-    return data.events || data.trail || []
+    const list = data.events || data.trail || []
+    return list.map((evt: any) => ({
+      ...evt,
+      id: evt.id || `evt_${Math.random()}`,
+      action: evt.action,
+      actor_id: evt.actor_id ?? evt.actorId,
+      actor_tenant_id: evt.actor_tenant_id ?? evt.actorTenantId ?? evt.tenantId,
+      actor_role: evt.actor_role ?? evt.actorRole,
+      resource_id: evt.resource_id ?? evt.resourceId,
+      resource_type: evt.resource_type ?? evt.resourceType,
+      outcome: evt.outcome,
+      request_id: evt.request_id ?? evt.requestId,
+      occurred_at: evt.occurred_at ?? evt.occurredAt ?? new Date().toISOString(),
+    }))
   }
 
   // Real State Machine Action Handlers

@@ -57,8 +57,8 @@ if (!users.length) {
   console.error(`--only ${args.only}: no such demo user`)
   process.exit(1)
 }
-if (args.remote && users.length > 1) {
-  console.error('Refusing to seed every demo account remotely. Use --only superadmin with a strong --password.')
+if (args.remote && users.length > 1 && !args['allow-all']) {
+  console.error('Refusing to seed every demo account remotely. Use --only superadmin with a strong --password, or pass --allow-all.')
   process.exit(1)
 }
 

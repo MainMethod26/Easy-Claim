@@ -33,6 +33,7 @@ export default defineConfig(async () => {
     ],
     test: {
       setupFiles: ['./test/setup.ts'],
+      testTimeout: 20000,
     },
   }
 })

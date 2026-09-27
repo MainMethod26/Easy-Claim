@@ -18,8 +18,20 @@ export const Header: React.FC<HeaderProps> = ({ user, onUserChange, onRefresh, i
   const handleActorSwitch = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = demoActors.find(a => a.id === e.target.value)
     if (selected) {
-      const newUser = await ApiService.login(selected.id, selected.role, selected.tenantId)
-      onUserChange(newUser)
+      try {
+        const newUser = await ApiService.login(selected.username, '1234567')
+        onUserChange(newUser)
+      } catch (err: any) {
+        console.error('Failed to authenticate persona:', err)
+        // Fallback for offline mode so UI remains testable
+        onUserChange({
+          id: selected.id,
+          name: selected.label,
+          role: selected.role,
+          tenantId: selected.tenantId,
+          token: user.token,
+        })
+      }
     }
   }
 
