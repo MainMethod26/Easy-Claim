@@ -13,8 +13,8 @@ import 'api_exception.dart';
 String resolveApiBaseUrl() {
   const fromEnv = String.fromEnvironment('API_BASE_URL');
   if (fromEnv.isNotEmpty) return fromEnv.endsWith('/') ? fromEnv.substring(0, fromEnv.length - 1) : fromEnv;
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8787/api/v1';
-  return 'http://127.0.0.1:8787/api/v1';
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) return 'https://easy-claim-backend.pasekamabitsela22.workers.dev/api/v1';
+  return 'https://easy-claim-backend.pasekamabitsela22.workers.dev/api/v1';
 }
 
 /// The single HTTP client for the backend. Widgets never call HTTP directly; repositories do,
