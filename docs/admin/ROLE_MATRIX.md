@@ -25,7 +25,13 @@ machine (`transitionClaim`), one audit trail (`audit_events`) and one Flutter ap
 | Apply as an insurer (public form, no account yet) | anyone | | | | | `onboarding.application_submitted` |
 | Review insurer applications: approve (creates tenant + first INSURER_ADMIN) or reject with reason | | | | | ✓ | `onboarding.application_approved` / `_rejected` |
 | Request to link an existing policy (insurer + policy number) | ✓ | | | | | `cover.link_requested` |
-| Approve (creates the policy) or reject a policy link request | | | | ✓ own tenant | | `policy.link_approved` / `policy.link_rejected` |
+| Own EasyClaim ID and details (ID number stored encrypted, shown masked) | ✓ | | | | | `customer.profile_saved` |
+| Upload the insurer's required documents to an open request; resubmit after "more info" | ✓ own request | | | | | `onboarding.document_uploaded`, `cover.link_resubmitted` |
+| Open a request: client details (ID masked), open documents, reveal ID number | | | | ✓ own tenant | | `onboarding.document_accessed`, `onboarding.id_number_revealed` |
+| Tick documents as checked; ask the customer for more information | | | | ✓ own tenant | | `onboarding.document_verified`, `policy.link_more_info` |
+| Approve a policy link request (only when every required document is uploaded and checked) or decline it | | | | ✓ own tenant | | `policy.link_approved` / `policy.link_rejected` |
+| Set the insurer's required-document list | | | | ✓ own tenant | | `tenant.requirements_changed` |
+| Find a customer by EasyClaim ID (exact; details only for own clients) | | | | ✓ | | `tenant.customer_lookup` |
 | Own claims: start, describe, payout details, evidence, submit, withdraw, appeal | ✓ | | | | | `claim.*`, `evidence.uploaded` |
 | Read a claim, its timeline, decision, payout and evidence | own | own tenant | own tenant | own tenant, read-only | ✗ (404; `/claims` 403) | denials: `authz.claim_access_denied` |
 | Advisory risk signals (`/risk-signals`) | 403 | ✓ | ✓ | 403 | 403 | `screening.signal_read` |

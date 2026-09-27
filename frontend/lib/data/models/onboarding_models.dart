@@ -73,6 +73,12 @@ class PolicyLinkRequest {
   /// Insurer view only.
   final String? customerName;
   final String? customerUsername;
+  final String? customerEasyclaimId;
+
+  /// The insurer's question when [status] is 'more_info'.
+  final String? infoMessage;
+  final List<RequestDocument> documents;
+  final bool documentsComplete;
 
   const PolicyLinkRequest({
     required this.id,
@@ -86,6 +92,10 @@ class PolicyLinkRequest {
     this.createdAt,
     this.customerName,
     this.customerUsername,
+    this.customerEasyclaimId,
+    this.infoMessage,
+    this.documents = const [],
+    this.documentsComplete = false,
   });
 
   factory PolicyLinkRequest.fromJson(Map<String, dynamic> j) {
@@ -102,8 +112,171 @@ class PolicyLinkRequest {
       createdAt: _d(j['createdAt']),
       customerName: _s(customer['displayName']),
       customerUsername: _s(customer['username']),
+      customerEasyclaimId: _s(customer['easyclaimId']),
+      infoMessage: _s(j['infoMessage']),
+      documents: _docs(j['documents']),
+      documentsComplete: j['documentsComplete'] == true,
     );
   }
 
   bool get isPending => status == 'pending';
+  bool get isWaitingForCustomer => status == 'more_info';
+  bool get isOpen => isPending || isWaitingForCustomer;
+}
+
+List<RequestDocument> _docs(Object? v) =>
+    v is List ? v.whereType<Map<String, dynamic>>().map(RequestDocument.fromJson).toList() : const [];
+
+/// One line of a request's document checklist.
+class RequestDocument {
+  final String key;
+  final String label;
+  final bool required;
+  final bool uploaded;
+  final String? fileName;
+  final int? sizeBytes;
+  final String? sha256;
+  final DateTime? uploadedAt;
+  final bool verified;
+  const RequestDocument({
+    required this.key,
+    required this.label,
+    required this.required,
+    required this.uploaded,
+    this.fileName,
+    this.sizeBytes,
+    this.sha256,
+    this.uploadedAt,
+    required this.verified,
+  });
+  factory RequestDocument.fromJson(Map<String, dynamic> j) => RequestDocument(
+        key: _s(j['key']) ?? '',
+        label: _s(j['label']) ?? '',
+        required: j['required'] == true,
+        uploaded: j['uploaded'] == true,
+        fileName: _s(j['fileName']),
+        sizeBytes: j['sizeBytes'] is num ? (j['sizeBytes'] as num).toInt() : null,
+        sha256: _s(j['sha256']),
+        uploadedAt: _d(j['uploadedAt']),
+        verified: j['verified'] == true,
+      );
+}
+
+/// One item of an insurer's required-document list.
+class DocumentRequirement {
+  final String key;
+  final String label;
+  final bool required;
+  const DocumentRequirement({required this.key, required this.label, required this.required});
+  factory DocumentRequirement.fromJson(Map<String, dynamic> j) =>
+      DocumentRequirement(key: _s(j['key']) ?? '', label: _s(j['label']) ?? '', required: j['required'] == true);
+  Map<String, dynamic> toJson() => {'key': key, 'label': label, 'required': required};
+}
+
+/// The customer's own details (the ID number is only ever masked in the app).
+class CustomerProfile {
+  final String legalName;
+  final String email;
+  final String phone;
+  final String dateOfBirth;
+  final String idNumberMasked;
+  const CustomerProfile({required this.legalName, required this.email, required this.phone, required this.dateOfBirth, required this.idNumberMasked});
+  static CustomerProfile? fromJson(Object? v) {
+    if (v is! Map<String, dynamic>) return null;
+    return CustomerProfile(
+      legalName: _s(v['legalName']) ?? '',
+      email: _s(v['email']) ?? '',
+      phone: _s(v['phone']) ?? '',
+      dateOfBirth: _s(v['dateOfBirth']) ?? '',
+      idNumberMasked: _s(v['idNumberMasked']) ?? '',
+    );
+  }
+}
+
+/// GET /covers/profile.
+class MyProfile {
+  final String easyclaimId;
+  final CustomerProfile? profile;
+  const MyProfile({required this.easyclaimId, this.profile});
+  factory MyProfile.fromJson(Map<String, dynamic> j) => MyProfile(easyclaimId: _s(j['easyclaimId']) ?? '', profile: CustomerProfile.fromJson(j['profile']));
+}
+
+/// Who a request is from (insurer view).
+class ClientCard {
+  final String? easyclaimId;
+  final String displayName;
+  final String username;
+  final CustomerProfile? profile;
+  const ClientCard({this.easyclaimId, required this.displayName, required this.username, this.profile});
+  factory ClientCard.fromJson(Object? v) {
+    final j = v is Map<String, dynamic> ? v : const <String, dynamic>{};
+    return ClientCard(
+      easyclaimId: _s(j['easyclaimId']),
+      displayName: _s(j['displayName']) ?? '',
+      username: _s(j['username']) ?? '',
+      profile: CustomerProfile.fromJson(j['profile']),
+    );
+  }
+}
+
+/// GET /tenant/policy-requests/:id.
+class PolicyRequestDetail {
+  final String id;
+  final String policyNumber;
+  final String status;
+  final String? infoMessage;
+  final String? decisionReason;
+  final DateTime? createdAt;
+  final ClientCard client;
+  final List<RequestDocument> documents;
+  final bool readyToApprove;
+  const PolicyRequestDetail({
+    required this.id,
+    required this.policyNumber,
+    required this.status,
+    this.infoMessage,
+    this.decisionReason,
+    this.createdAt,
+    required this.client,
+    required this.documents,
+    required this.readyToApprove,
+  });
+  factory PolicyRequestDetail.fromJson(Map<String, dynamic> j) => PolicyRequestDetail(
+        id: _s(j['id']) ?? '',
+        policyNumber: _s(j['policyNumber']) ?? '',
+        status: _s(j['status']) ?? 'pending',
+        infoMessage: _s(j['infoMessage']),
+        decisionReason: _s(j['decisionReason']),
+        createdAt: _d(j['createdAt']),
+        client: ClientCard.fromJson(j['client']),
+        documents: _docs(j['documents']),
+        readyToApprove: j['readyToApprove'] == true,
+      );
+  bool get isPending => status == 'pending';
+}
+
+typedef LookupRequest = ({String id, String policyNumber, String status});
+typedef LookupPolicy = ({String planName, String status, String? policyNumber});
+
+/// GET /tenant/customers?easyclaimId=.
+class CustomerLookup {
+  final String easyclaimId;
+  final String displayName;
+  final bool related;
+  final ClientCard? client;
+  final List<LookupRequest> requests;
+  final List<LookupPolicy> policies;
+  const CustomerLookup({required this.easyclaimId, required this.displayName, required this.related, this.client, this.requests = const [], this.policies = const []});
+  factory CustomerLookup.fromJson(Map<String, dynamic> j) {
+    final reqs = j['requests'] is List ? (j['requests'] as List).whereType<Map<String, dynamic>>() : const <Map<String, dynamic>>[];
+    final pols = j['policies'] is List ? (j['policies'] as List).whereType<Map<String, dynamic>>() : const <Map<String, dynamic>>[];
+    return CustomerLookup(
+      easyclaimId: _s(j['easyclaimId']) ?? '',
+      displayName: _s(j['displayName']) ?? '',
+      related: j['related'] == true,
+      client: j['client'] == null ? null : ClientCard.fromJson(j['client']),
+      requests: [for (final r in reqs) (id: _s(r['id']) ?? '', policyNumber: _s(r['policyNumber']) ?? '', status: _s(r['status']) ?? '')],
+      policies: [for (final p in pols) (planName: _s(p['planName']) ?? '', status: _s(p['status']) ?? '', policyNumber: _s(p['policyNumber']))],
+    );
+  }
 }

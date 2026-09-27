@@ -187,3 +187,44 @@ interface EvidenceRow {
 export async function evidenceRow(evidenceId: string) {
   return env.DB.prepare('SELECT * FROM evidence WHERE id = ?').bind(evidenceId).first<EvidenceRow>()
 }
+
+/** A valid South African ID number for a date of birth (YYMMDD), with a correct Luhn check digit. */
+export function saIdNumber(yymmdd: string, serial = '5009', citizen = '08'): string {
+  const body = `${yymmdd}${serial}${citizen}`
+  for (let check = 0; check <= 9; check++) {
+    const id = body + check
+    let sum = 0
+    for (let i = 0; i < 13; i++) {
+      let d = Number(id[12 - i])
+      if (i % 2 === 1) {
+        d *= 2
+        if (d > 9) d -= 9
+      }
+      sum += d
+    }
+    if (sum % 10 === 0) return id
+  }
+  throw new Error('unreachable')
+}
+
+/** Saves a customer profile (required before a policy-link request). */
+export async function saveProfile(as: TestActor, overrides: Record<string, string> = {}) {
+  return call('/covers/profile', {
+    method: 'PUT',
+    as,
+    json: { legalName: 'Test Customer', email: 'test@example.com', phone: '+27 82 555 0101', dateOfBirth: '1990-05-14', idNumber: saIdNumber('900514'), ...overrides },
+  })
+}
+
+/** Uploads a PDF for every required document of a request, then the tenant admin ticks each as checked. */
+export async function completeDocuments(requestId: string, customer: TestActor, admin: TestActor) {
+  const reqs = (await (await call(`/tenant/policy-requests/${requestId}`, { as: admin })).json()) as { request: { documents: { key: string; required: boolean }[] } }
+  for (const d of reqs.request.documents.filter((x) => x.required)) {
+    const fd = new FormData()
+    fd.append('file', evidenceFile(VALID_PDF_BYTES, `${d.key}.pdf`))
+    const up = await call(`/covers/link-requests/${requestId}/documents/${d.key}`, { method: 'POST', as: customer, formData: fd })
+    if (up.status !== 201) throw new Error(`upload ${d.key}: ${up.status} ${await up.text()}`)
+    const v = await call(`/tenant/policy-requests/${requestId}/documents/${d.key}/verify`, { method: 'POST', as: admin, json: { verified: true } })
+    if (v.status !== 200) throw new Error(`verify ${d.key}: ${v.status}`)
+  }
+}

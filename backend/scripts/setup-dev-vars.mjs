@@ -18,6 +18,7 @@ const demoPassword = () => '1234567'
 const generated = {
   JWT_SECRET: () => randomBytes(32).toString('hex'),
   MLDSA_SEED: () => randomBytes(32).toString('hex'),
+  PII_KEY: () => randomBytes(32).toString('hex'),
   DEMO_LOGIN_PASSWORD: demoPassword,
 }
 
@@ -48,6 +49,6 @@ for (const [key, make] of Object.entries(generated)) {
   content = content.replace(new RegExp(`^${key}=.*$`, 'm'), `${key}=${make()}`)
 }
 writeFileSync(target, content)
-console.log('Created .dev.vars with new JWT_SECRET, MLDSA_SEED and DEMO_LOGIN_PASSWORD (local only, gitignored; values not shown).')
+console.log('Created .dev.vars with new JWT_SECRET, MLDSA_SEED, PII_KEY and DEMO_LOGIN_PASSWORD (local only, gitignored; values not shown).')
 console.log('The demo login password is the DEMO_LOGIN_PASSWORD line in backend/.dev.vars.')
 console.log('Mint offline tokens with: npm run token -- --demo')

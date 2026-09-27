@@ -54,6 +54,9 @@ export type Bindings = {
   // Phase 5: 32-byte hex seed for the ML-DSA-65 decision-signing key. Secret binding only
   // (`wrangler secret put MLDSA_SEED` deployed, `.dev.vars` locally). Missing -> decisions refused (fail closed).
   MLDSA_SEED?: string
+  // 32-byte hex key for field encryption of customer ID numbers (security/pii.ts). Secret binding only;
+  // missing -> profile save/reveal answer 503 (fail closed), never a plain-text fallback.
+  PII_KEY?: string
   // Cloudflare Workers AI, used by the OCR queue consumer (endpoints/ocr.ts). Optional: without it
   // evidence OCR is skipped and logged. OCR output is stored as advisory text only.
   AI?: { run(model: string, input: Record<string, unknown>): Promise<{ response?: string; text?: string } | undefined> }

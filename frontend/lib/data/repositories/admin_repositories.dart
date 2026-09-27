@@ -110,6 +110,39 @@ class TenantAdminRepository {
     return ((body['requests'] as List?) ?? const []).whereType<Map<String, dynamic>>().map(PolicyLinkRequest.fromJson).toList();
   }
 
+  Future<PolicyRequestDetail> policyRequest(String requestId) async =>
+      PolicyRequestDetail.fromJson((await _api.get('/tenant/policy-requests/$requestId'))['request'] as Map<String, dynamic>);
+
+  /// Full ID number of the request's client. Audited on the server every time.
+  Future<String> revealIdNumber(String requestId) async =>
+      (await _api.post('/tenant/policy-requests/$requestId/reveal-id'))['idNumber'] as String;
+
+  /// The document file (audited on the server every time).
+  Future<({List<int> bytes, String contentType})> openDocument(String requestId, String docKey) =>
+      _api.getBytes('/tenant/policy-requests/$requestId/documents/$docKey');
+
+  Future<void> setDocumentVerified(String requestId, String docKey, {required bool verified}) async =>
+      _api.post('/tenant/policy-requests/$requestId/documents/$docKey/verify', body: {'verified': verified});
+
+  Future<void> requestMoreInfo(String requestId, {required String message}) async =>
+      _api.post('/tenant/policy-requests/$requestId/request-info', body: {'message': message});
+
+  Future<List<DocumentRequirement>> requirements() async {
+    final body = await _api.get('/tenant/requirements');
+    return ((body['requirements'] as List?) ?? const []).whereType<Map<String, dynamic>>().map(DocumentRequirement.fromJson).toList();
+  }
+
+  Future<List<DocumentRequirement>> saveRequirements(List<DocumentRequirement> items) async {
+    final body = await _api.put('/tenant/requirements', {'items': [for (final i in items) i.toJson()]});
+    return ((body['requirements'] as List?) ?? const []).whereType<Map<String, dynamic>>().map(DocumentRequirement.fromJson).toList();
+  }
+
+  /// Exact lookup by EasyClaim ID; throws a 404 ApiException when no customer has it.
+  Future<CustomerLookup> findCustomer(String easyclaimId) async {
+    final query = Uri(queryParameters: {'easyclaimId': easyclaimId.trim().toUpperCase()}).query;
+    return CustomerLookup.fromJson((await _api.get('/tenant/customers?$query'))['customer'] as Map<String, dynamic>);
+  }
+
   Future<void> approvePolicyRequest(String requestId, {required String planName}) async =>
       _api.post('/tenant/policy-requests/$requestId/approve', body: {'planName': planName});
 

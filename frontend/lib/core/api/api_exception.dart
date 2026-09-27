@@ -26,6 +26,37 @@ class ApiException implements Exception {
 
   static String messageFor(int status, String code) {
     switch (code) {
+      case 'profile_incomplete':
+        return 'Add your details first (My details), then send the request.';
+      case 'documents_incomplete':
+        return 'Every required document must be uploaded and checked before approving.';
+      case 'invalid_id_number':
+        return 'That South African ID number is not valid.';
+      case 'id_number_date_mismatch':
+        return 'The ID number does not match the date of birth.';
+      case 'pii_unavailable':
+        return 'Secure storage for personal details is unavailable. Try again later.';
+      case 'request_pending':
+        return 'There is already an open request for this policy number.';
+      case 'policy_already_linked':
+        return 'This policy number is already linked on EasyClaim.';
+      case 'unknown_insurer':
+        return 'That insurer is not on EasyClaim.';
+      case 'request_closed':
+        return 'This request is already decided; documents can no longer change.';
+      case 'waiting_for_customer':
+        return 'The customer still has to respond to your request for information.';
+      case 'not_pending':
+      case 'already_decided':
+        return 'This request is not open for that action any more.';
+      case 'not_waiting_for_you':
+        return 'Your insurer is not waiting for anything from you on this request.';
+      case 'document_not_uploaded':
+        return 'That document has not been uploaded yet.';
+      case 'application_pending':
+        return 'An application with this username or FSP number is already being reviewed.';
+      case 'applications_paused':
+        return 'Applications are paused for the moment. Please try again later.';
       case 'invalid_credentials':
         return 'Wrong username or password.';
       case 'username_taken':

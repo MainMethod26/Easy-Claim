@@ -87,8 +87,14 @@ Anyone can also register a new customer from the sign-in screen ("Create account
    b. `superadmin` → Applications → Approve (choose the insurer id, e.g. `ins_hollard`). This creates the insurer
       and its admin; the applicant signs in with the password they chose.
    c. The new insurer admin → Team → add an assessor and a manager.
-   d. A newly registered customer → Covers → Link a policy → pick the insurer, enter the policy number.
-   e. The insurer admin → Policy requests → Approve (enter the plan name). The policy appears under the
+   d. A newly registered customer → Covers → Link a policy. Their EasyClaim ID is at the top. Add "My details"
+      (name, email, phone, date of birth, SA ID number), tick one or more insurers, enter each policy number, send,
+      then upload each insurer's required documents (ID document, proof of address, policy schedule by default).
+   e. The insurer admin → Policy requests → open the request: client details (ID masked; "Reveal" is recorded),
+      open each document and tick "Checked". Approve unlocks only when every required document is checked; or
+      "Ask for more" (goes back to the customer) or Decline. Search any client with their EasyClaim ID, and change
+      the insurer's list under "Required docs".
+      Approve (enter the plan name). The policy appears under the
       customer's covers, and the normal claim journey (steps 1–3) works on it.
    The superadmin never sees claims: `/claims` is 403 and every claim URL is 404 for it.
 6. **Customer again**: claim shows Paid, the decision and "Decision verified". No model internals.

@@ -6,6 +6,7 @@ import { JWT_ALG, MAX_TOKEN_TTL_SECONDS } from '../security/actor'
 import { dummyHash, hashPassword, verifyPassword } from '../security/password'
 import { insurerApplicationSchema, loginSchema, registerSchema, validate } from '../security/validation'
 import { submitApplication } from '../onboarding/service'
+import { newEasyclaimId } from '../onboarding/customerOnboarding'
 
 /**
  * Accounts and sign-in (team role model, 26 Sep 2026).
@@ -27,6 +28,8 @@ import { submitApplication } from '../onboarding/service'
 export const TOKEN_TTL_SECONDS = 3600
 
 export interface UserRow {
+  /** Customers only: the shareable EasyClaim ID (migration 0012). */
+  easyclaim_id?: string | null
   id: string
   username: string
   password_hash: string
@@ -56,6 +59,7 @@ export function publicUser(u: UserRow) {
     displayName: u.display_name,
     status: u.status,
     createdAt: u.created_at,
+    easyclaimId: u.easyclaim_id ?? null,
   }
 }
 
@@ -131,12 +135,13 @@ authPublic.post('/register', validate('json', registerSchema), async (c) => {
     status: 'active',
     created_at: new Date().toISOString(),
     created_by: null,
+    easyclaim_id: newEasyclaimId(),
   }
   try {
     await c.env.DB.prepare(
-      'INSERT INTO users (id, username, password_hash, role, tenant_id, display_name, status, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO users (id, username, password_hash, role, tenant_id, display_name, status, created_at, created_by, easyclaim_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     )
-      .bind(user.id, user.username, user.password_hash, user.role, null, user.display_name, user.status, user.created_at, null)
+      .bind(user.id, user.username, user.password_hash, user.role, null, user.display_name, user.status, user.created_at, null, user.easyclaim_id)
       .run()
   } catch (err) {
     // Race on the UNIQUE(username) constraint.

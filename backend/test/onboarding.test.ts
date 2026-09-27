@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
-import { assessorA, auditRows, call, customerA, customerB, insurerAdminA, insurerAdminB, managerA, superadmin } from './helpers'
+import { assessorA, auditRows, call, completeDocuments, customerA, customerB, insurerAdminA, insurerAdminB, managerA, saveProfile, superadmin } from './helpers'
 
 // Insurer onboarding (apply → operator approves) and policy linking (customer requests → insurer approves).
 // src/onboarding/service.ts, migration 0011, docs/admin/ROLE_MATRIX.md.
@@ -101,6 +101,10 @@ describe('policy linking', () => {
   let requestId = ''
 
   it('LINK-01 a customer lists insurers and asks to link a policy; nothing is created yet', async () => {
+    // Details first: without a profile the request is refused.
+    expect((await call('/covers/link-requests', { method: 'POST', as: customerB, json: { tenantId: 'ins_discovery', policyNumber: 'dh-778899' } })).status).toBe(409)
+    expect((await saveProfile(customerB, { legalName: 'Lerato Nkosi' })).status).toBe(200)
+    expect((await saveProfile(customerA, { legalName: 'Mike Test' })).status).toBe(200)
     const insurers = await json(await call('/covers/insurers', { as: customerB }))
     expect(insurers.insurers).toContainEqual({ id: 'ins_discovery', name: 'Discovery Health' })
     expect((await call('/covers/insurers', { as: insurerAdminA })).status).toBe(403)
@@ -126,7 +130,7 @@ describe('policy linking', () => {
 
   it('LINK-03 only that insurer\'s admin sees and decides the request', async () => {
     const mine = await json(await call('/tenant/policy-requests?status=pending', { as: insurerAdminA }))
-    expect(mine.requests.find((r: { id: string }) => r.id === requestId)).toMatchObject({ customer: { username: 'lerato' } })
+    expect(mine.requests.find((r: { id: string }) => r.id === requestId)).toMatchObject({ customer: { username: 'lerato' }, documentsComplete: false })
     const other = await json(await call('/tenant/policy-requests', { as: insurerAdminB }))
     expect(other.requests.some((r: { id: string }) => r.id === requestId)).toBe(false)
     // Another insurer cannot decide it (404, not 403), and claim staff cannot use the tenant console.
@@ -136,6 +140,11 @@ describe('policy linking', () => {
   })
 
   it('LINK-04 approval creates an Active policy for that customer, who can then start a claim on it', async () => {
+    // Not before every required document is uploaded and checked.
+    const early = await call(`/tenant/policy-requests/${requestId}/approve`, { method: 'POST', as: insurerAdminA, json: { planName: 'Discovery Classic Saver' } })
+    expect(early.status).toBe(409)
+    expect(await early.json()).toEqual({ error: 'documents_incomplete' })
+    await completeDocuments(requestId, customerB, insurerAdminA)
     const ok = await call(`/tenant/policy-requests/${requestId}/approve`, { method: 'POST', as: insurerAdminA, json: { planName: 'Discovery Classic Saver' } })
     expect(ok.status).toBe(200)
     const approved = (await json(ok)).request

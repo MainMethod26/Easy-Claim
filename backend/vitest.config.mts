@@ -21,6 +21,7 @@ export default defineConfig(async () => {
             JWT_SECRET: randomBytes(32).toString('hex'),
             // Phase 5: fresh ML-DSA-65 key seed per run (no key material committed).
             MLDSA_SEED: randomBytes(32).toString('hex'),
+            PII_KEY: randomBytes(32).toString('hex'),
             // Demo login on in tests (production default is off; tests switch it off per request).
             ENVIRONMENT: 'development',
             DEMO_LOGIN_PASSWORD: randomBytes(12).toString('hex'),

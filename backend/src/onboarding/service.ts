@@ -14,6 +14,7 @@ import type { Context } from 'hono'
 import type { AppEnv } from '../types'
 import { auditStatement } from '../security/audit'
 import { hashPassword } from '../security/password'
+import { checklist, defaultRequirementStatements, hasProfile, readyToApprove, type RequestDocumentDto } from './customerOnboarding'
 
 type C = Context<AppEnv>
 const now = () => new Date().toISOString()
@@ -42,13 +43,18 @@ export interface PolicyLinkRequestDto {
   tenantId: string
   insurerName: string | null
   policyNumber: string
-  status: 'pending' | 'approved' | 'rejected'
+  status: 'pending' | 'more_info' | 'approved' | 'rejected'
   policyId: string | null
+  /** The insurer's question when status is more_info. */
+  infoMessage: string | null
+  /** Required-document checklist (customer view: to know what to upload; insurer view: what is checked). */
+  documents?: RequestDocumentDto[]
+  documentsComplete?: boolean
   decisionReason: string | null
   decidedAt: string | null
   createdAt: string
   /** Only in the insurer's view: who asked (display name and username; no identity numbers exist). */
-  customer?: { displayName: string; username: string }
+  customer?: { displayName: string; username: string; easyclaimId: string | null }
 }
 
 interface ApplicationRow {
@@ -82,7 +88,7 @@ const toApplication = (r: ApplicationRow): InsurerApplicationDto => ({
 const APPLICATION_COLUMNS =
   'id, company_name, fsp_number, contact_email, admin_username, admin_display_name, status, tenant_id, decision_reason, decided_at, created_at'
 
-export type Outcome<T> = { ok: true; value: T } | { ok: false; status: 400 | 404 | 409 | 429; error: string }
+export type Outcome<T> = { ok: true; value: T } | { ok: false; status: 400 | 404 | 409 | 413 | 415 | 429 | 503; error: string }
 
 // ------------------------------------------------------------------ insurer applications
 
@@ -162,6 +168,8 @@ export async function approveApplication(c: C, applicationId: string, tenantId: 
     await db.batch([
       db.prepare(`INSERT INTO tenants (id, name) SELECT ?, ? WHERE ${stillPending}`).bind(tenantId, app.company_name, applicationId),
       auditStatement(c, { action: 'admin.tenant_created', resourceType: 'tenant', resourceId: tenantId, outcome: 'success', details: { via: 'application' } }, { onlyIfPreviousChanged: true }),
+      // The new insurer starts with the default required-document list (editable in its console).
+      ...defaultRequirementStatements(db, tenantId).map((st) => st),
       db
         .prepare(
           `INSERT INTO users (id, username, password_hash, role, tenant_id, display_name, status, created_at, created_by)
@@ -223,11 +231,13 @@ interface LinkRow {
   policy_number: string
   status: PolicyLinkRequestDto['status']
   policy_id: string | null
+  info_message: string | null
   decision_reason: string | null
   decided_at: string | null
   created_at: string
   display_name?: string
   username?: string
+  easyclaim_id?: string | null
 }
 
 const toLink = (r: LinkRow, withCustomer: boolean): PolicyLinkRequestDto => ({
@@ -237,17 +247,23 @@ const toLink = (r: LinkRow, withCustomer: boolean): PolicyLinkRequestDto => ({
   policyNumber: r.policy_number,
   status: r.status,
   policyId: r.policy_id,
+  infoMessage: r.info_message,
   decisionReason: r.decision_reason,
   decidedAt: r.decided_at,
   createdAt: r.created_at,
-  ...(withCustomer ? { customer: { displayName: r.display_name ?? '', username: r.username ?? '' } } : {}),
+  ...(withCustomer ? { customer: { displayName: r.display_name ?? '', username: r.username ?? '', easyclaimId: r.easyclaim_id ?? null } } : {}),
 })
 
-const LINK_SELECT = `SELECT r.id, r.tenant_id, t.name AS insurer_name, r.policy_number, r.status, r.policy_id, r.decision_reason,
-  r.decided_at, r.created_at, u.display_name, u.username
+const LINK_SELECT = `SELECT r.id, r.tenant_id, t.name AS insurer_name, r.policy_number, r.status, r.policy_id, r.info_message, r.decision_reason,
+  r.decided_at, r.created_at, u.display_name, u.username, u.easyclaim_id
   FROM policy_link_requests r LEFT JOIN tenants t ON t.id = r.tenant_id LEFT JOIN users u ON u.id = r.user_id`
 
 /** Insurers a customer can link a policy with: every tenant (id and name only). */
+async function withDocuments(db: D1Database, dto: PolicyLinkRequestDto): Promise<PolicyLinkRequestDto> {
+  const docs = await checklist(db, dto.id, dto.tenantId)
+  return { ...dto, documents: docs.items, documentsComplete: docs.complete }
+}
+
 export async function listInsurers(db: D1Database) {
   const { results } = await db.prepare('SELECT id, name FROM tenants ORDER BY name').all<{ id: string; name: string }>()
   return results
@@ -257,6 +273,8 @@ export async function requestPolicyLink(c: C, tenantId: string, policyNumber: st
   const db = c.env.DB
   const actor = c.get('actor')
   const number = policyNumber.toUpperCase()
+  // Insurers need to know who is asking: the customer's details come first (PUT /covers/profile).
+  if (!(await hasProfile(db, actor.id))) return { ok: false, status: 409, error: 'profile_incomplete' }
   if (!(await db.prepare('SELECT 1 FROM tenants WHERE id = ?').bind(tenantId).first())) return { ok: false, status: 404, error: 'unknown_insurer' }
   // A policy number that is already linked cannot be requested again (by anyone).
   if (await db.prepare('SELECT 1 FROM policies WHERE tenant_id = ? AND policy_number = ?').bind(tenantId, number).first()) {
@@ -276,12 +294,12 @@ export async function requestPolicyLink(c: C, tenantId: string, policyNumber: st
     throw err
   }
   const row = await db.prepare(`${LINK_SELECT} WHERE r.id = ?`).bind(id).first<LinkRow>()
-  return { ok: true, value: toLink(row as LinkRow, false) }
+  return { ok: true, value: await withDocuments(db, toLink(row as LinkRow, false)) }
 }
 
 export async function myLinkRequests(db: D1Database, userId: string): Promise<PolicyLinkRequestDto[]> {
   const { results } = await db.prepare(`${LINK_SELECT} WHERE r.user_id = ? ORDER BY r.created_at DESC LIMIT 50`).bind(userId).all<LinkRow>()
-  return results.map((r) => toLink(r, false))
+  return Promise.all(results.map((r) => withDocuments(db, toLink(r, false))))
 }
 
 export async function tenantLinkRequests(db: D1Database, tenantId: string, status?: PolicyLinkRequestDto['status']): Promise<PolicyLinkRequestDto[]> {
@@ -289,7 +307,7 @@ export async function tenantLinkRequests(db: D1Database, tenantId: string, statu
     .prepare(`${LINK_SELECT} WHERE r.tenant_id = ? AND (? IS NULL OR r.status = ?) ORDER BY r.created_at DESC LIMIT 200`)
     .bind(tenantId, status ?? null, status ?? null)
     .all<LinkRow>()
-  return results.map((r) => toLink(r, true))
+  return Promise.all(results.map((r) => withDocuments(db, toLink(r, true))))
 }
 
 async function loadTenantLink(db: D1Database, tenantId: string, requestId: string) {
@@ -302,7 +320,9 @@ export async function approvePolicyLink(c: C, tenantId: string, requestId: strin
   const db = c.env.DB
   const req = await loadTenantLink(db, tenantId, requestId)
   if (!req) return { ok: false, status: 404, error: 'not_found' }
-  if (req.status !== 'pending') return { ok: false, status: 409, error: 'already_decided' }
+  if (req.status !== 'pending') return { ok: false, status: 409, error: req.status === 'more_info' ? 'waiting_for_customer' : 'already_decided' }
+  // Approval needs the client's details and every required document uploaded and checked by the insurer.
+  if (!(await readyToApprove(db, tenantId, requestId))) return { ok: false, status: 409, error: 'documents_incomplete' }
   const actor = c.get('actor')
   const at = now()
   const policyId = `pol_${crypto.randomUUID()}`
@@ -333,19 +353,19 @@ export async function approvePolicyLink(c: C, tenantId: string, requestId: strin
   }
   const after = await loadTenantLink(db, tenantId, requestId)
   if (!after || after.status !== 'approved') return { ok: false, status: 409, error: 'already_decided' }
-  return { ok: true, value: toLink(after, true) }
+  return { ok: true, value: await withDocuments(db, toLink(after, true)) }
 }
 
 export async function rejectPolicyLink(c: C, tenantId: string, requestId: string, reason: string): Promise<Outcome<PolicyLinkRequestDto>> {
   const db = c.env.DB
   const req = await loadTenantLink(db, tenantId, requestId)
   if (!req) return { ok: false, status: 404, error: 'not_found' }
-  if (req.status !== 'pending') return { ok: false, status: 409, error: 'already_decided' }
+  if (req.status !== 'pending' && req.status !== 'more_info') return { ok: false, status: 409, error: 'already_decided' }
   const res = await db.batch([
     db
       .prepare(
         `UPDATE policy_link_requests SET status = 'rejected', decision_reason = ?, decided_by = ?, decided_at = ?
-         WHERE id = ? AND tenant_id = ? AND status = 'pending'`
+         WHERE id = ? AND tenant_id = ? AND status IN ('pending', 'more_info')`
       )
       .bind(reason, c.get('actor').id, now(), requestId, tenantId),
     auditStatement(

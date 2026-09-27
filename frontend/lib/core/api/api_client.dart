@@ -85,6 +85,29 @@ class ApiClient {
   /// Content type the backend will accept for this file name, or null if it will be rejected.
   static String? allowedContentType(String filename) => _mediaTypeOrNull(filename)?.mimeType;
 
+  /// Downloads a file (e.g. an onboarding document) as raw bytes. Errors map exactly like [get].
+  Future<({List<int> bytes, String contentType})> getBytes(String path) async {
+    http.Response response;
+    try {
+      response = await _http.get(_uri(path), headers: _headers()).timeout(timeout);
+    } on TimeoutException {
+      throw ApiException.network();
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException.network();
+    }
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return (bytes: response.bodyBytes, contentType: response.headers['content-type'] ?? 'application/octet-stream');
+    }
+    String? code;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic> && decoded['error'] is String) code = decoded['error'] as String;
+    } catch (_) {}
+    if (response.statusCode == 401 && _session.isActive) _session.signOut();
+    throw ApiException.fromResponse(response.statusCode, code, requestId: response.headers['x-request-id']);
+  }
+
   Future<Map<String, dynamic>> _send(Future<http.Response> Function() call) async {
     http.Response response;
     try {

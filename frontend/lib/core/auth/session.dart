@@ -35,6 +35,9 @@ class AuthActor {
   final String? displayName;
   final String? status;
 
+  /// Customers only: the shareable EasyClaim ID (e.g. EC-7K2M-9QXD).
+  final String? easyclaimId;
+
   const AuthActor({
     required this.id,
     required this.role,
@@ -42,6 +45,7 @@ class AuthActor {
     this.username,
     this.displayName,
     this.status,
+    this.easyclaimId,
   });
 
   factory AuthActor.fromJson(Map<String, dynamic> json) => AuthActor(
@@ -51,6 +55,7 @@ class AuthActor {
         username: json['username'] as String?,
         displayName: json['displayName'] as String?,
         status: json['status'] as String?,
+        easyclaimId: json['easyclaimId'] as String?,
       );
 
   UserRole get userRole => UserRole.fromWire(role);

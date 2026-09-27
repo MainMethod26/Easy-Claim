@@ -10,6 +10,12 @@ import {
   applicationStatusQuerySchema,
   approveApplicationSchema,
   approveLinkSchema,
+  easyclaimIdQuerySchema,
+  linkStatusQuerySchema,
+  moreInfoSchema,
+  requestDocParam,
+  requirementsSchema,
+  verifyDocumentSchema,
   linkRequestIdParam,
   rejectSchema,
   createTenantSchema,
@@ -31,6 +37,16 @@ import {
   rejectPolicyLink,
   tenantLinkRequests,
 } from '../onboarding/service'
+import {
+  findCustomer,
+  openDocument,
+  requestDetail,
+  requestMoreInfo,
+  requirementsFor,
+  revealIdNumber,
+  setDocumentVerified,
+  setRequirements,
+} from '../onboarding/customerOnboarding'
 import { auditPage, platformIntegrity, platformOverview, platformSecurity, tenantOverview } from '../admin/metrics'
 
 /**
@@ -270,7 +286,7 @@ tenantAdmin.get('/audit', validate('query', tenantAuditQuerySchema), async (c) =
 })
 
 // Policy linking: customers' requests to link an existing policy at this insurer. Tenant from the token.
-tenantAdmin.get('/policy-requests', validate('query', applicationStatusQuerySchema), async (c) =>
+tenantAdmin.get('/policy-requests', validate('query', linkStatusQuerySchema), async (c) =>
   c.json({ requests: await tenantLinkRequests(c.env.DB, c.get('actor').tenantId as string, c.req.valid('query').status) })
 )
 
@@ -282,4 +298,42 @@ tenantAdmin.post('/policy-requests/:requestId/approve', validate('param', linkRe
 tenantAdmin.post('/policy-requests/:requestId/reject', validate('param', linkRequestIdParam), validate('json', rejectSchema), async (c) => {
   const r = await rejectPolicyLink(c, c.get('actor').tenantId as string, c.req.valid('param').requestId, c.req.valid('json').reason)
   return r.ok ? c.json({ request: r.value }) : c.json({ error: r.error }, r.status)
+})
+
+// Customer onboarding with documents (src/onboarding/customerOnboarding.ts). Tenant always from the token.
+tenantAdmin.get('/policy-requests/:requestId', validate('param', linkRequestIdParam), async (c) => {
+  const d = await requestDetail(c, c.get('actor').tenantId as string, c.req.valid('param').requestId)
+  return d ? c.json({ request: d }) : c.json(notFound, 404)
+})
+
+tenantAdmin.post('/policy-requests/:requestId/reveal-id', validate('param', linkRequestIdParam), async (c) => {
+  const r = await revealIdNumber(c, c.get('actor').tenantId as string, c.req.valid('param').requestId)
+  return r.ok ? c.json(r.value) : c.json({ error: r.error }, r.status)
+})
+
+tenantAdmin.get('/policy-requests/:requestId/documents/:docKey', validate('param', requestDocParam), async (c) => {
+  const { requestId, docKey } = c.req.valid('param')
+  return openDocument(c, c.get('actor').tenantId as string, requestId, docKey)
+})
+
+tenantAdmin.post('/policy-requests/:requestId/documents/:docKey/verify', validate('param', requestDocParam), validate('json', verifyDocumentSchema), async (c) => {
+  const { requestId, docKey } = c.req.valid('param')
+  const r = await setDocumentVerified(c, c.get('actor').tenantId as string, requestId, docKey, c.req.valid('json').verified)
+  return r.ok ? c.json({ documents: r.value }) : c.json({ error: r.error }, r.status)
+})
+
+tenantAdmin.post('/policy-requests/:requestId/request-info', validate('param', linkRequestIdParam), validate('json', moreInfoSchema), async (c) => {
+  const r = await requestMoreInfo(c, c.get('actor').tenantId as string, c.req.valid('param').requestId, c.req.valid('json').message)
+  return r.ok ? c.json({ status: 'more_info' }) : c.json({ error: r.error }, r.status)
+})
+
+tenantAdmin.get('/requirements', async (c) => c.json({ requirements: await requirementsFor(c.env.DB, c.get('actor').tenantId as string) }))
+
+tenantAdmin.put('/requirements', validate('json', requirementsSchema), async (c) =>
+  c.json({ requirements: await setRequirements(c, c.get('actor').tenantId as string, c.req.valid('json').items) })
+)
+
+tenantAdmin.get('/customers', validate('query', easyclaimIdQuerySchema), async (c) => {
+  const r = await findCustomer(c, c.get('actor').tenantId as string, c.req.valid('query').easyclaimId)
+  return r ? c.json({ customer: r }) : c.json(notFound, 404)
 })

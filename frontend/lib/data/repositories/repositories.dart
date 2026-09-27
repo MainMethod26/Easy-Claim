@@ -91,6 +91,29 @@ class CoversRepository {
     return ((body['requests'] as List?) ?? const []).whereType<Map<String, dynamic>>().map(PolicyLinkRequest.fromJson).toList();
   }
 
+  /// The customer's EasyClaim ID and saved details.
+  Future<MyProfile> profile() async => MyProfile.fromJson(await _api.get('/covers/profile'));
+
+  Future<MyProfile> saveProfile({
+    required String legalName,
+    required String email,
+    required String phone,
+    required String dateOfBirth,
+    required String idNumber,
+  }) async =>
+      MyProfile.fromJson(await _api.put('/covers/profile', {
+        'legalName': legalName.trim(),
+        'email': email.trim(),
+        'phone': phone.trim(),
+        'dateOfBirth': dateOfBirth,
+        'idNumber': idNumber.trim(),
+      }));
+
+  Future<void> uploadRequestDocument(String requestId, String docKey, {required List<int> bytes, required String filename}) async =>
+      _api.upload('/covers/link-requests/$requestId/documents/$docKey', bytes: bytes, filename: filename);
+
+  Future<void> resubmit(String requestId) async => _api.post('/covers/link-requests/$requestId/resubmit');
+
   Future<PolicyLinkRequest> requestLink({required String tenantId, required String policyNumber}) async =>
       PolicyLinkRequest.fromJson((await _api.post('/covers/link-requests', body: {'tenantId': tenantId, 'policyNumber': policyNumber}))['request'] as Map<String, dynamic>);
 }

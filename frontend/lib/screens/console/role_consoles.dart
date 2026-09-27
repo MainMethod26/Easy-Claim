@@ -12,6 +12,7 @@ import 'audit_log_page.dart';
 import 'claims_worklist_page.dart';
 import 'insurer_overview_page.dart';
 import 'platform_pages.dart';
+import 'policy_requests_page.dart';
 import 'review_queue_pages.dart';
 
 /// Signs out and returns to the one sign-in screen of the app.
@@ -139,6 +140,7 @@ class InsurerAdminConsole extends StatelessWidget {
         ),
         (const EcNavItem(label: 'Policy requests', icon: Icons.link_outlined, selectedIcon: Icons.link), (_) => PolicyRequestsPage(repository: tenant)),
         (const EcNavItem(label: 'Team', icon: Icons.groups_outlined, selectedIcon: Icons.groups), (_) => InsurerTeamScreen(repository: tenant)),
+        (const EcNavItem(label: 'Required docs', icon: Icons.fact_check_outlined, selectedIcon: Icons.fact_check), (_) => RequirementsPage(repository: tenant)),
         (
           _audit,
           (_) => AuditLogPage(

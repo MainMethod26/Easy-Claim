@@ -127,9 +127,17 @@ payout, evidence, decision/verify) and gets 403 on every claim action and on `/r
 | PATCH `/tenant/users/:userId` | `{status}` | `{user}` | 404 (other tenant), 409 (self) | `tenant.user_status_changed` | enable/disable |
 | GET `/tenant/overview?days=1..365` (default 30) | – (`tenantId` → 400) | `TenantOverview {tenant, generatedAt, claims, decisions, payouts, screening:{NORMAL,ELEVATED,HIGH,unscreened}, integrity:{signed,unsigned,verificationsInWindow}, staff:{byRole,active,disabled}}` | 400, 403 | – | Insurer overview |
 | GET `/tenant/audit?limit=&before=&outcome=&action=` | – (`tenantId` → 400) | `{events:[AdminAuditEvent], nextBefore}`, own tenant's scope; actors outside the tenant shown by role only (`actorId: null`) | 400, 403 | `tenant.audit_viewed` | Insurer audit log |
-| GET `/tenant/policy-requests?status=` | – | `{requests:[{id,tenantId,insurerName,policyNumber,status,policyId,decisionReason,decidedAt,createdAt,customer:{displayName,username}}]}` own tenant | 400, 403 | – | Policy requests |
-| POST `/tenant/policy-requests/:requestId/approve` | `{planName 2..100}` | `{request}` approved; creates an Active policy for the customer | 400, 404 (other tenant), 409 `already_decided`/`policy_already_linked` | `policy.link_approved` | Approve |
+| GET `/tenant/policy-requests?status=pending\|more_info\|approved\|rejected` | – | `{requests:[{id,tenantId,insurerName,policyNumber,status,policyId,decisionReason,decidedAt,createdAt,customer:{displayName,username}}]}` own tenant | 400, 403 | – | Policy requests |
+| POST `/tenant/policy-requests/:requestId/approve` | `{planName 2..100}` | `{request}` approved; creates an Active policy for the customer. Requires the client's details and every required document uploaded and checked | 400, 404 (other tenant), 409 `documents_incomplete`/`waiting_for_customer`/`already_decided`/`policy_already_linked` | `policy.link_approved` | Approve |
 | POST `/tenant/policy-requests/:requestId/reject` | `{reason 5..500}` | `{request}` rejected | 400, 404, 409 | `policy.link_rejected` | Decline |
+| GET `/tenant/policy-requests/:requestId` | – | `{request:{id,policyNumber,status,infoMessage,decisionReason,createdAt,client:{easyclaimId,displayName,username,profile(ID masked)},documents:[{key,label,required,uploaded,fileName,sizeBytes,sha256,uploadedAt,verified}],readyToApprove}}` | 403, 404 (other tenant) | – | Request detail |
+| POST `/tenant/policy-requests/:requestId/reveal-id` | – | `{idNumber}` | 403, 404, 503 | `onboarding.id_number_revealed` | Reveal (recorded) |
+| GET `/tenant/policy-requests/:requestId/documents/:docKey` | – | file bytes, `Cache-Control: no-store`, `X-Document-SHA256` | 403, 404 | `onboarding.document_accessed` | Open document |
+| POST `/tenant/policy-requests/:requestId/documents/:docKey/verify` | `{verified: boolean}` | `{documents}` | 403, 404, 409 `not_pending` | `onboarding.document_verified` / `_unverified` | Checked |
+| POST `/tenant/policy-requests/:requestId/request-info` | `{message 5..500}` | `{status:'more_info'}` | 400, 404, 409 | `policy.link_more_info` | Ask for more |
+| GET `/tenant/requirements` | – | `{requirements:[{key,label,required}]}` own tenant | 403 | – | Required docs |
+| PUT `/tenant/requirements` | `{items:[{key ^[a-z][a-z0-9_]{1,39}$, label, required}]}` max 10, unique keys | `{requirements}` | 400, 403 | `tenant.requirements_changed` | Required docs |
+| GET `/tenant/customers?easyclaimId=EC-XXXX-XXXX` | – | `{customer:{easyclaimId,displayName,related,client(null unless related),requests,policies}}` exact match | 400, 403, 404 | `tenant.customer_lookup` | EasyClaim ID search |
 
 ## Customer
 
@@ -139,6 +147,11 @@ payout, evidence, decision/verify) and gets 403 on every claim action and on `/r
 | GET `/covers/insurers` | CUSTOMER | – | `{insurers:[{id,name}]}` | 403 | – | – | `CoversRepository.insurers` |
 | GET `/covers/link-requests` | CUSTOMER, own requests | – | `{requests:[{id,tenantId,insurerName,policyNumber,status,policyId,decisionReason,decidedAt,createdAt}]}` | 403 | – | – | `CoversRepository.linkRequests` |
 | POST `/covers/link-requests` | CUSTOMER | `{tenantId, policyNumber ^[A-Za-z0-9-]{4,32}$}` | 201 `{request}` pending | 400, 403, 404 `unknown_insurer`, 409 `request_pending`/`policy_already_linked` | – | `cover.link_requested` | `CoversRepository.requestLink` |
+| GET `/covers/profile` | CUSTOMER | – | `{easyclaimId, profile:null\|{legalName,email,phone,dateOfBirth,idNumberMasked,updatedAt}}` | 403 | – | – | `CoversRepository.profile` |
+| PUT `/covers/profile` | CUSTOMER | `{legalName, email, phone, dateOfBirth YYYY-MM-DD, idNumber 13 digits}` (SA ID: Luhn + must match DOB) | `{easyclaimId, profile}` (ID only masked; stored AES-GCM encrypted) | 400 `invalid_id_number`/`id_number_date_mismatch`, 403, 503 `pii_unavailable` | – | `customer.profile_saved` | `CoversRepository.saveProfile` |
+| GET `/covers/insurers/:tenantId/requirements` | CUSTOMER | – | `{requirements:[{key,label,required}]}` | 400, 403 | – | – | Link a policy |
+| POST `/covers/link-requests/:requestId/documents/:docKey` | CUSTOMER, own open request | multipart `file` (PDF/JPEG/PNG, magic bytes, ≤10 MB) | 201 `{documents:[checklist]}`; re-upload un-checks it | 400, 404, 409 `request_closed`, 413, 415, 503 | – | `onboarding.document_uploaded` / `_rejected` | `CoversRepository.uploadRequestDocument` |
+| POST `/covers/link-requests/:requestId/resubmit` | CUSTOMER | – | `{status:'pending'}` (from `more_info`) | 404, 409 `not_waiting_for_you` | – | `cover.link_resubmitted` | `CoversRepository.resubmit` |
 | GET `/covers/market-catalog` | any | – | `{catalog:[{id,provider,name,premium}]}` (static) | – | – | – | not used (UI keeps its static insurer list) |
 | GET `/claims?limit=` | CUSTOMER: own. ASSESSOR / MANAGER / INSURER_ADMIN: own tenant, no Drafts, no `user_id`. SUPERADMIN: 403 | – | `{claims:[{id,policy_id,tenant_id,stage,status,category,claimed_amount_cents,created_at,updated_at}]}` | 403 | – | denied only | `ClaimsRepository.list`, `InsurerRepository.queue` |
 | POST `/claims/initiate` | CUSTOMER, owns an Active policy with a tenant | `{policyId, category?: Medical\|Vehicle\|Life\|Property\|Other}` | 201 `{status:"draft_created", claimId}` | 400, 422 `policy_not_eligible` | creates Draft | `claim.created` | `ClaimsRepository.create` |

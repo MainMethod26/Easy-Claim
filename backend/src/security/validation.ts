@@ -147,3 +147,30 @@ export const linkRequestSchema = z.object({ tenantId: tenantIdSchema, policyNumb
 export const linkRequestIdParam = z.object({ requestId: id })
 /** Insurer admin approves with the plan name from its own records. */
 export const approveLinkSchema = z.object({ planName: z.string().trim().min(2).max(100) }).strict()
+
+// ---- Customer onboarding with documents (migration 0012) ----
+/** Customer details shared with insurers they apply to. dateOfBirth is YYYY-MM-DD; the ID number is checked server-side. */
+export const customerProfileSchema = z
+  .object({
+    legalName: z.string().trim().min(2).max(120),
+    email: z.email().max(254),
+    phone: z.string().trim().regex(/^\+?[0-9 ]{9,16}$/),
+    dateOfBirth: z.iso.date(),
+    idNumber: z.string().trim().regex(/^[0-9]{13}$/),
+  })
+  .strict()
+export const linkStatusQuerySchema = z.object({ status: z.enum(['pending', 'more_info', 'approved', 'rejected']).optional() }).strict()
+const docKey = z.string().regex(/^[a-z][a-z0-9_]{1,39}$/)
+export const requestDocParam = z.object({ requestId: id, docKey })
+export const verifyDocumentSchema = z.object({ verified: z.boolean() }).strict()
+export const moreInfoSchema = z.object({ message: z.string().trim().min(5).max(500) }).strict()
+export const requirementsSchema = z
+  .object({
+    items: z
+      .array(z.object({ key: docKey, label: z.string().trim().min(2).max(80), required: z.boolean() }).strict())
+      .max(10)
+      .refine((items) => new Set(items.map((i) => i.key)).size === items.length, { message: 'duplicate keys' }),
+  })
+  .strict()
+export const easyclaimIdQuerySchema = z.object({ easyclaimId: z.string().trim().toUpperCase().regex(/^EC-[0-9A-Z]{4}-[0-9A-Z]{4}$/) }).strict()
+export const tenantIdParam = z.object({ tenantId: z.string().regex(/^ins_[a-z0-9_]{2,40}$/) })
