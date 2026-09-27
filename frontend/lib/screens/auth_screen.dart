@@ -36,10 +36,16 @@ Widget homeFor(AuthActor actor) {
   return const AuthScreen();
 }
 
+/// Build switch for the demo accounts hint (local and demo deployments only).
+const bool showDemoAccounts = bool.fromEnvironment('SHOW_DEMO_ACCOUNTS', defaultValue: false);
+
 class AuthScreen extends StatefulWidget {
   final AuthRepository? repository;
 
-  const AuthScreen({super.key, this.repository});
+  /// Shown above the form, e.g. "Your session ended. Please sign in again."
+  final String? notice;
+
+  const AuthScreen({super.key, this.repository, this.notice});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -141,7 +147,16 @@ class _AuthScreenState extends State<AuthScreen> {
                   child: _buildLoginForm(),
                 ),
                 const SizedBox(height: 16.0),
-                const DemoAccountsPanel(),
+                // Demo accounts are shown only when the build asks for them (--dart-define=SHOW_DEMO_ACCOUNTS=true).
+                if (widget.notice != null)
+                  Container(
+                    key: const Key('auth-notice'),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: const Color(0xFFFFFBEB), borderRadius: BorderRadius.circular(8)),
+                    child: Text(widget.notice!, style: const TextStyle(color: Color(0xFF92400E), fontWeight: FontWeight.w600)),
+                  ),
+                if (showDemoAccounts) const DemoAccountsPanel(),
                 const SizedBox(height: 12.0),
               ],
             ),

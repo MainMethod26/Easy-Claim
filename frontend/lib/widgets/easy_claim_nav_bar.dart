@@ -60,7 +60,7 @@ class EasyClaimNavBar extends StatelessWidget {
                   icon: Icons.access_time_rounded,
                   activeIcon: Icons.access_time_filled_rounded,
                   label: 'Activities',
-                  badgeText: 'Live',
+                  badgeText: null,
                   onTap: () => onTap(2),
                 ),
               ),

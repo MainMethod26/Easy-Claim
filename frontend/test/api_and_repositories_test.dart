@@ -40,7 +40,7 @@ void main() {
 
     test('403 / 404 / 409 / 422 / 500 map to safe user text', () async {
       expect((await failWith(403, 'forbidden')).message, "You don't have permission to do that.");
-      expect((await failWith(404, 'not_found')).message, 'Claim not found.');
+      expect((await failWith(404, 'not_found')).message, 'That item could not be found. It may have been removed, or you may not have access to it.');
       expect((await failWith(409, 'illegal_transition')).message, 'This claim has changed. Refresh and try again.');
       expect((await failWith(409, 'decision_integrity_failed')).message, 'Payout blocked: the decision failed its integrity check.');
       expect((await failWith(422, 'validation_failed')).message, 'Some details are missing or invalid.');

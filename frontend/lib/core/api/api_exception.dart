@@ -21,7 +21,7 @@ class ApiException implements Exception {
 
   factory ApiException.network() => const ApiException(
         code: 'network',
-        message: "Can't reach the EasyClaim server. Check your connection and that the backend is running.",
+        message: "Can't reach EasyClaim right now. Check your internet connection and try again.",
       );
 
   static String messageFor(int status, String code) {
@@ -112,7 +112,7 @@ class ApiException implements Exception {
       case 403:
         return "You don't have permission to do that.";
       case 404:
-        return 'Claim not found.';
+        return 'That item could not be found. It may have been removed, or you may not have access to it.';
       case 409:
         return 'This claim has changed. Refresh and try again.';
       case 413:

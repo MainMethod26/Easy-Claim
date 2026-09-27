@@ -104,7 +104,7 @@ class ApiClient {
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic> && decoded['error'] is String) code = decoded['error'] as String;
     } catch (_) {}
-    if (response.statusCode == 401 && _session.isActive) _session.signOut();
+    if (response.statusCode == 401 && _session.isActive) _session.signOut(byUser: false);
     throw ApiException.fromResponse(response.statusCode, code, requestId: response.headers['x-request-id']);
   }
 
@@ -139,7 +139,7 @@ class ApiClient {
       requestId: response.headers['x-request-id'],
     );
     // An expired or rejected token ends the session; the UI sends the user to sign in.
-    if (response.statusCode == 401 && _session.isActive) _session.signOut();
+    if (response.statusCode == 401 && _session.isActive) _session.signOut(byUser: false);
     throw error;
   }
 }

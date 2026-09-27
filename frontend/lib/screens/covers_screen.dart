@@ -4,13 +4,14 @@ import '../data/models/api_models.dart';
 import '../providers/covers_provider.dart';
 import '../services/logo_dev_service.dart';
 import '../widgets/aurora_background.dart';
-import 'admin/insurer_profile_screen.dart';
+import '../data/models/onboarding_models.dart';
+import '../data/repositories/repositories.dart';
 import 'link_policy_screen.dart';
 import 'policy_details_screen.dart';
 
 /// Covers Screen
 /// - My Covers: the customer's real policies (GET /covers/my-covers)
-/// - All Covers: a static showcase of partner insurers (marketing content, not business state)
+/// - Insurers: the insurers on EasyClaim (from the API), each with "Link a policy"
 class CoversScreen extends StatefulWidget {
   final VoidCallback? onNavigateToActivities;
   final CoversProvider? provider;
@@ -21,17 +22,10 @@ class CoversScreen extends StatefulWidget {
   State<CoversScreen> createState() => _CoversScreenState();
 }
 
-/// Static partner showcase for the "All Covers" tab (LEGITIMATE UI SAMPLE; no API behind it).
-const partnerInsurerShowcase = <(String, IconData, Color)>[
-  ('Momentum', Icons.shield_rounded, Color(0xFFE91E63)),
-  ('King Price', Icons.monetization_on_rounded, Color(0xFFD32F2F)),
-  ('Clientèle Life', Icons.health_and_safety_rounded, Color(0xFF1976D2)),
-  ('Discovery', Icons.explore_rounded, Color(0xFF388E3C)),
-  ('Santam', Icons.umbrella_rounded, Color(0xFFFBC02D)),
-];
 
 class _CoversScreenState extends State<CoversScreen> {
   late final CoversProvider _provider = widget.provider ?? CoversProvider();
+  Future<List<InsurerOption>>? _insurersFuture;
 
   @override
   void initState() {
@@ -115,8 +109,8 @@ class _CoversScreenState extends State<CoversScreen> {
                       ),
                       Expanded(
                         child: _buildSubTabButton(
-                          title: 'All Covers',
-                          count: partnerInsurerShowcase.length,
+                          title: 'Insurers',
+                          count: null,
                           isSelected: _provider.selectedTabIndex == 1,
                           onTap: () => _provider.setTabIndex(1),
                         ),
@@ -134,7 +128,7 @@ class _CoversScreenState extends State<CoversScreen> {
     );
   }
 
-  Widget _buildSubTabButton({required String title, required int count, required bool isSelected, required VoidCallback onTap}) {
+  Widget _buildSubTabButton({required String title, int? count, required bool isSelected, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -155,7 +149,8 @@ class _CoversScreenState extends State<CoversScreen> {
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                 ),
               ),
-              const SizedBox(width: 6),
+              if (count != null) const SizedBox(width: 6),
+              if (count != null)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
@@ -257,62 +252,39 @@ class _CoversScreenState extends State<CoversScreen> {
     );
   }
 
+  /// Insurers on EasyClaim (real tenants from GET /covers/insurers). Buying cover is not offered;
+  /// a customer who already holds a policy links it from here.
   Widget _buildAllCoversView() {
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 24),
-      children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          child: Text('Partner insurers', style: TextStyle(color: Color(0xFF0F172A), fontSize: 17, fontWeight: FontWeight.w800)),
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            'Showcase of insurers EasyClaim works with. Buying cover in the app is not available yet.',
-            style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            children: [
-              for (final (name, icon, color) in partnerInsurerShowcase)
-                GestureDetector(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => InsurerProfileScreen(insurerName: name))),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                          ),
-                          child: Icon(icon, color: color, size: 28),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Text(name, style: const TextStyle(color: Color(0xFF0F172A), fontSize: 16, fontWeight: FontWeight.w800)),
-                        ),
-                        const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFCBD5E1), size: 14),
-                      ],
-                    ),
-                  ),
+    return FutureBuilder<List<InsurerOption>>(
+      future: _insurersFuture ??= CoversRepository().insurers(),
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) return const LoadingView(message: 'Loading insurers…');
+        if (snap.hasError) return ErrorView(error: snap.error!, onRetry: () => setState(() => _insurersFuture = null));
+        final insurers = snap.data!;
+        return ListView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+          children: [
+            const Text('Insurers on EasyClaim', style: TextStyle(color: Color(0xFF0F172A), fontSize: 17, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            const Text('Already insured with one of them? Link your policy to claim here. Buying cover in the app is not available.',
+                style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+            const SizedBox(height: 14),
+            if (insurers.isEmpty) const Text('No insurers yet.', style: TextStyle(color: Color(0xFF64748B))),
+            for (final ins in insurers)
+              Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                  key: Key('insurer-row-${ins.id}'),
+                  leading: BrandLogo(name: ins.name, size: 40.0, borderRadius: 8.0, fallbackIcon: Icons.shield_outlined),
+                  title: Text(ins.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  trailing: TextButton(onPressed: _openLinkPolicy, child: const Text('Link a policy')),
                 ),
-            ],
-          ),
-        ),
-      ],
+              ),
+          ],
+        );
+      },
     );
   }
+
 }

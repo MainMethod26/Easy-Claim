@@ -41,15 +41,13 @@ void main() {
       expect(find.textContaining('Explore Live Demo'), findsNothing);
     });
 
-    testWidgets('auth screen: local demo accounts are hinted; there is a Create account link and no skip button', (tester) async {
+    testWidgets('auth screen: demo accounts hidden unless the build enables them; Create account and insurer links; no skip button', (tester) async {
       await tester.pumpWidget(_app(const AuthScreen()));
       await tester.pump();
-      expect(find.text('Local demo accounts'), findsOneWidget);
-      expect(find.textContaining('mike'), findsWidgets);
-      expect(find.textContaining('assessor_discovery'), findsOneWidget);
-      expect(find.textContaining('manager_discovery'), findsOneWidget);
-      expect(find.textContaining('admin_discovery'), findsOneWidget);
-      expect(find.textContaining('superadmin'), findsOneWidget);
+      // Default builds never show demo credentials (SHOW_DEMO_ACCOUNTS=true only for demo deployments).
+      expect(find.text('Local demo accounts'), findsNothing);
+      expect(find.textContaining('1234567'), findsNothing);
+      expect(find.byKey(const Key('insurer-apply')), findsOneWidget);
       expect(find.byKey(const Key('create-account')), findsOneWidget);
       expect(find.textContaining('Quick Demo'), findsNothing);
     });

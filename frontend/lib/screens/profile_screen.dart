@@ -1,7 +1,7 @@
 import '../core/auth/session.dart';
 import 'auth_screen.dart';
 import 'package:flutter/material.dart';
-import 'consent_dashboard_screen.dart';
+import '../widgets/setup_checklist.dart';
 import 'support_screen.dart';
 import '../widgets/aurora_background.dart';
 
@@ -117,11 +117,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             _roleLine,
                             style: const TextStyle(color: Colors.white70, fontSize: 12),
                           ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Demo sign-in (local/demo only)',
-                            style: TextStyle(color: Color(0xFFFFAB73), fontSize: 11.5),
-                          ),
                         ],
                       ),
                     ),
@@ -131,55 +126,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 24),
 
-              // Quick Entry 1: Consent Dashboard
-              _buildSectionHeader('DATA PRIVACY & VAULT'),
-              _buildSettingsCard([
-                _buildActionRow(
-                  icon: Icons.lock_person_rounded,
-                  iconColor: const Color(0xFF16A34A),
-                  title: 'Consent Dashboard',
-                  subtitle: 'Who may access your data (sample content)',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ConsentDashboardScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(color: Color(0xFFE2E8F0), height: 1),
-                _buildActionRow(
-                  icon: Icons.shield_moon_rounded,
-                  iconColor: const Color(0xFF0284C7),
-                  title: 'Access history',
-                  subtitle: 'Your insurer keeps an audit trail of every change to your claims',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Viewing the audit trail in the app is not available yet.'),
-                        backgroundColor: Color(0xFF0284C7),
-                      ),
-                    );
-                  },
-                ),
-              ]),
+              // Account: details, EasyClaim ID, linked policies (replaces the sample consent dashboard).
+              const SetupChecklist(alwaysShow: true),
+              const SizedBox(height: 8),
 
-              const SizedBox(height: 22),
-
-              // Session (honest: no biometrics, 2FA or SMS features exist yet)
-              _buildSectionHeader('SESSION'),
-              _buildSettingsCard([
-                _buildActionRow(
-                  icon: Icons.key_rounded,
-                  iconColor: const Color(0xFF0F172A),
-                  title: 'Signed in with a demo account',
-                  subtitle: 'Sessions last one hour and are not kept after you close the app',
-                  onTap: () {},
-                ),
-              ]),
-
-              const SizedBox(height: 22),
+              const SizedBox(height: 14),
 
               // Quick Entry 3: Support & Ombudsman
               _buildSectionHeader('SUPPORT & CLAIMS OMBUDSMAN'),
@@ -187,8 +138,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _buildActionRow(
                   icon: Icons.headset_mic_rounded,
                   iconColor: const Color(0xFFFF5500),
-                  title: 'Claims Assistance & Agent Chat',
-                  subtitle: 'Direct human access for disputes & queries',
+                  title: 'Help and messages',
+                  subtitle: 'Message your insurer about a claim, complaints route',
                   onTap: () {
                     Navigator.push(
                       context,
@@ -207,7 +158,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Ombudsman for Short-Term Insurance: 0860 726 890'),
+                        content: Text('Ombudsman for Short-Term Insurance: 0860 726 890 (see Help for more)'),
                         backgroundColor: Color(0xFFFF5500),
                       ),
                     );

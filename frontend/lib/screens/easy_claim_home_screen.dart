@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../widgets/setup_checklist.dart';
+import 'link_policy_screen.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../core/auth/session.dart';
 import '../core/widgets/state_views.dart';
 import '../data/models/api_models.dart';
@@ -14,7 +17,6 @@ import '../widgets/notification_bell_button.dart';
 import '../widgets/notifications_sheet.dart';
 import '../widgets/picture_background.dart';
 import '../widgets/claims_wizard_modal.dart';
-import 'consent_dashboard_screen.dart';
 import 'support_screen.dart';
 
 /// HOME: the signed-in customer's claims, straight from the backend.
@@ -99,7 +101,8 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
-    final showSimulatedStatus = widget.showStatusBar && topInset == 0;
+    // The decorative phone status bar is only drawn on a mobile layout, never on web or desktop.
+    final showSimulatedStatus = widget.showStatusBar && topInset == 0 && !kIsWeb;
     final actor = Session.instance.actor;
 
     return Scaffold(
@@ -156,7 +159,9 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
                         ),
                         const SizedBox(height: 10.0),
                         _buildStatusBanner(),
-                        const SizedBox(height: 22.0),
+                        const SizedBox(height: 16.0),
+                        const SetupChecklist(),
+                        const SizedBox(height: 6.0),
                         _buildSectionTitle('Claim status'),
                         const SizedBox(height: 10.0),
                         _buildClaimSection(),
@@ -289,7 +294,7 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
       (Icons.add_circle_outline_rounded, 'New claim', _startNewClaim),
       (Icons.shield_outlined, 'My covers', widget.onNavigateToCovers),
       (Icons.timeline_rounded, 'Claim stages', widget.onViewStagesTapped),
-      (Icons.privacy_tip_outlined, 'Consent', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConsentDashboardScreen()))),
+      (Icons.link, 'Link policy', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LinkPolicyScreen()))),
     ];
     return GridView.count(
       crossAxisCount: 4,

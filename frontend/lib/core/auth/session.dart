@@ -92,13 +92,19 @@ class Session extends ChangeNotifier {
       _token != null && _actor != null && (_expiresAt == null || DateTime.now().isBefore(_expiresAt!));
 
   void start({required String token, required AuthActor actor, Duration? expiresIn}) {
+    signedOutByUser = false;
     _token = token;
     _actor = actor;
     _expiresAt = expiresIn == null ? null : DateTime.now().add(expiresIn);
     notifyListeners();
   }
 
-  void signOut() {
+  /// True when the last sign-out was the user's own choice (not an expired or rejected token).
+  bool signedOutByUser = false;
+
+  /// Ends the session. [byUser] is false when the API rejected the token (see ApiClient).
+  void signOut({bool byUser = true}) {
+    signedOutByUser = byUser;
     if (_token == null && _actor == null) return;
     _token = null;
     _actor = null;

@@ -8,6 +8,7 @@ import '../data/repositories/repositories.dart';
 import '../models/home_models.dart';
 import '../providers/claims_wizard_provider.dart';
 import 'claim_stepper.dart';
+import '../screens/link_policy_screen.dart';
 
 const _orange = Color(0xFFFF5500);
 const _ink = Color(0xFF0F172A);
@@ -299,7 +300,17 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _label('Which policy are you claiming on?'),
       if (policies.isEmpty)
-        const Text('You have no active policy to claim on.', style: TextStyle(color: _muted))
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('You have no active policy to claim on yet. Link a policy you already hold with your insurer first.',
+              style: TextStyle(color: _muted)),
+          const SizedBox(height: 10),
+          FilledButton.icon(
+            key: const Key('wizard-link-policy'),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LinkPolicyScreen())).then((_) => _w.loadPolicies()),
+            icon: const Icon(Icons.link),
+            label: const Text('Link a policy'),
+          ),
+        ])
       else
         for (final p in policies)
           Card(
