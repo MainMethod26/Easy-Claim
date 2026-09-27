@@ -1,4 +1,6 @@
 name = "easy-claim-backend"
+# Team Cloudflare account (pasekamabitsela22). Deploy only with `npm run deploy:live` from an up-to-date main.
+account_id = "077883a9c8271d3b7bc8b28d6756cf9f"
 main = "src/index.ts"
 compatibility_date = "2024-03-20"
 compatibility_flags = ["nodejs_compat"]
@@ -6,7 +8,9 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "easy-claim-db"
-database_id = "d533a05e-0001-4bce-b664-65cd32aead50"
+# The ONE live database: remote name "easy-claim-db-v2" (all migrations, demo data). Do not point this elsewhere
+# without telling the team; local dev uses its own copy under .wrangler/state (run `npm run demo:setup:local`).
+database_id = "92281ee9-13f3-4c98-a027-e1e8a68ac372"
 
 [[queues.producers]]
 queue = "claim-events"
@@ -36,7 +40,7 @@ namespace_id = "1001"
 
 [vars]
 # No cross-origin browser access unless explicitly listed (comma-separated).
-ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,http://localhost:3000,http://127.0.0.1:3000,https://easy-claim-admin.pages.dev"
+ALLOWED_ORIGINS = "https://easy-claim-frontend.pages.dev,https://easy-claim-admin-frontend.pages.dev,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,http://localhost:3000,http://127.0.0.1:3000,https://easy-claim-admin.pages.dev"
 # Expected JWT issuer / audience (see src/security/actor.ts). Change per environment.
 JWT_ISSUER = "easyclaim-dev"
 JWT_AUDIENCE = "easyclaim-api"

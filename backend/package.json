@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "wrangler dev",
+    "deploy:live": "npm run typecheck && wrangler d1 migrations apply easy-claim-db --remote && wrangler deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:migrate:local": "wrangler d1 migrations apply easy-claim-db --local",
