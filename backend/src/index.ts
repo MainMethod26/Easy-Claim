@@ -3,14 +3,10 @@ import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import { secureHeaders } from 'hono/secure-headers'
-import gateway from './endpoints/gateway'
 import policy from './endpoints/policy'
 import claims from './endpoints/claims'
 import claimsInsurer from './endpoints/claimsInsurer'
 import evidence from './endpoints/evidence'
-import ocr from './endpoints/ocr'
-import identity from './endpoints/identity'
-import audit from './endpoints/audit'
 import riskSignals from './screening/routes'
 import { processQueueBatch } from './endpoints/ocr'
 import { decisionIntegrity, integrityInfo } from './integrity/routes'
@@ -103,7 +99,6 @@ app.get('/openapi.json', (c) => c.json(openapiData))
 app.route('/api/v1/auth', authInfo)
 app.route('/api/v1/admin', superadmin) // SUPERADMIN: insurers, accounts, platform stats
 app.route('/api/v1/tenant', tenantAdmin) // INSURER_ADMIN: own tenant's accounts and stats
-app.route('/api/v1/client', gateway)
 app.route('/api/v1/covers', policy)
 app.route('/api/v1/claims', claims)
 app.route('/api/v1/claims', claimsInsurer)
@@ -111,9 +106,9 @@ app.route('/api/v1/claims', evidence)
 app.route('/api/v1/claims', riskSignals) // Phase 4: read-only advisory screening signal
 app.route('/api/v1/claims', decisionIntegrity) // Phase 5: ML-DSA decision verification
 app.route('/api/v1/integrity', integrityInfo) // Phase 5: public key
-app.route('/api/v1/ocr', ocr)
-app.route('/api/v1/profile', identity)
-app.route('/api/v1/activities', audit)
+// Removed 27 Sep 2026 (assessment): /client/*, /profile, /activities/*, /ocr/process returned fixed
+// or fake data and nothing called them. Real equivalents: /claims/:id/messages, /covers/profile,
+// /tenant/audit, /admin/audit.
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404))
 

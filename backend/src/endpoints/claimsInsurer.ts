@@ -323,7 +323,7 @@ router.post('/:claimId/pay', insurerOnly, validate('param', claimIdParam), async
     resourceType: 'payout',
     resourceId: payoutId,
     outcome: 'success',
-    details: { claimId: claim.id, decisionId: decision.id, amountCents: decision.approved_amount_cents, destinationLast4: claim.payout_account_last4 },
+    details: { claimId: claim.id, decisionId: decision.id, amountCents: decision.approved_amount_cents },
   })
   return c.json({
     status: 'paid',

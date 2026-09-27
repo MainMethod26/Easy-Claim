@@ -228,6 +228,54 @@ export async function checklist(db: D1Database, requestId: string, tenantId: str
   return { items, complete }
 }
 
+/**
+ * Checklists for many requests at once (list views): requirements once per tenant and every uploaded
+ * document in one query, instead of two queries per row.
+ */
+export async function checklistMany(
+  db: D1Database,
+  requests: { id: string; tenantId: string }[]
+): Promise<Map<string, { items: RequestDocumentDto[]; complete: boolean }>> {
+  const out = new Map<string, { items: RequestDocumentDto[]; complete: boolean }>()
+  if (requests.length === 0) return out
+  const tenants = [...new Set(requests.map((r) => r.tenantId))]
+  const reqByTenant = new Map<string, RequirementDto[]>()
+  await Promise.all(tenants.map(async (t) => reqByTenant.set(t, await requirementsFor(db, t))))
+  const docs = new Map<string, Map<string, DocRow>>()
+  // D1 caps bound parameters per statement; chunk the IN list.
+  for (let i = 0; i < requests.length; i += 90) {
+    const chunk = requests.slice(i, i + 90).map((r) => r.id)
+    const { results } = await db
+      .prepare(`SELECT * FROM request_documents WHERE request_id IN (${chunk.map(() => '?').join(',')})`)
+      .bind(...chunk)
+      .all<DocRow & { request_id: string }>()
+    for (const d of results) {
+      const m = docs.get(d.request_id) ?? new Map<string, DocRow>()
+      m.set(d.doc_key, d)
+      docs.set(d.request_id, m)
+    }
+  }
+  for (const r of requests) {
+    const byKey = docs.get(r.id) ?? new Map<string, DocRow>()
+    const items: RequestDocumentDto[] = (reqByTenant.get(r.tenantId) ?? []).map((q) => {
+      const d = byKey.get(q.key)
+      return {
+        key: q.key,
+        label: q.label,
+        required: q.required,
+        uploaded: !!d,
+        fileName: d?.display_name ?? null,
+        sizeBytes: d?.size_bytes ?? null,
+        sha256: d?.sha256 ?? null,
+        uploadedAt: d?.uploaded_at ?? null,
+        verified: d?.verified === 1,
+      }
+    })
+    out.set(r.id, { items, complete: items.filter((i) => i.required).every((i) => i.uploaded && i.verified) })
+  }
+  return out
+}
+
 interface RequestRow {
   id: string
   user_id: string

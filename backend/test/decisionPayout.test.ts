@@ -374,11 +374,12 @@ describe('decision history integrity', () => {
       ['DELETE', `/claims/${id}/decision`],
       ['PATCH', `/claims/${id}/decision`],
       ['DELETE', `/claims/${id}/payout`],
-      ['POST', '/activities/audit-trail'],
-      ['DELETE', '/activities/audit-trail'],
     ] as const) {
       expect((await call(path, { method, as: managerA, json: {} })).status).toBe(404)
     }
+    // The audit views are read-only even for the roles that may read them: no write routes exist.
+    expect((await call('/tenant/audit', { method: 'POST', as: insurerAdminA, json: {} })).status).toBe(404)
+    expect((await call('/admin/audit', { method: 'DELETE', as: superadmin })).status).toBe(404)
     expect(await decisionRows(id)).toHaveLength(1)
     expect(await payoutRows(id)).toHaveLength(1)
   })

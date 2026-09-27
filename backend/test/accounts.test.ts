@@ -46,7 +46,10 @@ describe('ACCOUNTS: login', () => {
       expect(r.body.actor.password_hash).toBeUndefined()
       const auth = `Bearer ${r.body.token}`
       const me = await json(await call('/auth/me', { authorization: auth }))
-      expect(me.actor).toEqual({ id: u.id, role: u.role, tenantId: u.tenantId, username, displayName: u.displayName, status: 'active' })
+      expect(me.actor).toMatchObject({ id: u.id, role: u.role, tenantId: u.tenantId, username, displayName: u.displayName, status: 'active' })
+      // Customers have an EasyClaim ID; staff never do.
+      if (u.role === 'CUSTOMER') expect(me.actor.easyclaimId).toMatch(/^EC-/)
+      else expect(me.actor.easyclaimId).toBeNull()
       expect((await call(ROLE_ROUTE[u.role](u.tenantId), { authorization: auth })).status).toBe(200)
       const ok = (await auditRows('auth.login', u.id)).find((row) => row.outcome === 'success')
       expect(JSON.parse(ok!.details as string)).toEqual({ role: u.role, tenantId: u.tenantId })
@@ -100,10 +103,10 @@ describe('ACCOUNTS: login', () => {
     expect(dump).not.toContain('wrong-password-value')
   })
 
-  it('unauthenticated /auth/me → 401; offline-minted tokens have no profile fields', async () => {
+  it('unauthenticated /auth/me → 401; a validly signed token for an account that does not exist → 401', async () => {
     expect((await call('/auth/me')).status).toBe(401)
-    const me = await json(await call('/auth/me', { as: { id: 'ghost_1', role: 'CUSTOMER' } }))
-    expect(me.actor).toEqual({ id: 'ghost_1', role: 'CUSTOMER', tenantId: null, username: null, displayName: null, status: null })
+    // The signature alone is not enough: the account must exist, be active and match the token.
+    expect((await call('/auth/me', { as: { id: 'ghost_1', role: 'CUSTOMER' } })).status).toBe(401)
   })
 })
 

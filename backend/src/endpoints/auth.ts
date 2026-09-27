@@ -4,9 +4,9 @@ import type { AppEnv, Role } from '../types'
 import { writeAuditEvent } from '../security/audit'
 import { JWT_ALG, MAX_TOKEN_TTL_SECONDS } from '../security/actor'
 import { dummyHash, hashPassword, verifyPassword } from '../security/password'
-import { insurerApplicationSchema, loginSchema, registerSchema, validate } from '../security/validation'
+import { changePasswordSchema, insurerApplicationSchema, loginSchema, registerSchema, validate } from '../security/validation'
 import { submitApplication } from '../onboarding/service'
-import { newEasyclaimId } from '../onboarding/customerOnboarding'
+import { ensureEasyclaimId, newEasyclaimId } from '../onboarding/customerOnboarding'
 
 /**
  * Accounts and sign-in (team role model, 26 Sep 2026).
@@ -26,8 +26,13 @@ import { newEasyclaimId } from '../onboarding/customerOnboarding'
  */
 
 export const TOKEN_TTL_SECONDS = 3600
+/** Account lockout after repeated wrong passwords. */
+export const LOCKOUT_FAILURES = 5
+export const LOCKOUT_WINDOW_MS = 15 * 60 * 1000
 
 export interface UserRow {
+  /** Bumped to revoke existing tokens (migration 0014). */
+  token_version?: number
   /** Customers only: the shareable EasyClaim ID (migration 0012). */
   easyclaim_id?: string | null
   id: string
@@ -74,6 +79,8 @@ export async function issueToken(env: AppEnv['Bindings'], user: UserRow): Promis
     aud: env.JWT_AUDIENCE,
     iat: now,
     exp: now + expiresIn,
+    // Session version (users.token_version): bumped on password change or disable to revoke tokens.
+    ver: user.token_version ?? 0,
   }
   if (user.tenant_id) payload.tenant_id = user.tenant_id
   return { token: await sign(payload, env.JWT_SECRET, JWT_ALG), expiresIn }
@@ -90,6 +97,20 @@ authPublic.post('/login', validate('json', loginSchema), async (c) => {
   const { username, password } = c.req.valid('json')
   const user = await findUserByUsername(c.env.DB, username)
   // Same work for unknown users: verify against a dummy hash so timing does not reveal existence.
+  // Lockout: after LOCKOUT_FAILURES wrong passwords for an account within LOCKOUT_WINDOW_MS, refuse further
+  // attempts for that account until the window passes (the per-IP limiter still applies to everyone).
+  if (user) {
+    const since = new Date(Date.now() - LOCKOUT_WINDOW_MS).toISOString()
+    const recent = await c.env.DB.prepare(
+      "SELECT count(*) AS n FROM audit_events WHERE action = 'auth.login' AND outcome = 'denied' AND resource_id = ? AND occurred_at >= ?"
+    )
+      .bind(user.id, since)
+      .first<{ n: number }>()
+    if ((recent?.n ?? 0) >= LOCKOUT_FAILURES) {
+      await writeAuditEvent(c, { action: 'auth.login_locked', resourceType: 'user', resourceId: user.id, outcome: 'denied' })
+      return c.json({ error: 'too_many_attempts' }, 429)
+    }
+  }
   const ok = user ? await verifyPassword(password, user.password_hash) : (await verifyPassword(password, await dummyHash()), false)
 
   if (!user || !ok || user.status !== 'active') {
@@ -169,8 +190,29 @@ authInfo.get('/me', async (c) => {
       username: user?.username ?? null,
       displayName: user?.display_name ?? null,
       status: user?.status ?? null,
+      // Customers always have one (created on first use for older accounts); staff never do.
+      easyclaimId: actor.role === 'CUSTOMER' ? await ensureEasyclaimId(c.env.DB, actor.id) : null,
     },
   })
+})
+
+/** Change my password. Revokes every other session (token_version) and returns a fresh token. */
+authInfo.post('/password', validate('json', changePasswordSchema), async (c) => {
+  const actor = c.get('actor')
+  const user = await findUserById(c.env.DB, actor.id)
+  const { currentPassword, newPassword } = c.req.valid('json')
+  if (!user || !(await verifyPassword(currentPassword, user.password_hash))) {
+    await writeAuditEvent(c, { action: 'auth.password_change', resourceType: 'user', resourceId: actor.id, outcome: 'denied' })
+    return c.json({ error: 'invalid_credentials' }, 401)
+  }
+  await c.env.DB.prepare('UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?')
+    .bind(await hashPassword(newPassword), user.id)
+    .run()
+  await writeAuditEvent(c, { action: 'auth.password_change', resourceType: 'user', resourceId: user.id, outcome: 'success' })
+  const fresh = (await findUserById(c.env.DB, user.id)) as UserRow
+  const issued = await issueToken(c.env, fresh)
+  if (!issued) return c.json({ error: 'auth_unavailable' }, 503)
+  return c.json(sessionBody(fresh, issued))
 })
 
 /**

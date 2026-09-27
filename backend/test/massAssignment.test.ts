@@ -44,19 +44,13 @@ describe('object property authorization (mass assignment)', () => {
     expect(row).toEqual({ tenant_id: 'ins_discovery' })
   })
 
-  it('join-request rejects a client-supplied userId and does not echo the body', async () => {
-    const bad = await call('/covers/join-request', {
+  it('link-request refuses a client-supplied userId (the customer comes from the token)', async () => {
+    const bad = await call('/covers/link-requests', {
       method: 'POST',
       as: customerA,
-      json: { planId: 'cat_02', userId: 'user456' },
+      json: { tenantId: 'ins_discovery', policyNumber: 'DH-MASS-1', userId: 'user456' },
     })
     expect(bad.status).toBe(400)
-
-    const good = await call('/covers/join-request', { method: 'POST', as: customerA, json: { planId: 'cat_02' } })
-    expect(good.status).toBe(200)
-    const body = (await good.json()) as Record<string, unknown>
-    expect(body).not.toHaveProperty('body')
-    expect(body).toMatchObject({ planId: 'cat_02', provider: 'Sanlam' })
   })
 
   it('validation errors do not echo submitted values', async () => {

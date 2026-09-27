@@ -67,6 +67,26 @@ export async function resolveActor(c: Context<AppEnv>): Promise<Actor | null> {
     console.warn(`[${c.get('requestId')}] token rejected: claims:${result.reason}`)
     return null
   }
+  // The signature proves who issued the token, not that the account is still allowed in. One indexed
+  // lookup makes disabling an account, changing its role/insurer or changing its password take effect
+  // on the very next request instead of when the token expires.
+  const account = await c.env.DB.prepare('SELECT role, tenant_id, status, token_version FROM users WHERE id = ?')
+    .bind(result.actor.id)
+    .first<{ role: string; tenant_id: string | null; status: string; token_version: number | null }>()
+  const ver = (payload as Record<string, unknown>).ver
+  const reason = !account
+    ? 'unknown_account'
+    : account.status !== 'active'
+      ? 'account_disabled'
+      : account.role !== result.actor.role || (account.tenant_id ?? null) !== result.actor.tenantId
+        ? 'account_changed'
+        : (typeof ver === 'number' ? ver : 0) !== (account.token_version ?? 0)
+          ? 'token_revoked'
+          : null
+  if (reason) {
+    console.warn(`[${c.get('requestId')}] token rejected: ${reason}`)
+    return null
+  }
   return result.actor
 }
 

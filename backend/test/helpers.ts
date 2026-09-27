@@ -37,6 +37,9 @@ export async function mintToken(actor: TestActor, opts: TokenOptions = {}): Prom
     exp: now + (opts.ttl ?? 300),
   }
   if (actor.tenantId) payload.tenant_id = actor.tenantId
+  // Like the real login: carry the account's current session version (requireActor checks it).
+  const row = await env.DB.prepare('SELECT token_version FROM users WHERE id = ?').bind(actor.id).first<{ token_version: number }>().catch(() => null)
+  if (row) payload.ver = row.token_version
   Object.assign(payload, opts.claims)
   for (const k of opts.omit ?? []) delete payload[k]
   return sign(payload, opts.secret ?? (env.JWT_SECRET as string), opts.alg ?? 'HS256')

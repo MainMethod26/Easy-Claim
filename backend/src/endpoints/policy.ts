@@ -5,7 +5,6 @@ import { requireRole } from '../security/rbac'
 import { writeAuditEvent } from '../security/audit'
 import {
   customerProfileSchema,
-  joinRequestSchema,
   linkRequestIdParam,
   linkRequestSchema,
   requestDocParam,
@@ -17,13 +16,6 @@ import { listInsurers, myLinkRequests, requestPolicyLink } from '../onboarding/s
 
 const router = new Hono<AppEnv>()
 
-const MARKET_CATALOG = [
-  { id: 'cat_01', provider: 'Discovery Health', name: 'Smart Plan', premium: 'R 2,450 / month' },
-  { id: 'cat_02', provider: 'Sanlam', name: 'Comprehensive Life Cover', premium: 'R 850 / month' },
-  { id: 'cat_03', provider: 'OUTsurance', name: 'Home & Contents Cover', premium: 'R 1,100 / month' },
-  { id: 'cat_04', provider: 'Momentum', name: 'Ingwe Network Health', premium: 'R 540 / month' },
-  { id: 'cat_05', provider: 'Old Mutual', name: 'Protect Family Funeral Plan', premium: 'R 150 / month' },
-]
 
 router.get('/my-covers', requireRole('CUSTOMER'), async (c) => {
   // Scoped to the authenticated actor (was hardcoded to 'user123').
@@ -66,22 +58,6 @@ router.post('/link-requests', requireRole('CUSTOMER'), validate('json', linkRequ
   return r.ok ? c.json({ request: r.value }, 201) : c.json({ error: r.error }, r.status)
 })
 
-// Demo marketing only: a fixed catalogue; buying cover is out of scope (see docs/MOCKED_FEATURES.md).
-router.get('/market-catalog', (c) => c.json({ catalog: MARKET_CATALOG }))
 
-router.post('/join-request', requireRole('CUSTOMER'), validate('json', joinRequestSchema), async (c) => {
-  const { planId } = c.req.valid('json')
-  const plan = MARKET_CATALOG.find((p) => p.id === planId)
-  if (!plan) return c.json({ error: 'unknown_plan' }, 422)
-
-  await writeAuditEvent(c, {
-    action: 'cover.join_requested',
-    resourceType: 'catalog_plan',
-    resourceId: plan.id,
-    outcome: 'success',
-  })
-  // The request body is no longer echoed back; provider comes from the catalog, not the client.
-  return c.json({ status: 'Requested', message: 'Join request forwarded to provider.', planId: plan.id, provider: plan.provider })
-})
 
 export default router

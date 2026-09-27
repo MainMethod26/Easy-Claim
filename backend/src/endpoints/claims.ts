@@ -32,34 +32,35 @@ async function findOwnedPolicy(db: D1Database, policyId: string, userId: string)
     .first<{ id: string; status: string; tenant_id: string | null }>()
 }
 
-// General status check
-router.get('/status', (c) => c.json({ status: 'active' }))
-
 // List claims visible to the actor: a customer sees their own, insurer staff see their tenant's.
+// Newest first, `limit` per page, `before` = the previous page's `nextBefore` cursor, optional `stage`.
 router.get('/', validate('query', listQuerySchema), async (c) => {
   const actor = c.get('actor')
-  const { limit } = c.req.valid('query')
-
-  if (actor.role === 'CUSTOMER') {
+  const { limit, before, stage } = c.req.valid('query')
+  const [cursorAt, cursorId] = before ? before.split('|') : [null, null]
+  const page = async (scopeSql: string, scopeValue: string) => {
+    // Keyset paging on (created_at, id), same order as the index; one extra row tells us if there is more.
     const { results } = await c.env.DB.prepare(
       `SELECT id, policy_id, tenant_id, stage, status, category, claimed_amount_cents, created_at, updated_at
-       FROM claims WHERE user_id = ? ORDER BY created_at DESC, id LIMIT ?`
+       FROM claims WHERE ${scopeSql}
+         AND (? IS NULL OR stage = ?)
+         AND (? IS NULL OR COALESCE(created_at, '') < ? OR (COALESCE(created_at, '') = ? AND id < ?))
+       ORDER BY COALESCE(created_at, '') DESC, id DESC LIMIT ?`
     )
-      .bind(actor.id, limit)
-      .all()
-    return c.json({ claims: results })
+      .bind(scopeValue, stage ?? null, stage ?? null, cursorAt, cursorAt, cursorAt, cursorId, limit + 1)
+      .all<{ id: string; created_at: string | null }>()
+    const more = results.length > limit
+    const rows = results.slice(0, limit)
+    const last = rows[rows.length - 1]
+    return c.json({ claims: rows, nextBefore: more && last ? `${last.created_at ?? ''}|${last.id}` : null })
   }
+
+  if (actor.role === 'CUSTOMER') return page('user_id = ?', actor.id)
 
   if (TENANT_ROLES.includes(actor.role) && actor.tenantId !== null) {
     // Drafts are not yet shared with the insurer. user_id is a platform-wide customer id
     // and is not exposed to tenant staff (DECISION REQUIRED: per-tenant claimant reference).
-    const { results } = await c.env.DB.prepare(
-      `SELECT id, policy_id, tenant_id, stage, status, category, claimed_amount_cents, created_at, updated_at
-       FROM claims WHERE tenant_id = ? AND stage <> 'Draft' ORDER BY created_at DESC, id LIMIT ?`
-    )
-      .bind(actor.tenantId, limit)
-      .all()
-    return c.json({ claims: results })
+    return page("tenant_id = ? AND stage <> 'Draft'", actor.tenantId)
   }
 
   // SUPERADMIN (platform operator) sees aggregates on /admin/*, never claim lists.
@@ -166,29 +167,6 @@ router.patch(
   }
 )
 
-// Wizard Step 4: Supporting Evidence (OCR Queue)
-// NOTE: no file is accepted or stored yet (no storage binding exists). This only
-// queues an event. See docs/security/EVIDENCE_SECURITY.md.
-router.post('/:claimId/evidence-ocr', requireRole('CUSTOMER'), validate('param', claimIdParam), async (c) => {
-  const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'owner-write')
-  if (!claim) return c.json(notFound, 404)
-
-  if (claim.stage !== 'Draft' && claim.stage !== 'Info Needed') {
-    return c.json({ error: 'claim_not_editable', stage: claim.stage }, 409)
-  }
-
-  await c.env.CLAIM_EVENTS?.send({
-    event: 'ClaimEvidenceUploaded',
-    data: { claimId: claim.id, timestamp: new Date().toISOString() },
-  })
-  await writeAuditEvent(c, {
-    action: 'claim.evidence_queued',
-    resourceType: 'claim',
-    resourceId: claim.id,
-    outcome: 'success',
-  })
-  return c.json({ status: 'processing OCR', message: 'Documents queued for analysis' }, 202)
-})
 
 // Wizard Step 5: Submit for Review
 router.post('/:claimId/submit', requireRole('CUSTOMER'), validate('param', claimIdParam), async (c) => {
@@ -356,7 +334,7 @@ router.put(
       resourceType: 'claim',
       resourceId: claim.id,
       outcome: 'success',
-      details: { claimedAmountCents, destinationLast4: last4 },
+      details: { claimedAmountCents },
     })
     return c.json({ status: 'payout_details_saved', claimedAmountCents, destination: { bankName: bankName.trim(), accountLast4: last4 } })
   }

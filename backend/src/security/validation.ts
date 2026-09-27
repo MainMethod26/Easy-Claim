@@ -63,9 +63,14 @@ export const payoutDetailsSchema = z
 export const emptyBodySchema = z.object({}).strict()
 
 /** Pagination for list endpoints: bounded so a single request cannot dump a whole tenant. */
-export const listQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(50).default(20),
-})
+export const listQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+    /** Cursor: the `nextBefore` value of the previous page (created_at|id of its last row). */
+    before: z.string().regex(/^[0-9TZ:.+-]{0,40}\|[A-Za-z0-9_-]{1,64}$/).optional(),
+    stage: z.enum(['Submitted', 'Verified', 'Screening', 'Review', 'Decision', 'Paid', 'Info Needed', 'Appeal', 'Withdrawn', 'Expired', 'Draft']).optional(),
+  })
+  .strict()
 
 type Target = 'json' | 'param' | 'query'
 
@@ -183,3 +188,9 @@ export const requestInfoSchema = z.object({ message: messageBody.optional() }).s
 export const respondSchema = z.object({ message: messageBody }).strict()
 export const withdrawSchema = z.object({ reason: messageBody.optional() }).strict()
 export const claimMessageSchema = z.object({ body: messageBody }).strict()
+
+// ---- Account security (migration 0014) ----
+export const changePasswordSchema = z
+  .object({ currentPassword: z.string().min(1).max(200), newPassword: z.string().min(8).max(200) })
+  .strict()
+  .refine((v) => v.currentPassword !== v.newPassword, { message: 'new password must differ' })

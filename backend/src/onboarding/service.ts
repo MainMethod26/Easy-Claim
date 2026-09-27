@@ -14,13 +14,16 @@ import type { Context } from 'hono'
 import type { AppEnv } from '../types'
 import { auditStatement } from '../security/audit'
 import { hashPassword } from '../security/password'
-import { checklist, defaultRequirementStatements, hasProfile, readyToApprove, type RequestDocumentDto } from './customerOnboarding'
+import { sha256Hex } from '../security/ledger'
+import { checklist, checklistMany, defaultRequirementStatements, hasProfile, readyToApprove, type RequestDocumentDto } from './customerOnboarding'
 
 type C = Context<AppEnv>
 const now = () => new Date().toISOString()
 
 /** Cap on open applications, so the public form cannot fill the table. */
-export const MAX_PENDING_APPLICATIONS = 50
+export const MAX_PENDING_APPLICATIONS = 200
+/** Per address: at most this many applications in 24 hours (the raw IP is never stored, only its hash). */
+export const APPLICATIONS_PER_IP_PER_DAY = 3
 
 // ------------------------------------------------------------------ DTOs
 
@@ -100,6 +103,12 @@ export async function submitApplication(
   const username = input.adminUsername.toLowerCase()
   const pending = await db.prepare(`SELECT count(*) AS n FROM insurer_applications WHERE status = 'pending'`).first<{ n: number }>()
   if ((pending?.n ?? 0) >= MAX_PENDING_APPLICATIONS) return { ok: false, status: 429, error: 'applications_paused' }
+  const ipHash = await sha256Hex(`easyclaim-app|${c.req.header('cf-connecting-ip') ?? 'unknown'}`)
+  const fromIp = await db
+    .prepare('SELECT count(*) AS n FROM insurer_applications WHERE ip_hash = ? AND created_at >= ?')
+    .bind(ipHash, new Date(Date.now() - 86_400_000).toISOString())
+    .first<{ n: number }>()
+  if ((fromIp?.n ?? 0) >= APPLICATIONS_PER_IP_PER_DAY) return { ok: false, status: 429, error: 'too_many_applications' }
   if (await db.prepare('SELECT 1 FROM users WHERE username = ?').bind(username).first()) return { ok: false, status: 409, error: 'username_taken' }
 
   const row: ApplicationRow = {
@@ -117,9 +126,9 @@ export async function submitApplication(
   }
   const insert = db
     .prepare(
-      `INSERT INTO insurer_applications (${APPLICATION_COLUMNS}, admin_password_hash) VALUES (?, ?, ?, ?, ?, ?, 'pending', NULL, NULL, NULL, ?, ?)`
+      `INSERT INTO insurer_applications (${APPLICATION_COLUMNS}, admin_password_hash, ip_hash) VALUES (?, ?, ?, ?, ?, ?, 'pending', NULL, NULL, NULL, ?, ?, ?)`
     )
-    .bind(row.id, row.company_name, row.fsp_number, row.contact_email, row.admin_username, row.admin_display_name, row.created_at, await hashPassword(input.password))
+    .bind(row.id, row.company_name, row.fsp_number, row.contact_email, row.admin_username, row.admin_display_name, row.created_at, await hashPassword(input.password), ipHash)
   try {
     await db.batch([
       insert,
@@ -264,6 +273,11 @@ async function withDocuments(db: D1Database, dto: PolicyLinkRequestDto): Promise
   return { ...dto, documents: docs.items, documentsComplete: docs.complete }
 }
 
+async function withDocumentsMany(db: D1Database, dtos: PolicyLinkRequestDto[]): Promise<PolicyLinkRequestDto[]> {
+  const lists = await checklistMany(db, dtos.map((d) => ({ id: d.id, tenantId: d.tenantId })))
+  return dtos.map((d) => ({ ...d, documents: lists.get(d.id)?.items ?? [], documentsComplete: lists.get(d.id)?.complete ?? false }))
+}
+
 export async function listInsurers(db: D1Database) {
   const { results } = await db.prepare('SELECT id, name FROM tenants ORDER BY name').all<{ id: string; name: string }>()
   return results
@@ -299,7 +313,7 @@ export async function requestPolicyLink(c: C, tenantId: string, policyNumber: st
 
 export async function myLinkRequests(db: D1Database, userId: string): Promise<PolicyLinkRequestDto[]> {
   const { results } = await db.prepare(`${LINK_SELECT} WHERE r.user_id = ? ORDER BY r.created_at DESC LIMIT 50`).bind(userId).all<LinkRow>()
-  return Promise.all(results.map((r) => withDocuments(db, toLink(r, false))))
+  return withDocumentsMany(db, results.map((r) => toLink(r, false)))
 }
 
 export async function tenantLinkRequests(db: D1Database, tenantId: string, status?: PolicyLinkRequestDto['status']): Promise<PolicyLinkRequestDto[]> {
@@ -307,7 +321,7 @@ export async function tenantLinkRequests(db: D1Database, tenantId: string, statu
     .prepare(`${LINK_SELECT} WHERE r.tenant_id = ? AND (? IS NULL OR r.status = ?) ORDER BY r.created_at DESC LIMIT 200`)
     .bind(tenantId, status ?? null, status ?? null)
     .all<LinkRow>()
-  return Promise.all(results.map((r) => withDocuments(db, toLink(r, true))))
+  return withDocumentsMany(db, results.map((r) => toLink(r, true)))
 }
 
 async function loadTenantLink(db: D1Database, tenantId: string, requestId: string) {

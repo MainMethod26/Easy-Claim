@@ -113,7 +113,8 @@ async function createUser(
 
 async function setUserStatus(c: Context<AppEnv>, user: UserRow, status: 'active' | 'disabled', auditAction: string) {
   if (user.id === c.get('actor').id) return c.json({ error: 'cannot_change_own_status' }, 409)
-  await c.env.DB.prepare('UPDATE users SET status = ? WHERE id = ?').bind(status, user.id).run()
+  // Any status change also bumps token_version, so a disabled account's tokens stop working at once.
+  await c.env.DB.prepare('UPDATE users SET status = ?, token_version = token_version + 1 WHERE id = ?').bind(status, user.id).run()
   await writeAuditEvent(c, { action: auditAction, resourceType: 'user', resourceId: user.id, outcome: 'success', details: { status } })
   return c.json({ user: publicUser({ ...user, status }) })
 }
@@ -231,9 +232,23 @@ superadmin.get('/stats', async (c) => {
   const usersByRole: Record<string, number> = {}
   for (const r of roles.results) usersByRole[r.role] = r.n
   const tenants = await c.env.DB.prepare('SELECT id, name FROM tenants ORDER BY name').all<{ id: string; name: string }>()
-  const perTenant = []
-  for (const t of tenants.results) perTenant.push({ tenantId: t.id, name: t.name, claims: await claimsByStage(c.env.DB, t.id) })
-  return c.json({ tenants: tenants.results.length, usersByRole, claims: await claimsByStage(c.env.DB, null), perTenant })
+  // One grouped query instead of one query per tenant.
+  const { results: grouped } = await c.env.DB.prepare(
+    "SELECT tenant_id, stage, count(*) AS n FROM claims WHERE stage <> 'Draft' GROUP BY tenant_id, stage"
+  ).all<{ tenant_id: string | null; stage: string; n: number }>()
+  const byTenant = new Map<string, { total: number; byStage: Record<string, number> }>()
+  const all = { total: 0, byStage: {} as Record<string, number> }
+  for (const g of grouped) {
+    all.total += g.n
+    all.byStage[g.stage] = (all.byStage[g.stage] ?? 0) + g.n
+    if (!g.tenant_id) continue
+    const t = byTenant.get(g.tenant_id) ?? { total: 0, byStage: {} }
+    t.total += g.n
+    t.byStage[g.stage] = g.n
+    byTenant.set(g.tenant_id, t)
+  }
+  const perTenant = tenants.results.map((t) => ({ tenantId: t.id, name: t.name, claims: byTenant.get(t.id) ?? { total: 0, byStage: {} } }))
+  return c.json({ tenants: tenants.results.length, usersByRole, claims: all, perTenant })
 })
 
 // ---------------------------------------------------------------- INSURER_ADMIN (own tenant)

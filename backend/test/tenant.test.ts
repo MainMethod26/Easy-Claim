@@ -124,7 +124,8 @@ describe('tenant isolation', () => {
     expect(JSON.stringify(mine.claims)).not.toContain('user_id')
     // SUPERADMIN: no claim list at all (platform operator sees aggregates on /admin/overview)
     expect((await call('/claims', { as: superadmin })).status).toBe(403)
-    expect((await call('/claims?tenantId=ins_sanlam', { as: superadmin })).status).toBe(403)
+    // Unknown query parameters are refused outright (strict schema) before any role logic runs.
+    expect((await call('/claims?tenantId=ins_sanlam', { as: superadmin })).status).toBe(400)
     expect((await call('/claims?limit=500', { as: managerA })).status).toBe(400)
   })
 

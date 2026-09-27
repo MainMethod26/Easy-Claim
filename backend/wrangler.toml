@@ -40,7 +40,8 @@ namespace_id = "1001"
 
 [vars]
 # No cross-origin browser access unless explicitly listed (comma-separated).
-ALLOWED_ORIGINS = "https://easy-claim-frontend.pages.dev,https://easy-claim-admin-frontend.pages.dev,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,http://localhost:3000,http://127.0.0.1:3000,https://easy-claim-admin.pages.dev"
+# Production: only the two team sites. Local development sets its own list in .dev.vars (see .dev.vars.example).
+ALLOWED_ORIGINS = "https://easy-claim-frontend.pages.dev,https://easy-claim-admin-frontend.pages.dev"
 # Expected JWT issuer / audience (see src/security/actor.ts). Change per environment.
 JWT_ISSUER = "easyclaim-dev"
 JWT_AUDIENCE = "easyclaim-api"

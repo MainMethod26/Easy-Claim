@@ -43,13 +43,7 @@ describe('actor resolution (JWT, fails closed)', () => {
   })
 
   it.each([
-    '/client/home',
-    '/covers/market-catalog',
     '/claims',
-    '/claims/status',
-    '/profile',
-    '/activities/history',
-    '/activities/audit-trail',
   ])('%s requires an actor', async (path) => {
     expect((await call(path)).status).toBe(401)
   })
