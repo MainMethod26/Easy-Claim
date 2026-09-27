@@ -1,29 +1,49 @@
 import React from 'react'
-import { TENANTS } from '../types'
-import type { AuthUser } from '../types'
-import { 
-  ShieldCheck, 
-  FileText, 
-  Cpu, 
-  Lock, 
-  Activity, 
-  CheckCircle2,
-  Building2 
-} from 'lucide-react'
+import type { Role, Session } from '../types'
+import { ShieldCheck, FileText, Cpu, Lock, Activity, Building2 } from 'lucide-react'
 
-interface SidebarProps {
-  user: AuthUser
-  activeTab: string
-  setActiveTab: (tab: string) => void
-  claimsCount: number
+export type TabId = 'claims' | 'quantum' | 'pqc' | 'audit'
+
+/**
+ * Which views a role can use, following the backend's RBAC:
+ * - GET /claims answers 403 for SUPERADMIN (platform operator sees aggregates only).
+ * - The audit log exists only as /tenant/audit (INSURER_ADMIN) and /admin/audit (SUPERADMIN).
+ */
+export function tabsFor(role: Role): TabId[] {
+  switch (role) {
+    case 'ASSESSOR':
+    case 'MANAGER':
+      return ['claims', 'quantum', 'pqc']
+    case 'INSURER_ADMIN':
+      return ['claims', 'quantum', 'pqc', 'audit']
+    case 'SUPERADMIN':
+      return ['pqc', 'quantum', 'audit']
+    default:
+      return []
+  }
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ user, activeTab, setActiveTab, claimsCount }) => {
-  const tenant = TENANTS[user.tenantId] || TENANTS.ins_discovery
+interface SidebarProps {
+  session: Session
+  tabs: TabId[]
+  activeTab: TabId
+  setActiveTab: (tab: TabId) => void
+  /** null when the count is not known (not loaded, failed, or not visible to this role). */
+  claimsCount: number | null
+}
+
+const LABELS: Record<TabId, { label: string; icon: React.ReactNode }> = {
+  claims: { label: 'Claims Worklist', icon: <FileText size={18} /> },
+  quantum: { label: 'Quantum Screening', icon: <Cpu size={18} color="var(--quantum-cyan)" /> },
+  pqc: { label: 'Decision Integrity', icon: <Lock size={18} color="var(--pqc-purple)" /> },
+  audit: { label: 'Audit Log', icon: <Activity size={18} /> },
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ session, tabs, activeTab, setActiveTab, claimsCount }) => {
+  const { actor } = session
 
   return (
     <aside className="sidebar">
-      {/* Brand Header */}
       <div className="brand-header">
         <div className="brand-icon">
           <ShieldCheck size={24} />
@@ -34,101 +54,45 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, activeTab, setActiveTab,
         </div>
       </div>
 
-      {/* Tenant Pill */}
       <div className="tenant-pill">
-        <div className="tenant-dot" style={{ backgroundColor: tenant.color, color: tenant.color }} />
+        <div className="tenant-dot" style={{ backgroundColor: 'var(--brand-orange)', color: 'var(--brand-orange)' }} />
         <div className="tenant-info">
-          <div className="tenant-name" title={tenant.name}>{tenant.name}</div>
+          <div className="tenant-name" title={actor.tenantId ?? 'Platform'}>
+            {actor.tenantId ?? 'Platform (no tenant)'}
+          </div>
           <div className="tenant-role">
             <Building2 size={11} />
-            <span>Tenant: {tenant.code}</span>
+            <span>{actor.role}</span>
           </div>
         </div>
       </div>
 
-      {/* Nav Menu */}
       <nav className="nav-menu">
-        <div 
-          className={`nav-item ${activeTab === 'claims' ? 'active' : ''}`}
-          onClick={() => setActiveTab('claims')}
-        >
-          <FileText size={18} />
-          <span style={{ flex: 1 }}>Claims Worklist</span>
-          <span style={{ 
-            fontSize: '11px', 
-            background: 'rgba(255, 85, 0, 0.2)', 
-            color: 'var(--brand-orange-light)', 
-            padding: '2px 8px', 
-            borderRadius: '999px',
-            fontWeight: 700 
-          }}>
-            {claimsCount}
-          </span>
-        </div>
-
-        <div 
-          className={`nav-item ${activeTab === 'quantum' ? 'active' : ''}`}
-          onClick={() => setActiveTab('quantum')}
-        >
-          <Cpu size={18} color="var(--quantum-cyan)" />
-          <span style={{ flex: 1 }}>Quantum Screening</span>
-          <span style={{ 
-            fontSize: '10px', 
-            background: 'rgba(6, 182, 212, 0.2)', 
-            color: 'var(--quantum-cyan)', 
-            padding: '2px 6px', 
-            borderRadius: '999px',
-            fontWeight: 700 
-          }}>
-            Advisory
-          </span>
-        </div>
-
-        <div 
-          className={`nav-item ${activeTab === 'pqc' ? 'active' : ''}`}
-          onClick={() => setActiveTab('pqc')}
-        >
-          <Lock size={18} color="var(--pqc-purple)" />
-          <span style={{ flex: 1 }}>ML-DSA-65 Integrity</span>
-          <span style={{ 
-            fontSize: '10px', 
-            background: 'rgba(139, 92, 246, 0.2)', 
-            color: 'var(--pqc-purple)', 
-            padding: '2px 6px', 
-            borderRadius: '999px',
-            fontWeight: 700 
-          }}>
-            FIPS 204
-          </span>
-        </div>
-
-        <div 
-          className={`nav-item ${activeTab === 'audit' ? 'active' : ''}`}
-          onClick={() => setActiveTab('audit')}
-        >
-          <Activity size={18} />
-          <span>Audit & Ledger</span>
-        </div>
+        {tabs.map((tab) => (
+          <div
+            key={tab}
+            className={`nav-item ${activeTab === tab ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab)}
+          >
+            {LABELS[tab].icon}
+            <span style={{ flex: 1 }}>{LABELS[tab].label}</span>
+            {tab === 'claims' && claimsCount !== null && (
+              <span
+                style={{
+                  fontSize: '11px',
+                  background: 'rgba(255, 85, 0, 0.2)',
+                  color: 'var(--brand-orange-light)',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  fontWeight: 700,
+                }}
+              >
+                {claimsCount}
+              </span>
+            )}
+          </div>
+        ))}
       </nav>
-
-      {/* Security Footprint Card */}
-      <div style={{
-        marginTop: 'auto',
-        background: '#F8FAFC',
-        border: '1px solid var(--border-color)',
-        borderRadius: 'var(--radius-md)',
-        padding: '14px',
-        fontSize: '11px',
-        color: 'var(--text-muted)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#059669', fontWeight: 700, marginBottom: '6px' }}>
-          <CheckCircle2 size={13} />
-          <span>Zero-Trust 6-Gate Architecture</span>
-        </div>
-        <p style={{ lineHeight: 1.4 }}>
-          Tenant isolation, append-only SQLite triggers, and post-quantum signing active.
-        </p>
-      </div>
     </aside>
   )
 }

@@ -1,123 +1,168 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { AuthUser, Claim } from './types'
-import { ApiService } from './services/api'
+import type { ClaimSummary, Session } from './types'
+import { ApiService, describeError } from './services/api'
 import { Header } from './components/Header'
-import { Sidebar } from './components/Sidebar'
+import { Sidebar, type TabId, tabsFor } from './components/Sidebar'
 import { StatsCards } from './components/StatsCards'
 import { ClaimsTable } from './components/ClaimsTable'
 import { ClaimDetailDrawer } from './components/ClaimDetailDrawer'
 import { QuantumScreeningView } from './components/QuantumScreeningView'
 import { PqcIntegrityView } from './components/PqcIntegrityView'
 import { AuditView } from './components/AuditView'
+import { SignInForm } from './components/SignInForm'
 
 export function App() {
-  const [user, setUser] = useState<AuthUser>(() => {
-    const existing = ApiService.getUser()
-    if (existing) return existing
-
-    // Default to Discovery Claims Manager for immediate, feature-complete access
-    const defaultActor = ApiService.getDemoActors()[0]
-    return {
-      id: defaultActor.id,
-      name: defaultActor.label,
-      role: defaultActor.role,
-      tenantId: defaultActor.tenantId,
-      token: `dev_token_${defaultActor.role.toLowerCase()}_${defaultActor.tenantId}`,
-    }
+  // Only a session issued by the backend; no default user, no dev token, no auto-login.
+  const [session, setSession] = useState<Session | null>(() => {
+    const s = ApiService.getSession()
+    return s && tabsFor(s.actor.role).length > 0 ? s : null
   })
+  const [signInNotice, setSignInNotice] = useState<string | null>(null)
+  const [switchingUser, setSwitchingUser] = useState(false)
 
-  const [activeTab, setActiveTab] = useState<string>('claims')
-  const [claims, setClaims] = useState<Claim[]>([])
-  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null)
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
-
-  const loadClaims = useCallback(async () => {
-    setIsRefreshing(true)
-    try {
-      const data = await ApiService.fetchClaims()
-      setClaims(data)
-      if (selectedClaim) {
-        const updated = data.find(c => c.id === selectedClaim.id)
-        if (updated) setSelectedClaim(updated)
-      }
-    } finally {
-      setIsRefreshing(false)
+  // Accept a backend-issued session only for roles this portal serves (not CUSTOMER).
+  const acceptSession = (s: Session) => {
+    setSwitchingUser(false)
+    if (tabsFor(s.actor.role).length === 0) {
+      ApiService.logout()
+      setSession(null)
+      setSignInNotice(`The ${s.actor.role} account "${s.actor.username}" cannot use the insurer portal. Sign in with a staff account.`)
+      return
     }
-  }, [selectedClaim])
+    setSignInNotice(null)
+    setSession(s)
+  }
 
-  useEffect(() => {
-    let mounted = true
-    if (!user.token || user.token.startsWith('dev_token_')) {
-      const defaultActor = ApiService.getDemoActors()[0]
-      ApiService.login(defaultActor.username, '1234567')
-        .then((newUser) => {
-          if (mounted) setUser(newUser)
-        })
-        .catch((err) => {
-          console.warn('Initial backend login failed, continuing in preview mode:', err)
-          if (mounted) loadClaims()
-        })
-    } else {
-      loadClaims()
-    }
-    return () => {
-      mounted = false
-    }
-  }, [user.tenantId, user.token, loadClaims])
+  useEffect(
+    () =>
+      ApiService.onUnauthorized(() => {
+        setSession(null)
+        setSwitchingUser(false)
+        setSignInNotice('Your session has expired or was rejected. Please sign in again.')
+      }),
+    []
+  )
 
-  const handleClaimUpdated = () => {
-    loadClaims()
+  if (!session) {
+    return (
+      <SignInForm
+        notice={signInNotice}
+        onSignedIn={acceptSession}
+      />
+    )
   }
 
   return (
+    <>
+      {/* Keyed by token so all per-user state resets when the signed-in user changes. */}
+      <Workspace
+        key={session.token}
+        session={session}
+        onSwitchUser={() => setSwitchingUser(true)}
+        onSignOut={() => {
+          ApiService.logout()
+          setSignInNotice(null)
+          setSession(null)
+        }}
+      />
+      {switchingUser && (
+        <SignInForm
+          onCancel={() => setSwitchingUser(false)}
+          onSignedIn={acceptSession}
+        />
+      )}
+    </>
+  )
+}
+
+interface WorkspaceProps {
+  session: Session
+  onSwitchUser: () => void
+  onSignOut: () => void
+}
+
+function Workspace({ session, onSwitchUser, onSignOut }: WorkspaceProps) {
+  const role = session.actor.role
+  const tabs = tabsFor(role)
+  const canListClaims = tabs.includes('claims')
+
+  const [activeTab, setActiveTab] = useState<TabId>(tabs[0] ?? 'pqc')
+  const [claims, setClaims] = useState<ClaimSummary[]>([])
+  const [claimsError, setClaimsError] = useState<string | null>(null)
+  const [claimsLoaded, setClaimsLoaded] = useState(false)
+  const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const loadClaims = useCallback(async () => {
+    if (!canListClaims) return
+    setIsRefreshing(true)
+    try {
+      setClaims(await ApiService.fetchClaims())
+      setClaimsError(null)
+    } catch (err) {
+      setClaimsError(describeError(err))
+    } finally {
+      setClaimsLoaded(true)
+      setIsRefreshing(false)
+    }
+  }, [canListClaims])
+
+  useEffect(() => {
+    void loadClaims()
+  }, [loadClaims])
+
+  return (
     <div className="app-container">
-      {/* Sidebar */}
-      <Sidebar 
-        user={user} 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        claimsCount={claims.length} 
+      <Sidebar
+        session={session}
+        tabs={tabs}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        claimsCount={canListClaims && claimsLoaded && !claimsError ? claims.length : null}
       />
 
-      {/* Main Content */}
       <div className="main-wrapper">
-        <Header 
-          user={user} 
-          onUserChange={(newUser) => {
-            setUser(newUser)
-            setSelectedClaim(null)
-          }}
-          onRefresh={loadClaims}
+        <Header
+          session={session}
+          onSwitchUser={onSwitchUser}
+          onSignOut={onSignOut}
+          onRefresh={canListClaims ? loadClaims : undefined}
           isRefreshing={isRefreshing}
         />
 
         <main className="page-body">
-          {activeTab === 'claims' && (
+          {activeTab === 'claims' && canListClaims && (
             <>
-              <StatsCards claims={claims} />
-              <ClaimsTable 
-                claims={claims} 
-                onSelectClaim={(claim) => setSelectedClaim(claim)}
-                selectedClaimId={selectedClaim?.id}
+              {claimsError && (
+                <div role="alert" style={{ padding: '12px 16px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', color: '#B91C1C', fontSize: '13px', marginBottom: '16px' }}>
+                  Could not load claims: {claimsError}
+                </div>
+              )}
+              {claimsLoaded && !claimsError && <StatsCards claims={claims} />}
+              <ClaimsTable
+                claims={claims}
+                loading={!claimsLoaded}
+                onSelectClaim={(claim) => setSelectedClaimId(claim.id)}
+                selectedClaimId={selectedClaimId ?? undefined}
               />
             </>
           )}
 
-          {activeTab === 'quantum' && <QuantumScreeningView />}
+          {activeTab === 'quantum' && <QuantumScreeningView role={role} />}
 
-          {activeTab === 'pqc' && <PqcIntegrityView />}
+          {activeTab === 'pqc' && <PqcIntegrityView role={role} />}
 
-          {activeTab === 'audit' && <AuditView />}
+          {activeTab === 'audit' && <AuditView role={role} />}
         </main>
       </div>
 
-      {/* Slide-in Claims Workspace Drawer */}
-      {selectedClaim && (
-        <ClaimDetailDrawer 
-          claim={selectedClaim}
-          user={user}
-          onClose={() => setSelectedClaim(null)}
-          onClaimUpdated={handleClaimUpdated}
+      {selectedClaimId && (
+        <ClaimDetailDrawer
+          key={selectedClaimId}
+          claimId={selectedClaimId}
+          role={role}
+          onClose={() => setSelectedClaimId(null)}
+          onClaimUpdated={loadClaims}
         />
       )}
     </div>

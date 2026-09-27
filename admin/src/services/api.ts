@@ -1,4 +1,39 @@
-import type { AuthUser, Claim, DecisionIntegrity, EvidenceItem, PayoutDetails, RiskSignals, Role, TenantId, TimelineEntry } from '../types'
+import type {
+  AuditPage,
+  ClaimDetail,
+  ClaimSummary,
+  DecisionInfo,
+  DecisionIntegrity,
+  EvidenceItem,
+  EvidenceVerifyResult,
+  PayoutView,
+  PlatformIntegrity,
+  PublicKeyInfo,
+  RiskSignals,
+  Session,
+  TenantOverviewSummary,
+  Timeline,
+} from '../types'
+import {
+  isObj,
+  mapAuditPage,
+  mapClaimDetail,
+  mapClaimList,
+  mapDecision,
+  mapDecisionIntegrity,
+  mapEvidenceList,
+  mapEvidenceVerify,
+  mapLoginResponse,
+  mapPayout,
+  mapPlatformIntegrity,
+  mapPublicKey,
+  mapRiskSignals,
+  mapTenantOverview,
+  mapTimeline,
+  parseStoredSession,
+  payIdempotencyKey,
+  str,
+} from './mappers'
 
 /**
  * The team backend. Cloudflare Pages cannot proxy /api/* to another domain, so the app calls the
@@ -7,311 +42,301 @@ import type { AuthUser, Claim, DecisionIntegrity, EvidenceItem, PayoutDetails, R
  */
 export const API_BASE: string = import.meta.env.VITE_API_BASE ?? 'https://easy-claim-backend.pasekamabitsela22.workers.dev'
 
-const AUTH_STORAGE_KEY = 'easyclaim_admin_auth'
+// sessionStorage: the token does not outlive the browser tab. Only token + backend actor are stored.
+const SESSION_KEY = 'easyclaim_admin_session'
+// Removed on load: the old build stored a fabricated "user" (and dev_token_*) under this key.
+const LEGACY_KEY = 'easyclaim_admin_auth'
+
+/** An error from the backend, with its HTTP status and `error` code. */
+export class ApiError extends Error {
+  readonly status: number
+  readonly code: string | null
+  constructor(status: number, code: string | null, message?: string) {
+    super(message ?? code ?? `Request failed (${status})`)
+    this.status = status
+    this.code = code
+  }
+}
+
+export interface ActionResult {
+  ok: boolean
+  message: string
+}
+
+/** Convenience persona list: pre-fills a username only. Roles/tenants shown come from the backend. */
+export const PERSONA_USERNAMES: { username: string; hint: string }[] = [
+  { username: 'assessor_discovery', hint: 'Assessor (Discovery)' },
+  { username: 'manager_discovery', hint: 'Manager (Discovery)' },
+  { username: 'admin_discovery', hint: 'Insurer admin (Discovery)' },
+  { username: 'assessor_sanlam', hint: 'Assessor (Sanlam)' },
+  { username: 'manager_sanlam', hint: 'Manager (Sanlam)' },
+  { username: 'admin_sanlam', hint: 'Insurer admin (Sanlam)' },
+  { username: 'superadmin', hint: 'Platform superadmin' },
+]
+
+function readStoredSession(): Session | null {
+  try {
+    localStorage.removeItem(LEGACY_KEY)
+  } catch {
+    /* storage unavailable */
+  }
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY)
+    return raw ? parseStoredSession(JSON.parse(raw)) : null
+  } catch {
+    return null
+  }
+}
+
+async function readJson(res: Response): Promise<unknown> {
+  return res.json().catch(() => null)
+}
+
+function errorCode(body: unknown): string | null {
+  return isObj(body) ? str(body.error) : null
+}
 
 export class ApiService {
-  private static user: AuthUser | null = (() => {
+  private static session: Session | null = readStoredSession()
+  private static unauthorizedListeners = new Set<() => void>()
+
+  static getSession(): Session | null {
+    if (this.session && this.session.expiresAt !== null && this.session.expiresAt <= Date.now()) {
+      this.setSession(null)
+    }
+    return this.session
+  }
+
+  private static setSession(session: Session | null) {
+    this.session = session
     try {
-      const stored = localStorage.getItem(AUTH_STORAGE_KEY)
-      return stored ? JSON.parse(stored) : null
+      if (session) sessionStorage.setItem(SESSION_KEY, JSON.stringify(session))
+      else sessionStorage.removeItem(SESSION_KEY)
     } catch {
-      return null
-    }
-  })()
-
-  static getUser(): AuthUser | null {
-    return this.user
-  }
-
-  static setUser(user: AuthUser | null) {
-    this.user = user
-    if (user) {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user))
-    } else {
-      localStorage.removeItem(AUTH_STORAGE_KEY)
+      /* storage unavailable: session lives in memory only */
     }
   }
 
-  static getHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    }
-    if (this.user?.token) {
-      headers['Authorization'] = `Bearer ${this.user.token}`
-    }
-    return headers
+  /** Called whenever the backend answers 401 (the session is cleared first). */
+  static onUnauthorized(listener: () => void): () => void {
+    this.unauthorizedListeners.add(listener)
+    return () => this.unauthorizedListeners.delete(listener)
   }
 
-  // Pre-configured Dev & Production Demo Profiles matching backend seed
-  static getDemoActors(): { username: string; label: string; role: Role; tenantId: TenantId; id: string; description: string }[] {
-    return [
-      {
-        id: 'manager_a1',
-        username: 'manager_discovery',
-        label: 'Discovery Claims Manager (Thabo Sithole)',
-        role: 'MANAGER',
-        tenantId: 'ins_discovery',
-        description: 'Full approval authority, ML-DSA post-quantum decision signing & payouts for Discovery tenant',
-      },
-      {
-        id: 'assessor_a1',
-        username: 'assessor_discovery',
-        label: 'Discovery Assessor (Lerato Dlamini)',
-        role: 'ASSESSOR',
-        tenantId: 'ins_discovery',
-        description: 'Intake verification, quantum screening radar & evidence analysis for Discovery tenant',
-      },
-      {
-        id: 'usr_admin_discovery',
-        username: 'admin_discovery',
-        label: 'Discovery Insurer Admin (Admin Staff)',
-        role: 'INSURER_ADMIN',
-        tenantId: 'ins_discovery',
-        description: 'Tenant administration, staff management & read-only audit log for Discovery',
-      },
-      {
-        id: 'manager_b1',
-        username: 'manager_sanlam',
-        label: 'Sanlam Claims Manager (Johan van der Merwe)',
-        role: 'MANAGER',
-        tenantId: 'ins_sanlam',
-        description: 'Managerial sign-off & simulated settlement execution for Sanlam tenant',
-      },
-      {
-        id: 'assessor_b1',
-        username: 'assessor_sanlam',
-        label: 'Sanlam Assessor (Zanele Khumalo)',
-        role: 'ASSESSOR',
-        tenantId: 'ins_sanlam',
-        description: 'Case intake & risk screening for Sanlam tenant',
-      },
-      {
-        id: 'usr_admin_sanlam',
-        username: 'admin_sanlam',
-        label: 'Sanlam Insurer Admin (Admin Staff)',
-        role: 'INSURER_ADMIN',
-        tenantId: 'ins_sanlam',
-        description: 'Tenant administration & staff management for Sanlam',
-      },
-      {
-        id: 'usr_superadmin',
-        username: 'superadmin',
-        label: 'EasyClaim Superadmin (Platform Operator)',
-        role: 'SUPERADMIN',
-        tenantId: 'ins_discovery',
-        description: 'Platform overview, tenants & platform-wide security audit',
-      },
-    ]
-  }
-
-  // Authenticate against Cloudflare Worker backend (/api/v1/auth/login)
-  static async login(username: string, password = '1234567'): Promise<AuthUser> {
-    const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    })
-
+  /**
+   * POST /auth/login. The session is replaced only on success; a failed attempt leaves any
+   * current session (and therefore the displayed user and role) untouched.
+   */
+  static async login(username: string, password: string): Promise<Session> {
+    let res: Response
+    try {
+      res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+    } catch {
+      throw new ApiError(0, 'network_error', 'Could not reach the EasyClaim backend.')
+    }
+    const body = await readJson(res)
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.error || `Authentication failed for ${username}`)
+      const code = errorCode(body)
+      const message =
+        code === 'invalid_credentials'
+          ? 'Incorrect username or password.'
+          : code === 'validation_failed'
+            ? 'Enter a valid username and a password of at least 6 characters.'
+            : `Sign-in failed (${code ?? res.status}).`
+      throw new ApiError(res.status, code, message)
     }
-
-    const data = await res.json()
-    const actor = data.actor || {}
-    // Role and tenant come only from the backend's verified answer; never guess a default role.
-    if (!actor.role || !data.token) throw new Error('Sign-in response did not include a role')
-    const user: AuthUser = {
-      id: actor.id,
-      name: actor.displayName || username,
-      role: actor.role as Role,
-      tenantId: (actor.tenantId ?? null) as TenantId,
-      token: data.token,
-    }
-    this.setUser(user)
-    return user
+    const session = mapLoginResponse(body)
+    if (!session) throw new ApiError(res.status, 'bad_response', 'The sign-in response did not include a token and role.')
+    this.setSession(session)
+    return session
   }
 
   static logout() {
-    this.setUser(null)
+    this.setSession(null)
   }
 
-  // Fetch real claims for the active tenant
-  static async fetchClaims(): Promise<Claim[]> {
-    const res = await fetch(`${API_BASE}/api/v1/claims?limit=50`, {
-      headers: this.getHeaders(),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      console.error('Failed to fetch claims from server:', err)
-      return []
+  private static async request(path: string, init: RequestInit = {}): Promise<unknown> {
+    const session = this.getSession()
+    if (!session) {
+      this.notifyUnauthorized()
+      throw new ApiError(401, 'not_signed_in', 'Not signed in.')
     }
-    const data = await res.json()
-    return Array.isArray(data.claims) ? data.claims : []
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${session.token}`,
+      ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...((init.headers as Record<string, string> | undefined) ?? {}),
+    }
+    let res: Response
+    try {
+      res = await fetch(`${API_BASE}/api/v1${path}`, { ...init, headers })
+    } catch {
+      throw new ApiError(0, 'network_error', 'Could not reach the EasyClaim backend.')
+    }
+    const body = await readJson(res)
+    if (res.status === 401) {
+      // Only drop the session if it is still the one this request was made with.
+      if (this.session === session) this.notifyUnauthorized()
+      throw new ApiError(401, errorCode(body), 'Your session has expired. Please sign in again.')
+    }
+    if (!res.ok) throw new ApiError(res.status, errorCode(body))
+    return body
   }
 
-  // Fetch single claim details
-  static async fetchClaimById(claimId: string): Promise<Claim | null> {
-    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}`, {
-      headers: this.getHeaders(),
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    return data.claim || null
+  private static notifyUnauthorized() {
+    this.setSession(null)
+    for (const l of this.unauthorizedListeners) l()
   }
 
-  // Fetch real claim lifecycle timeline
-  static async fetchTimeline(claimId: string): Promise<TimelineEntry[]> {
-    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/timeline`, {
-      headers: this.getHeaders(),
-    })
-    if (!res.ok) return []
-    const data = await res.json()
-    return data.timeline || []
+  private static async action(path: string, init: RequestInit, success: (body: unknown) => string): Promise<ActionResult> {
+    try {
+      const body = await this.request(path, { method: 'POST', ...init })
+      return { ok: true, message: success(body) }
+    } catch (err) {
+      return { ok: false, message: describeError(err) }
+    }
   }
 
-  // Fetch real quantum anomaly screening signal
+  // ---------------------------------------------------------------- reads
+
+  static async fetchClaims(): Promise<ClaimSummary[]> {
+    return mapClaimList(await this.request('/claims?limit=50'))
+  }
+
+  static async fetchClaimDetail(claimId: string): Promise<ClaimDetail | null> {
+    return mapClaimDetail(await this.request(`/claims/${encodeURIComponent(claimId)}`))
+  }
+
+  static async fetchTimeline(claimId: string): Promise<Timeline> {
+    return mapTimeline(await this.request(`/claims/${encodeURIComponent(claimId)}/timeline`))
+  }
+
+  /** ASSESSOR/MANAGER only. null = no signal has been computed for this claim. */
   static async fetchRiskSignals(claimId: string): Promise<RiskSignals | null> {
-    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/risk-signals`, {
-      headers: this.getHeaders(),
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    return data.riskSignals || data.signals || null
+    return mapRiskSignals(await this.request(`/claims/${encodeURIComponent(claimId)}/risk-signals`))
   }
 
-  // Fetch real ML-DSA-65 post-quantum decision verification
-  static async verifyDecisionIntegrity(claimId: string): Promise<DecisionIntegrity> {
-    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/decision/verify`, {
-      headers: this.getHeaders(),
-    })
-    if (!res.ok) {
-      return {
-        status: 'UNAVAILABLE',
-        decisionId: null,
-      }
-    }
-    const data = await res.json()
-    if (data.integrity) {
-      return {
-        ...data.integrity,
-        decisionId: data.decisionId ?? null,
-        algorithm: data.integrity.alg || data.integrity.algorithm || 'ML-DSA-65',
-      }
-    }
-    return data
+  static async fetchDecision(claimId: string): Promise<DecisionInfo | null> {
+    return mapDecision(await this.request(`/claims/${encodeURIComponent(claimId)}/decision`))
   }
 
-  // Fetch real payout details
-  static async fetchPayout(claimId: string): Promise<PayoutDetails | null> {
-    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/payout`, {
-      headers: this.getHeaders(),
-    })
-    if (!res.ok) return null
-    return await res.json()
+  /** Re-verifies the stored decision's ML-DSA signature on the server. Audited by the backend. */
+  static async verifyDecisionIntegrity(claimId: string): Promise<DecisionIntegrity | null> {
+    return mapDecisionIntegrity(await this.request(`/claims/${encodeURIComponent(claimId)}/decision/verify`))
   }
 
-  // Fetch real evidence items
+  static async fetchPayout(claimId: string): Promise<PayoutView | null> {
+    return mapPayout(await this.request(`/claims/${encodeURIComponent(claimId)}/payout`))
+  }
+
   static async fetchEvidence(claimId: string): Promise<EvidenceItem[]> {
-    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/evidence`, {
-      headers: this.getHeaders(),
-    })
-    if (!res.ok) return []
-    const data = await res.json()
-    const list = data.evidence || []
-    return list.map((item: any) => ({
-      id: item.id,
-      claim_id: claimId,
-      filename: item.display_name || item.filename || item.storage_key || 'evidence_file',
-      display_name: item.display_name || item.filename,
-      mime_type: item.mime_type || 'application/octet-stream',
-      byte_size: item.size_bytes || item.byte_size || 0,
-      size_bytes: item.size_bytes,
-      sha256_hash: item.sha256 || item.sha256_hash,
-      sha256: item.sha256,
-      created_at: item.created_at || new Date().toISOString(),
-      integrityStatus: 'VALID',
-    }))
+    return mapEvidenceList(await this.request(`/claims/${encodeURIComponent(claimId)}/evidence`))
   }
 
-  // Fetch real append-only audit trail
-  static async fetchAuditEvents(): Promise<any[]> {
-    const role = this.user?.role
-    let endpoint = `${API_BASE}/api/v1/activities/audit-trail`
-    if (role === 'INSURER_ADMIN') {
-      endpoint = `${API_BASE}/api/v1/tenant/audit?limit=50`
-    } else if (role === 'SUPERADMIN') {
-      endpoint = `${API_BASE}/api/v1/admin/audit?limit=50`
-    }
-
-    let res = await fetch(endpoint, {
-      headers: this.getHeaders(),
-    })
-    
-    // Fallback if role-specific audit route is forbidden or unavailable
-    if (!res.ok && endpoint !== `${API_BASE}/api/v1/activities/audit-trail`) {
-      res = await fetch(`${API_BASE}/api/v1/activities/audit-trail`, {
-        headers: this.getHeaders(),
-      })
-    }
-
-    if (!res.ok) return []
-    const data = await res.json()
-    const list = data.events || data.trail || []
-    return list.map((evt: any) => ({
-      ...evt,
-      id: evt.id || `evt_${Math.random()}`,
-      action: evt.action,
-      actor_id: evt.actor_id ?? evt.actorId,
-      actor_tenant_id: evt.actor_tenant_id ?? evt.actorTenantId ?? evt.tenantId,
-      actor_role: evt.actor_role ?? evt.actorRole,
-      resource_id: evt.resource_id ?? evt.resourceId,
-      resource_type: evt.resource_type ?? evt.resourceType,
-      outcome: evt.outcome,
-      request_id: evt.request_id ?? evt.requestId,
-      occurred_at: evt.occurred_at ?? evt.occurredAt ?? new Date().toISOString(),
-    }))
+  /** Recomputes SHA-256 over the stored bytes on the server and compares with the upload hash. */
+  static async verifyEvidence(claimId: string, evidenceId: string): Promise<EvidenceVerifyResult | null> {
+    return mapEvidenceVerify(
+      await this.request(`/claims/${encodeURIComponent(claimId)}/evidence/${encodeURIComponent(evidenceId)}/verify`)
+    )
   }
 
-  // Real State Machine Action Handlers
-  static async executeTransition(claimId: string, action: 'verify' | 'screen' | 'review' | 'request-info'): Promise<{ ok: boolean; message: string }> {
-    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/${action}`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (res.ok) {
-      return { ok: true, message: `Successfully transitioned to ${action}` }
-    }
-    return { ok: false, message: data.error || 'Transition denied' }
+  /** INSURER_ADMIN → /tenant/audit, SUPERADMIN → /admin/audit. Other roles have no audit view. */
+  static async fetchAuditEvents(before?: string | null): Promise<AuditPage> {
+    const role = this.getSession()?.actor.role
+    const base = role === 'INSURER_ADMIN' ? '/tenant/audit' : role === 'SUPERADMIN' ? '/admin/audit' : null
+    if (!base) throw new ApiError(403, 'forbidden', 'The audit log is available to insurer admins and the platform superadmin.')
+    const q = new URLSearchParams({ limit: '50' })
+    if (before) q.set('before', before)
+    return mapAuditPage(await this.request(`${base}?${q.toString()}`))
   }
 
-  static async decideClaim(claimId: string, outcome: 'Approved' | 'Rejected', reason: string, approvedAmountCents?: number): Promise<{ ok: boolean; message: string }> {
-    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/decide`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ outcome, reason, approvedAmountCents }),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (res.ok) {
-      return { ok: true, message: 'Decision recorded and cryptographically signed with ML-DSA-65' }
-    }
-    return { ok: false, message: data.error || 'Decision failed' }
+  static async fetchPlatformIntegrity(): Promise<PlatformIntegrity | null> {
+    return mapPlatformIntegrity(await this.request('/admin/integrity'))
   }
 
-  static async payClaim(claimId: string): Promise<{ ok: boolean; message: string }> {
-    const res = await fetch(`${API_BASE}/api/v1/claims/${claimId}/pay`, {
-      method: 'POST',
-      headers: {
-        ...this.getHeaders(),
-        // Stable per claim: a retried or double-clicked payout is answered from the ledger, never paid twice.
-        'Idempotency-Key': `payout_${claimId}`,
-      },
-    })
-    const data = await res.json().catch(() => ({}))
-    if (res.ok) {
-      return { ok: true, message: 'Simulated payout executed after ML-DSA-65 signature verification' }
-    }
-    return { ok: false, message: data.error || 'Payout refused' }
+  static async fetchTenantOverview(): Promise<TenantOverviewSummary | null> {
+    return mapTenantOverview(await this.request('/tenant/overview'))
   }
+
+  static async fetchPublicKey(): Promise<PublicKeyInfo | null> {
+    return mapPublicKey(await this.request('/integrity/public-key'))
+  }
+
+  // ---------------------------------------------------------------- actions (ASSESSOR / MANAGER)
+
+  static executeTransition(claimId: string, action: 'verify' | 'screen' | 'review'): Promise<ActionResult> {
+    return this.action(`/claims/${encodeURIComponent(claimId)}/${action}`, {}, transitionMessage)
+  }
+
+  static requestInfo(claimId: string, message: string): Promise<ActionResult> {
+    return this.action(
+      `/claims/${encodeURIComponent(claimId)}/request-info`,
+      { body: JSON.stringify({ message }) },
+      transitionMessage
+    )
+  }
+
+  static decideClaim(
+    claimId: string,
+    outcome: 'Approved' | 'Rejected',
+    reason: string,
+    approvedAmountCents?: number
+  ): Promise<ActionResult> {
+    const payload: Record<string, unknown> = { outcome, reason }
+    if (outcome === 'Approved' && approvedAmountCents !== undefined) payload.approvedAmountCents = approvedAmountCents
+    return this.action(`/claims/${encodeURIComponent(claimId)}/decide`, { body: JSON.stringify(payload) }, (body) => {
+      const b = isObj(body) ? body : {}
+      const integ = isObj(b.integrity) ? b.integrity : null
+      const signed = integ && str(integ.alg) ? ` Signed with ${str(integ.alg)} (key ${str(integ.keyId) ?? '—'}).` : ''
+      return `Decision recorded: ${str(b.outcome) ?? outcome}.${signed}`
+    })
+  }
+
+  /** Simulated payout. Idempotency-Key is `pay-<claimId>`, the same key the Flutter app sends. */
+  static payClaim(claimId: string): Promise<ActionResult> {
+    return this.action(
+      `/claims/${encodeURIComponent(claimId)}/pay`,
+      { headers: { 'Idempotency-Key': payIdempotencyKey(claimId) } },
+      (body) => {
+        const b = isObj(body) ? body : {}
+        const id = str(b.payoutId) ?? '—'
+        return b.status === 'already_paid'
+          ? `Already paid (payout ${id}); no second payout was made.`
+          : `Simulated payout recorded (payout ${id}). No money moves.`
+      }
+    )
+  }
+}
+
+function transitionMessage(body: unknown): string {
+  const b = isObj(body) ? body : {}
+  const from = str(b.from)
+  const to = str(b.to)
+  return from && to ? `Claim moved from ${from} to ${to}.` : 'Done.'
+}
+
+const ERROR_TEXT: Record<string, string> = {
+  forbidden: 'Your role is not allowed to do this.',
+  role_not_permitted: 'Your role is not allowed to perform this step.',
+  illegal_transition: 'This step is not possible from the claim’s current stage.',
+  not_found: 'Claim not found (or not in your tenant).',
+  payout_details_missing: 'The customer has not provided a claimed amount and payout destination.',
+  amount_exceeds_claimed: 'The approved amount cannot exceed the claimed amount.',
+  integrity_unavailable: 'Decision signing is not configured on the server; nothing was recorded.',
+  decision_integrity_failed: 'The decision’s signature did not verify. Payout refused.',
+  destination_mismatch: 'The payout destination no longer matches the decision snapshot. Payout refused.',
+  already_paid: 'This claim has already been paid.',
+  not_approved: 'The claim is not approved.',
+  validation_failed: 'The request was rejected as invalid.',
+}
+
+export function describeError(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.code && ERROR_TEXT[err.code]) return ERROR_TEXT[err.code]
+    return err.message
+  }
+  return err instanceof Error ? err.message : 'Unexpected error'
 }

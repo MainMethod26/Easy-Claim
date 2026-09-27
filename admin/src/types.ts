@@ -1,59 +1,14 @@
+/**
+ * Types for the admin app. Every shape here mirrors what the backend Worker actually returns
+ * (see docs/API_CONTRACT.md and backend/src/endpoints/*). Nothing is filled in on the client:
+ * a value the backend did not send is `null`, and the UI shows "—" / "Not provided".
+ */
+
 export type Role = 'CUSTOMER' | 'ASSESSOR' | 'MANAGER' | 'INSURER_ADMIN' | 'SUPERADMIN'
 
-export type TenantId = 
-  | 'ins_discovery'
-  | 'ins_sanlam'
-  | 'ins_outsurance'
-  | 'ins_momentum'
-  | 'ins_oldmutual'
+export const ROLES: readonly Role[] = ['CUSTOMER', 'ASSESSOR', 'MANAGER', 'INSURER_ADMIN', 'SUPERADMIN']
 
-export interface TenantInfo {
-  id: TenantId
-  name: string
-  code: string
-  color: string
-  logoText: string
-}
-
-export const TENANTS: Record<TenantId, TenantInfo> = {
-  ins_discovery: {
-    id: 'ins_discovery',
-    name: 'Discovery Health & Life',
-    code: 'DISC',
-    color: '#00539B',
-    logoText: 'Discovery',
-  },
-  ins_sanlam: {
-    id: 'ins_sanlam',
-    name: 'Sanlam Financial Solutions',
-    code: 'SAN',
-    color: '#0075C9',
-    logoText: 'Sanlam',
-  },
-  ins_outsurance: {
-    id: 'ins_outsurance',
-    name: 'OUTsurance Insurance',
-    code: 'OUT',
-    color: '#00875A',
-    logoText: 'OUTsurance',
-  },
-  ins_momentum: {
-    id: 'ins_momentum',
-    name: 'Momentum Metropolitan',
-    code: 'MTM',
-    color: '#D92D20',
-    logoText: 'Momentum',
-  },
-  ins_oldmutual: {
-    id: 'ins_oldmutual',
-    name: 'Old Mutual South Africa',
-    code: 'OM',
-    color: '#008559',
-    logoText: 'Old Mutual',
-  },
-}
-
-export type ClaimStage = 
+export type ClaimStage =
   | 'Draft'
   | 'Submitted'
   | 'Verified'
@@ -66,91 +21,221 @@ export type ClaimStage =
   | 'Withdrawn'
   | 'Expired'
 
-export interface Claim {
+export const CLAIM_STAGES: readonly ClaimStage[] = [
+  'Draft',
+  'Submitted',
+  'Verified',
+  'Screening',
+  'Review',
+  'Decision',
+  'Paid',
+  'Info Needed',
+  'Appeal',
+  'Withdrawn',
+  'Expired',
+]
+
+/** The signed-in account, exactly as returned by POST /auth/login (`actor`). */
+export interface Actor {
   id: string
-  policy_id: string
-  tenant_id: TenantId
-  stage: ClaimStage
-  status: 'pending' | 'Approved' | 'Rejected'
-  category?: string
-  cause_of_loss?: string
-  incident_date?: string
-  claimed_amount_cents?: number | null
-  payout_destination_hash?: string | null
-  payout_account_last4?: string | null
-  payout_bank_name?: string | null
-  created_at: string
-  updated_at: string
+  username: string
+  role: Role
+  tenantId: string | null
+  displayName: string | null
+  status: string | null
 }
 
-export interface RiskSignals {
-  band: 'NORMAL' | 'ELEVATED' | 'HIGH_ANOMALY'
-  recommendation: 'STANDARD_REVIEW' | 'REVIEW_REQUIRED'
-  score_percentile: number
-  classical_score_percentile: number
-  model_version: string
-  features_digest?: string
-  signal_digest?: string
-  created_at?: string
-  execution?: string
+/** What is kept for a session: the token and actor from the backend, plus the expiry it stated. */
+export interface Session {
+  token: string
+  /** Epoch ms; derived from the backend's `expiresIn` (seconds). null when not stated. */
+  expiresAt: number | null
+  actor: Actor
 }
 
-export interface DecisionIntegrity {
-  status: 'VALID' | 'TAMPERED' | 'UNSIGNED' | 'UNKNOWN_KEY' | 'UNAVAILABLE' | 'NO_DECISION'
-  decisionId?: string | null
-  keyId?: string | null
-  algorithm?: string | null
-  bundleDigest?: string | null
-  tamperedFields?: string[]
-  checkedAt?: string
-  outcome?: 'Approved' | 'Rejected'
-  reason?: string
-  approvedAmountCents?: number
-}
-
-export interface EvidenceItem {
+/** One row of GET /claims (backend sends snake_case; no payout fields, no incident date). */
+export interface ClaimSummary {
   id: string
-  claim_id: string
-  filename: string
-  mime_type: string
-  byte_size: number
-  sha256_hash: string
-  created_at: string
-  integrityStatus?: 'VALID' | 'TAMPERED'
-}
-
-export interface TimelineEntry {
-  stage: ClaimStage
-  status: 'completed' | 'current' | 'upcoming'
-  reached_at?: string
-  actor?: string
-}
-
-export interface PayoutDetails {
+  policyId: string
+  tenantId: string | null
+  stage: string
+  status: string | null
+  category: string | null
   claimedAmountCents: number | null
-  destination: {
-    bankName: string | null
-    accountHolder: string | null
-    last4: string | null
-  } | null
-  decision: {
-    outcome: string
-    reason: string
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface MessageRef {
+  body: string
+  createdAt: string | null
+}
+
+/** GET /claims/:id → claim */
+export interface ClaimDetail {
+  id: string
+  policyId: string
+  planName: string | null
+  tenantId: string | null
+  insurerName: string | null
+  stage: string
+  status: string | null
+  category: string | null
+  causeOfLoss: string | null
+  incidentDate: string | null
+  claimedAmountCents: number | null
+  payoutDestination: { bankName: string | null; accountLast4: string } | null
+  createdAt: string | null
+  updatedAt: string | null
+  infoRequest: MessageRef | null
+  appealReason: MessageRef | null
+}
+
+/** GET /claims/:id/timeline → timeline[] */
+export interface TimelineEntry {
+  stage: string
+  completed: boolean
+  date: string | null
+}
+
+export interface Timeline {
+  currentStage: string | null
+  entries: TimelineEntry[]
+}
+
+export type AnomalyBand = 'NORMAL' | 'ELEVATED' | 'HIGH'
+
+/** GET /claims/:id/risk-signals → riskSignals (ASSESSOR/MANAGER only; null when none computed). */
+export interface RiskSignals {
+  classicalAnomaly: number
+  quantumAnomaly: number
+  interpretation: string
+  anomalyBand: AnomalyBand
+  screeningRecommendation: 'STANDARD_REVIEW' | 'REVIEW_REQUIRED'
+  explanation: string
+  versions: { model: string | null; features: string | null; kernel: string | null; screening: string | null } | null
+  signalDigest: string | null
+  modelVersion: string
+  execution: 'simulator' | 'hardware'
+  computedAt: string | null
+  advisory: boolean
+}
+
+/** GET /claims/:id/decision */
+export interface DecisionInfo {
+  decision: string
+  record: {
+    id: string
+    decidedAt: string | null
+    decidedByRole: string | null
+    reason: string | null
     approvedAmountCents: number | null
-    decidedAt: string
+    rulesVersion: string | null
+    evidenceDigest: string | null
+  } | null
+}
+
+export type IntegrityStatus = 'VALID' | 'TAMPERED' | 'UNSIGNED' | 'UNKNOWN_KEY' | 'UNAVAILABLE' | 'NO_DECISION'
+
+/** GET /claims/:id/decision/verify */
+export interface DecisionIntegrity {
+  claimId: string | null
+  decisionId: string | null
+  status: IntegrityStatus
+  alg: string | null
+  keyId: string | null
+  bundleDigest: string | null
+  recomputedDigest: string | null
+}
+
+/** GET /claims/:id/payout (masked). */
+export interface PayoutView {
+  claimedAmountCents: number | null
+  destination: { bankName: string | null; accountHolder: string | null; accountLast4: string | null } | null
+  decision: {
+    id: string
+    outcome: string
+    approvedAmountCents: number | null
+    decidedAt: string | null
+    decidedByRole: string | null
   } | null
   payout: {
     id: string
-    amountCents: number
-    status: string
-    paidAt: string
+    amountCents: number | null
+    destinationLast4: string | null
+    status: string | null
+    initiatedAt: string | null
   } | null
 }
 
-export interface AuthUser {
+/** GET /claims/:id/evidence → evidence[] */
+export interface EvidenceItem {
   id: string
-  name: string
-  role: Role
-  tenantId: TenantId
-  token: string
+  displayName: string | null
+  mimeType: string | null
+  sizeBytes: number | null
+  sha256: string | null
+  createdAt: string | null
+}
+
+/** GET /claims/:id/evidence/:eid/verify */
+export interface EvidenceVerifyResult {
+  status: 'VALID' | 'TAMPERED'
+  expectedHash: string | null
+  actualHash: string | null
+  reason: string | null
+}
+
+/** GET /tenant/audit and GET /admin/audit → events[] */
+export interface AuditEvent {
+  id: string
+  occurredAt: string | null
+  actorId: string | null
+  actorRole: string | null
+  action: string
+  resourceType: string | null
+  resourceId: string | null
+  outcome: string | null
+}
+
+export interface AuditPage {
+  events: AuditEvent[]
+  nextBefore: string | null
+}
+
+export interface ScreeningMix {
+  NORMAL: number
+  ELEVATED: number
+  HIGH: number
+  unscreened: number
+}
+
+/** GET /admin/integrity (SUPERADMIN). */
+export interface PlatformIntegrity {
+  generatedAt: string | null
+  windowDays: number | null
+  decisions: { total: number; signed: number; unsigned: number; byKeyId: { keyId: string; count: number }[] }
+  verificationsInWindow: Record<string, number>
+  screening: ScreeningMix & {
+    byExecution: Record<string, number>
+    byModelVersion: { modelVersion: string; count: number }[]
+  }
+}
+
+/** The screening/integrity part of GET /tenant/overview (INSURER_ADMIN). */
+export interface TenantOverviewSummary {
+  tenant: { id: string; name: string } | null
+  generatedAt: string | null
+  screening: ScreeningMix | null
+  integrity: { signed: number; unsigned: number; verificationsInWindow: Record<string, number> } | null
+}
+
+/** GET /integrity/public-key */
+export interface PublicKeyInfo {
+  alg: string
+  standard: string | null
+  keyId: string
+  bundleVersion: string | null
+  context: string | null
+  publicKey: string | null
 }

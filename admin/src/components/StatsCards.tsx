@@ -1,87 +1,56 @@
 import React from 'react'
-import type { Claim } from '../types'
-import { 
-  FileCheck2, 
-  Cpu, 
-  ShieldCheck, 
-  Coins 
-} from 'lucide-react'
+import type { ClaimSummary } from '../types'
+import { FileCheck2, Hourglass, Gavel, Coins } from 'lucide-react'
+import { formatZAR } from '../services/mappers'
 
 interface StatsCardsProps {
-  claims: Claim[]
+  claims: ClaimSummary[]
 }
 
+const IN_PROGRESS = ['Submitted', 'Verified', 'Screening', 'Review']
+const WAITING = ['Info Needed', 'Appeal']
+const DECIDED = ['Decision', 'Paid']
+
+/** Counts computed only from the claims the backend returned (GET /claims, max 50 most recent). */
 export const StatsCards: React.FC<StatsCardsProps> = ({ claims }) => {
-  const totalClaims = claims.length
-  const pendingReview = claims.filter(c => ['Submitted', 'Verified', 'Screening', 'Review'].includes(c.stage)).length
-  const approvedClaims = claims.filter(c => ['Decision', 'Paid'].includes(c.stage) && c.status === 'Approved').length
-  
-  // Calculate total claimed volume in ZAR
-  const totalClaimedCents = claims.reduce((acc, c) => acc + (c.claimed_amount_cents || 0), 0)
-  const formatZAR = (cents: number) => {
-    const rands = (cents / 100).toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 })
-    return rands
-  }
+  const count = (stages: string[]) => claims.filter((c) => stages.includes(c.stage)).length
+  const withAmount = claims.filter((c) => c.claimedAmountCents !== null)
+  const totalClaimedCents = withAmount.reduce((acc, c) => acc + (c.claimedAmountCents ?? 0), 0)
+  const scope = claims.length >= 50 ? 'Most recent 50 claims' : 'All claims returned'
+
+  const cards: { title: string; value: string; note: string; icon: React.ReactNode }[] = [
+    { title: 'Claims in worklist', value: String(claims.length), note: scope, icon: <FileCheck2 size={18} /> },
+    { title: 'In progress', value: String(count(IN_PROGRESS)), note: 'Submitted → Review', icon: <Hourglass size={18} /> },
+    {
+      title: 'Decided',
+      value: String(count(DECIDED)),
+      note: `${count(WAITING)} waiting on info / appeal`,
+      icon: <Gavel size={18} />,
+    },
+    {
+      title: 'Total claimed (ZAR)',
+      value: withAmount.length ? formatZAR(totalClaimedCents) : '—',
+      note: `${claims.length - withAmount.length} without a claimed amount`,
+      icon: <Coins size={18} />,
+    },
+  ]
 
   return (
     <div className="stats-grid">
-      {/* Total Active Claims */}
-      <div className="stat-card">
-        <div className="stat-card-header">
-          <span className="stat-title">Tenant Claims Worklist</span>
-          <div className="stat-icon" style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid #DBEAFE' }}>
-            <FileCheck2 size={18} />
+      {cards.map((c) => (
+        <div className="stat-card" key={c.title}>
+          <div className="stat-card-header">
+            <span className="stat-title">{c.title}</span>
+            <div className="stat-icon" style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid #DBEAFE' }}>
+              {c.icon}
+            </div>
+          </div>
+          <div className="stat-value">{c.value}</div>
+          <div className="stat-badge" style={{ background: '#F8FAFC', color: 'var(--text-muted)', border: '1px solid var(--border-color)' }}>
+            <span>{c.note}</span>
           </div>
         </div>
-        <div className="stat-value">{totalClaims}</div>
-        <div className="stat-badge" style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid #DBEAFE' }}>
-          <span>{pendingReview} action items pending</span>
-        </div>
-      </div>
-
-      {/* Quantum Anomaly Screening */}
-      <div className="stat-card" style={{ borderLeft: '3px solid var(--quantum-cyan)' }}>
-        <div className="stat-card-header">
-          <span className="stat-title">Quantum Anomaly Radar</span>
-          <div className="stat-icon" style={{ background: 'var(--quantum-bg)', color: 'var(--quantum-cyan)', border: '1px solid var(--quantum-border)' }}>
-            <Cpu size={18} />
-          </div>
-        </div>
-        <div className="stat-value" style={{ color: 'var(--quantum-cyan)' }}>Active</div>
-        <div className="stat-badge" style={{ background: 'var(--quantum-bg)', color: 'var(--quantum-cyan)', border: '1px solid var(--quantum-border)' }}>
-          <span>PennyLane Fidelity Kernel (Ph. 4)</span>
-        </div>
-      </div>
-
-      {/* Post-Quantum Decision Signing */}
-      <div className="stat-card" style={{ borderLeft: '3px solid var(--pqc-purple)' }}>
-        <div className="stat-card-header">
-          <span className="stat-title">Post-Quantum Integrity</span>
-          <div className="stat-icon" style={{ background: 'var(--pqc-bg)', color: 'var(--pqc-purple)', border: '1px solid var(--pqc-border)' }}>
-            <ShieldCheck size={18} />
-          </div>
-        </div>
-        <div className="stat-value" style={{ color: 'var(--pqc-purple)' }}>100%</div>
-        <div className="stat-badge" style={{ background: 'var(--pqc-bg)', color: 'var(--pqc-purple)', border: '1px solid var(--pqc-border)' }}>
-          <span>NIST FIPS 204 (ML-DSA-65)</span>
-        </div>
-      </div>
-
-      {/* Total Claim Exposure */}
-      <div className="stat-card" style={{ borderLeft: '3px solid var(--brand-orange)' }}>
-        <div className="stat-card-header">
-          <span className="stat-title">Total Claim Value (ZAR)</span>
-          <div className="stat-icon" style={{ background: 'var(--brand-orange-soft)', color: 'var(--brand-orange)', border: '1px solid var(--brand-orange-border)' }}>
-            <Coins size={18} />
-          </div>
-        </div>
-        <div className="stat-value" style={{ color: 'var(--brand-orange)' }}>
-          {formatZAR(totalClaimedCents)}
-        </div>
-        <div className="stat-badge" style={{ background: '#ECFDF5', color: '#047857', border: '1px solid #A7F3D0' }}>
-          <span>{approvedClaims} approved / settled</span>
-        </div>
-      </div>
+      ))}
     </div>
   )
 }
