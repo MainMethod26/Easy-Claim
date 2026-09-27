@@ -2,6 +2,8 @@
 /// (InsurerApplicationDto, PolicyLinkRequestDto); see docs/API_CONTRACT.md.
 library;
 
+import 'consent_models.dart';
+
 String? _s(Object? v) => v is String ? v : null;
 DateTime? _d(Object? v) => v is String ? DateTime.tryParse(v) : null;
 
@@ -229,7 +231,15 @@ class PolicyRequestDetail {
   final DateTime? createdAt;
   final ClientCard client;
   final List<RequestDocument> documents;
+
+  /// Documents checked AND the consent form signed.
   final bool readyToApprove;
+
+  /// Every required document checked and no open (pending or signed) consent form.
+  final bool readyForConsent;
+
+  /// Latest consent form for this request (summary), or null until sent.
+  final Consent? consent;
   const PolicyRequestDetail({
     required this.id,
     required this.policyNumber,
@@ -240,6 +250,8 @@ class PolicyRequestDetail {
     required this.client,
     required this.documents,
     required this.readyToApprove,
+    this.readyForConsent = false,
+    this.consent,
   });
   factory PolicyRequestDetail.fromJson(Map<String, dynamic> j) => PolicyRequestDetail(
         id: _s(j['id']) ?? '',
@@ -251,8 +263,11 @@ class PolicyRequestDetail {
         client: ClientCard.fromJson(j['client']),
         documents: _docs(j['documents']),
         readyToApprove: j['readyToApprove'] == true,
+        readyForConsent: j['readyForConsent'] == true,
+        consent: Consent.maybeFromJson(j['consent']),
       );
   bool get isPending => status == 'pending';
+  bool get isOpen => status == 'pending' || status == 'more_info';
 }
 
 typedef LookupRequest = ({String id, String policyNumber, String status});

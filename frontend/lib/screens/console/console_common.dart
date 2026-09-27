@@ -29,7 +29,7 @@ class _EcAsyncState<T> extends State<EcAsync<T>> {
     if (old.reloadKey != widget.reloadKey) _future = widget.load();
   }
 
-  void _reload() => setState(() => _future = widget.load());
+  void _reload() => setState(() { _future = widget.load(); });
 
   @override
   Widget build(BuildContext context) {

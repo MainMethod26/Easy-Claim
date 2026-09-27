@@ -55,3 +55,7 @@ export function dummyHash(): Promise<string> {
   dummyHashPromise ??= hashPassword(toB64(crypto.getRandomValues(new Uint8Array(24))))
   return dummyHashPromise
 }
+
+/** Account lockout after repeated wrong passwords (sign-in and consent signing). */
+export const LOCKOUT_FAILURES = 5
+export const LOCKOUT_WINDOW_MS = 15 * 60 * 1000

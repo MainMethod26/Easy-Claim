@@ -10,6 +10,7 @@ import evidence from './endpoints/evidence'
 import riskSignals from './screening/routes'
 import { processQueueBatch } from './endpoints/ocr'
 import { decisionIntegrity, integrityInfo } from './integrity/routes'
+import { consents } from './consent/routes'
 import { requireActor } from './security/actor'
 import { authInfo, authPublic } from './endpoints/auth'
 import { superadmin, tenantAdmin } from './endpoints/admin'
@@ -106,6 +107,7 @@ app.route('/api/v1/claims', evidence)
 app.route('/api/v1/claims', riskSignals) // Phase 4: read-only advisory screening signal
 app.route('/api/v1/claims', decisionIntegrity) // Phase 5: ML-DSA decision verification
 app.route('/api/v1/integrity', integrityInfo) // Phase 5: public key
+app.route('/api/v1/consents', consents) // POPIA consent forms: the customer reads, signs, declines, withdraws
 // Removed 27 Sep 2026 (assessment): /client/*, /profile, /activities/*, /ocr/process returned fixed
 // or fake data and nothing called them. Real equivalents: /claims/:id/messages, /covers/profile,
 // /tenant/audit, /admin/audit.

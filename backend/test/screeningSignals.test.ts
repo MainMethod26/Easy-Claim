@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
-import { managerA, managerB, call, claimStage, createSubmittedClaim, customerA } from './helpers'
+import { managerA, managerB, call, claimStage, createSubmittedClaim, customerA, signClaimConsent } from './helpers'
 
 // Phase 4 (quantum track). The advisory signal is read-only screening context. These tests
 // prove the boundary: it inherits auth/tenant/ownership, no client can write it, and it
@@ -19,6 +19,7 @@ async function verifiedClaim(): Promise<string> {
   const claimId = await createSubmittedClaim()
   const res = await call(`/claims/${claimId}/verify`, { method: 'POST', as: managerA })
   if (res.status !== 200) throw new Error(`verify failed: ${res.status}`)
+  await signClaimConsent(claimId)
   return claimId
 }
 

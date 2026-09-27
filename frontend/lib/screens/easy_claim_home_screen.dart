@@ -20,6 +20,7 @@ import '../widgets/notification_bell_button.dart';
 import '../widgets/notifications_sheet.dart';
 import '../widgets/picture_background.dart';
 import '../widgets/claims_wizard_modal.dart';
+import '../widgets/consent_widgets.dart';
 import 'support_screen.dart';
 
 /// HOME: the signed-in customer's claims, straight from the backend.
@@ -52,6 +53,14 @@ class EasyClaimHomeScreen extends StatefulWidget {
 
 class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
   late final HomeScreenProvider _home = HomeScreenProvider(claims: widget.claimsRepository);
+
+  /// Bumped on pull-to-refresh so the consent banner reloads too.
+  int _consentGeneration = 0;
+
+  Future<void> _refresh() async {
+    setState(() => _consentGeneration++);
+    await _home.refresh();
+  }
 
   @override
   void initState() {
@@ -120,7 +129,7 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
               if (showSimulatedStatus) const MobileStatusBar(time: '9:41', color: EcColors.ink),
               Expanded(
                 child: RefreshIndicator(
-                  onRefresh: _home.refresh,
+                  onRefresh: _refresh,
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                     padding: const EdgeInsets.fromLTRB(20.0, 8.0, 20.0, 24.0),
@@ -164,6 +173,8 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
                         ),
                         const SizedBox(height: 10.0),
                         _buildStatusBanner(),
+                        // POPIA: consent forms waiting for the customer's signature.
+                        PendingConsentBanner(key: ValueKey(_consentGeneration), onChanged: _home.refresh),
                         const SizedBox(height: 16.0),
                         const SetupChecklist(),
                         const SizedBox(height: 6.0),

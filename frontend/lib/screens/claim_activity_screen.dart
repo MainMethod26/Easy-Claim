@@ -11,6 +11,8 @@ import '../data/models/api_models.dart';
 import '../data/models/claim_stage.dart';
 import '../data/repositories/repositories.dart';
 import '../widgets/aurora_background.dart';
+import '../widgets/consent_widgets.dart';
+import 'consent_form_screen.dart';
 
 /// Claim tracking for the customer: pick a claim, see its real stage history (GET /timeline),
 /// what happens next, the decision, the payout and a plain-language integrity check.
@@ -68,7 +70,7 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
     return _ClaimView(r[0] as ClaimDetail, r[1] as ClaimTimeline, decision, r[3] as PayoutInfo, integrity, (r[4] as List).length);
   }
 
-  void _reload() => setState(() => _claimsFuture = _loadClaims());
+  void _reload() => setState(() { _claimsFuture = _loadClaims(); });
 
   void _select(String id) => setState(() {
         _selectedId = id;
@@ -161,6 +163,59 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
     } catch (e) {
       if (mounted) showErrorSnack(context, e);
     }
+  }
+
+  Future<void> _openConsent(String consentId) async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConsentFormScreen(consentId: consentId)));
+    if (mounted && _selectedId != null) _select(_selectedId!);
+  }
+
+  /// POPIA consent / claim mandate: sign when pending, on hold when declined or withdrawn.
+  Widget? _consentCard(ClaimDetail c) {
+    final consent = c.consent;
+    if (consent == null || consent.status == 'superseded') return null;
+    final warn = EcStatusColors.light.warning.foreground;
+    if (consent.isPending) {
+      return _card(Column(key: const Key('claim-consent-card'), crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.draw_outlined, color: EcColors.brandText, size: 20),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text('CONSENT FORM TO SIGN', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8, fontSize: 12, color: EcColors.brandText)),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        const Text('Your insurer checked your documents. Sign the consent form to continue.', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        const Text('It explains how your information is used for this claim. Screening starts once you sign.', style: TextStyle(color: EcColors.inkMuted)),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          key: const Key('open-claim-consent'),
+          onPressed: () => _openConsent(consent.id),
+          icon: const Icon(Icons.description_outlined),
+          label: const Text('Read and sign'),
+          style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
+        ),
+      ]));
+    }
+    if (consent.isRefused) {
+      return _card(Column(key: const Key('claim-consent-card'), crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('CLAIM ON HOLD', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8, fontSize: 12, color: warn)),
+        const SizedBox(height: 8),
+        Text(consent.isWithdrawn
+            ? 'You withdrew your consent, so your insurer cannot continue with this claim. Ask your insurer to send a new consent form if you want to continue.'
+            : 'You declined the consent form, so your insurer cannot continue with this claim. Ask your insurer to send a new consent form if you want to continue.'),
+        const SizedBox(height: 8),
+        TextButton(key: const Key('open-claim-consent'), onPressed: () => _openConsent(consent.id), child: const Text('View the form')),
+      ]));
+    }
+    // Signed: a quiet line with a way back to the form (withdrawal lives there).
+    return _card(Row(key: const Key('claim-consent-card'), children: [
+      Icon(Icons.task_alt, color: EcStatusColors.light.success.foreground, size: 20),
+      const SizedBox(width: 8),
+      Expanded(child: Text('Consent form signed ${formatConsentDate(consent.signedAt)}', style: const TextStyle(fontWeight: FontWeight.w600))),
+      TextButton(key: const Key('open-claim-consent'), onPressed: () => _openConsent(consent.id), child: const Text('View')),
+    ]));
   }
 
   Future<void> _appeal(String claimId) async {
@@ -282,6 +337,7 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
         const SizedBox(height: 10),
         Text(nextStepFor(c.stage, status: c.status), style: const TextStyle(fontWeight: FontWeight.w600)),
       ])),
+      ?_consentCard(c),
       if (c.stage == 'Info Needed')
         _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('YOUR INSURER NEEDS SOMETHING', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8, fontSize: 12, color: Color(0xFFB45309))),

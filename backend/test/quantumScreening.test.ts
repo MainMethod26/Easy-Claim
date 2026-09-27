@@ -11,8 +11,7 @@ import {
   customerA,
   customerB,
   decisionRows,
-  payoutRows,
-} from './helpers'
+  payoutRows, signClaimConsent } from './helpers'
 
 // Phase 4 completion: QUANTUM-06..12 and attacks 1-5 of the completion brief.
 // QUANTUM-01..05 (determinism, classical and quantum runs, numeric bounds, missing/invalid features)
@@ -34,6 +33,7 @@ async function verifiedClaim(): Promise<string> {
   const claimId = await createSubmittedClaim()
   const res = await call(`/claims/${claimId}/verify`, { method: 'POST', as: managerA })
   if (res.status !== 200) throw new Error(`verify failed: ${res.status}`)
+  await signClaimConsent(claimId)
   return claimId
 }
 

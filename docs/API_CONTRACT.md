@@ -198,10 +198,11 @@ Only assessors and managers see risk signals (`/risk-signals` is 403 for custome
 The signal is advisory. It never changes stage, status, eligibility or payout. Only the offline pipeline
 (`quantum/`) writes it; no route accepts it.
 
-## Demo stubs (fixed data, not authoritative)
+## Removed stubs (27 Sep 2026; answer 404)
 
 `/client/*`, `GET|PATCH /profile`, `/profile/consent`, `/profile/mandates/*`, `/activities/*`, `/ocr/process`,
-`POST /covers/join-request`. The app does not rely on them for business state.
+`POST /covers/join-request`, `GET /covers/market-catalog`, `GET /claims/status`. Consent and mandates are now real:
+see "Consent forms (POPIA)".
 
 ## Not in the API (do not call)
 
@@ -232,3 +233,45 @@ through the state machine's SYSTEM edge, with a `claim.stage_changed` audit row 
 - `POST /claims/:id/withdraw` takes an optional `{reason}`.
 - Uploading evidence updates `claims.updated_at`, so an active customer is not expired by the Info Needed job.
 - `claim_messages` rows are append-only (triggers).
+
+## Consent forms (POPIA, migration 0015)
+
+After the insurer has checked the documents, the customer is sent that insurer's consent / mandate form, signs it
+electronically (tick + full name on record + password; ECTA ordinary electronic signature) and the server seals the
+signed record with ML-DSA-65 (context `easyclaim/consent/v1`). Work waits for the signature:
+
+- **Onboarding:** documents checked → `POST /tenant/policy-requests/:requestId/consent` → customer signs → approve.
+  Approve without a signed form: 409 `consent_required`.
+- **Claims:** `POST /claims/:claimId/verify` creates the form in the same batch (`consentRequested: true`). Moving to
+  Screening, Review, Decision or Paid (any route, including the customer's `/respond`) needs the latest form to be
+  signed: 409 `consent_required`, or `consent_withdrawn` after a withdrawal. Claims past Verified before 0015 have no
+  form and are not blocked. `claim.consent` on `GET /claims/:claimId` is the latest form's summary (or null).
+- **Withdrawal** (POPIA s11(2)(b)) stops further work until a new form is signed; a withdrawn onboarding form also
+  refuses new claims on that policy (`/claims/initiate` 422, audit reason `consent_withdrawn`).
+- **Wording** is each insurer's own (`consent_templates`, append-only versions). Version 0 is the built-in EasyClaim
+  starter text, used until the insurer saves its own. Placeholders `{{insurer}}`, `{{customer}}`, `{{easyclaimId}}`,
+  `{{subject}}`, `{{date}}` are filled in when a form is sent; the rendered text and its SHA-256 are stored with the
+  form, so later edits never change a form already sent. Form text, subject and signature cannot be changed and
+  forms cannot be deleted (triggers). Free text never goes into `audit_events`.
+
+`Consent` = `{id, subjectType: policy_link|claim, subjectId, status: pending|signed|declined|withdrawn|superseded,
+templateVersion, requestedAt, signedName, signedAt, respondedAt, reason, seal: VALID|TAMPERED|UNSIGNED|UNKNOWN_KEY|
+UNAVAILABLE|null}`; the detail adds `insurerName, subjectLabel, body, bodySha256` and, for the customer's own pending
+form, `signAs` (the name to type).
+
+| Method + path | Request | Response | Errors | Audit | Frontend |
+|---|---|---|---|---|---|
+| GET `/consents` | CUSTOMER | `{consents:[ConsentDetail]}` own forms | 403 | – | Profile, Home |
+| GET `/consents/:consentId` | CUSTOMER | `{consent}` | 404 (not yours) | – | Consent form |
+| POST `/consents/:consentId/sign` | `{agree:true, fullName, password}` | `{consent}` signed + sealed | 400 `name_mismatch`/validation, 401 wrong password, 409 `not_pending`/`subject_closed`, 429 after 5 wrong passwords in 15 min, 503 | `consent.sign` success/denied | Consent form |
+| POST `/consents/:consentId/decline` | `{reason?}` | `{consent}` | 409 `not_pending` | `consent.decline` | Consent form |
+| POST `/consents/:consentId/withdraw` | `{reason?}` | `{consent}` | 409 `not_signed` | `consent.withdraw` | Consent form |
+| GET `/claims/:claimId/consent` | owner or the claim's insurer staff | `{consent: ConsentDetail\|null}` | 404 | – | Claim screens |
+| POST `/claims/:claimId/consent` | ASSESSOR/MANAGER | 201 `{consent}` (send or re-send) | 409 `consent_already_sent`/`consent_already_signed`/`documents_not_checked` | `consent.requested` | Staff claim screen |
+| GET `/tenant/consent-templates` | INSURER_ADMIN | `{onboarding, claim, placeholders}`; template `{kind, version, isStarter, body, updatedAt}` | 403 | – | Consent forms page |
+| PUT `/tenant/consent-templates/:kind` | `{body}` 200–20000 chars; kind onboarding\|claim | `{template}` new version | 400, 403 | `consent.template_saved` | Consent forms page |
+| POST `/tenant/policy-requests/:requestId/consent` | INSURER_ADMIN | 201 `{consent}` | 404, 409 `documents_incomplete`/`consent_already_sent`/`waiting_for_customer`/`already_decided` | `consent.requested` | Policy requests |
+| GET `/tenant/policy-requests/:requestId/consent` | INSURER_ADMIN | `{consent: ConsentDetail\|null}` | 404 | – | Policy requests |
+
+`GET /tenant/policy-requests/:requestId` also returns `readyForConsent` (every document checked, no open form),
+`consent` (summary) and `readyToApprove` (documents checked AND form signed).

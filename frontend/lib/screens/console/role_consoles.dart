@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/auth/session.dart';
 import '../../core/widgets/admin/ec_admin_shell.dart';
 import '../../data/repositories/admin_repositories.dart';
+import '../../data/repositories/consent_repository.dart';
 import '../../data/repositories/repositories.dart';
 import '../admin/insurer_team_screen.dart';
 import '../auth_screen.dart';
@@ -10,6 +11,7 @@ import '../superadmin/superadmin_accounts_screen.dart';
 import '../superadmin/superadmin_insurers_screen.dart';
 import 'audit_log_page.dart';
 import 'claims_worklist_page.dart';
+import 'consent_templates_page.dart';
 import 'insurer_overview_page.dart';
 import 'platform_pages.dart';
 import 'policy_requests_page.dart';
@@ -117,9 +119,10 @@ class ClaimStaffConsole extends StatelessWidget {
 
 /// INSURER_ADMIN: dashboards, team and audit for its own insurer; claims are read-only.
 class InsurerAdminConsole extends StatelessWidget {
-  const InsurerAdminConsole({super.key, this.tenantRepository, this.insurerRepository});
+  const InsurerAdminConsole({super.key, this.tenantRepository, this.insurerRepository, this.consentRepository});
   final TenantAdminRepository? tenantRepository;
   final InsurerRepository? insurerRepository;
+  final ConsentRepository? consentRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -143,6 +146,10 @@ class InsurerAdminConsole extends StatelessWidget {
         (const EcNavItem(label: 'Policy requests', icon: Icons.link_outlined, selectedIcon: Icons.link), (_) => PolicyRequestsPage(repository: tenant)),
         (const EcNavItem(label: 'Team', icon: Icons.groups_outlined, selectedIcon: Icons.groups), (_) => InsurerTeamScreen(repository: tenant)),
         (const EcNavItem(label: 'Required docs', icon: Icons.fact_check_outlined, selectedIcon: Icons.fact_check), (_) => RequirementsPage(repository: tenant)),
+        (
+          const EcNavItem(label: 'Consent forms', icon: Icons.verified_user_outlined, selectedIcon: Icons.verified_user),
+          (_) => ConsentTemplatesPage(repository: consentRepository),
+        ),
         (
           _audit,
           (_) => AuditLogPage(

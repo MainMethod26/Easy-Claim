@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
-import { DEMO_PAYOUT, auditRows, call, customerA, customerB, evidenceFile, insurerAdminA, insurerAdminB, managerA, managerB, superadmin } from './helpers'
+import { DEMO_PAYOUT, auditRows, call, customerA, customerB, evidenceFile, insurerAdminA, insurerAdminB, managerA, managerB, superadmin, signClaimConsent } from './helpers'
 
 // The whole journey the Flutter app drives, through the real routes and the real login
 // (POST /auth/login with the seeded demo accounts, no minted test tokens). Run twice: with a NORMAL
@@ -68,6 +68,8 @@ describe.each([
     expect(queue.body.claims).toContainEqual(expect.objectContaining({ id: claimId, stage: 'Submitted', claimed_amount_cents: 420_000 }))
     expect(queue.body.claims[0].user_id).toBeUndefined()
     expect((await api(insurer, `/claims/${claimId}/verify`, { method: 'POST' })).body.to).toBe('Verified')
+    // POPIA: documents checked → the customer signs the consent / claim mandate form → screening.
+    await signClaimConsent(claimId)
 
     await importSignal(claimId, interpretation)
     const screened = await api(insurer, `/claims/${claimId}/screen`, { method: 'POST' })

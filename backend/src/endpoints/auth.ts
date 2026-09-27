@@ -3,7 +3,7 @@ import { sign } from 'hono/jwt'
 import type { AppEnv, Role } from '../types'
 import { writeAuditEvent } from '../security/audit'
 import { JWT_ALG, MAX_TOKEN_TTL_SECONDS } from '../security/actor'
-import { dummyHash, hashPassword, verifyPassword } from '../security/password'
+import { LOCKOUT_FAILURES, LOCKOUT_WINDOW_MS, dummyHash, hashPassword, verifyPassword } from '../security/password'
 import { changePasswordSchema, insurerApplicationSchema, loginSchema, registerSchema, validate } from '../security/validation'
 import { submitApplication } from '../onboarding/service'
 import { ensureEasyclaimId, newEasyclaimId } from '../onboarding/customerOnboarding'
@@ -26,9 +26,8 @@ import { ensureEasyclaimId, newEasyclaimId } from '../onboarding/customerOnboard
  */
 
 export const TOKEN_TTL_SECONDS = 3600
-/** Account lockout after repeated wrong passwords. */
-export const LOCKOUT_FAILURES = 5
-export const LOCKOUT_WINDOW_MS = 15 * 60 * 1000
+// Account lockout after repeated wrong passwords (shared with consent signing).
+export { LOCKOUT_FAILURES, LOCKOUT_WINDOW_MS }
 
 export interface UserRow {
   /** Bumped to revoke existing tokens (migration 0014). */

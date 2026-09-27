@@ -138,8 +138,9 @@ class ApiClient {
       body['error'] is String ? body['error'] as String : null,
       requestId: response.headers['x-request-id'],
     );
-    // An expired or rejected token ends the session; the UI sends the user to sign in.
-    if (response.statusCode == 401 && _session.isActive) _session.signOut(byUser: false);
+    // An expired or rejected token ends the session; the UI sends the user to sign in. A wrong
+    // password while signed in (re-entered to sign a consent form) is not a bad token.
+    if (response.statusCode == 401 && _session.isActive && error.code != 'invalid_credentials') _session.signOut(byUser: false);
     throw error;
   }
 }

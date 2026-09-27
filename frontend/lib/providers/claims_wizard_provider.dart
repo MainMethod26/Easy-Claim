@@ -1,7 +1,13 @@
 import 'package:flutter/foundation.dart';
+import '../core/api/api_exception.dart';
 import '../data/models/api_models.dart';
 import '../data/models/claim_stage.dart';
+import '../data/repositories/consent_repository.dart';
 import '../data/repositories/repositories.dart';
+
+/// Shown when a claim is refused because the customer withdrew (or declined) the onboarding
+/// consent for the policy (backend: 422 policy_not_eligible, audit reason consent_withdrawn).
+const consentWithdrawnForPolicyMessage = 'You withdrew consent for this policy. Contact your insurer to continue.';
 
 /// Steps of the customer claim wizard. Each step that changes data calls the backend before
 /// the wizard moves on, so the backend always holds the authoritative claim.
@@ -48,10 +54,12 @@ const wizardCategories = <(String, String)>[
 class ClaimsWizardProvider with ChangeNotifier {
   final ClaimsRepository _claims;
   final CoversRepository _covers;
+  final ConsentRepository _consents;
 
-  ClaimsWizardProvider({ClaimsRepository? claims, CoversRepository? covers, Policy? initialPolicy, String? initialCategory})
+  ClaimsWizardProvider({ClaimsRepository? claims, CoversRepository? covers, ConsentRepository? consents, Policy? initialPolicy, String? initialCategory})
       : _claims = claims ?? ClaimsRepository(),
         _covers = covers ?? CoversRepository(),
+        _consents = consents ?? ConsentRepository(),
         _selectedPolicy = initialPolicy,
         _categoryId = initialCategory ?? 'device_electronics';
 
@@ -177,7 +185,28 @@ class ClaimsWizardProvider with ChangeNotifier {
       _eligibility = await _claims.checkEligibility(policy.id);
       return true;
     });
-    if (ok == true) _goTo(ClaimWizardStep.eligibility);
+    if (ok == true) {
+      _goTo(ClaimWizardStep.eligibility);
+    } else if (_error is ApiException && (_error as ApiException).code == 'policy_not_eligible' && await _consentWithdrawnFor(policy.id)) {
+      _error = consentWithdrawnForPolicyMessage;
+      notifyListeners();
+    }
+  }
+
+  /// The backend answers one code for every ineligible policy; this tells the customer when the
+  /// reason is their own withdrawn onboarding consent (their link request for the policy has a
+  /// latest form that is withdrawn or declined). Any lookup failure keeps the generic message.
+  Future<bool> _consentWithdrawnFor(String policyId) async {
+    try {
+      final requests = await _covers.linkRequests();
+      final requestIds = {for (final r in requests) if (r.policyId == policyId) r.id};
+      if (requestIds.isEmpty) return false;
+      final forms = await _consents.mine(); // newest first
+      for (final c in forms) {
+        if (c.subjectType == 'policy_link' && requestIds.contains(c.subjectId)) return c.isRefused;
+      }
+    } catch (_) {}
+    return false;
   }
 
   void confirmEligibility() => _goTo(ClaimWizardStep.whatHappened);

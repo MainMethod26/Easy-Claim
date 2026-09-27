@@ -145,8 +145,28 @@ export async function createReviewedClaim(): Promise<string> {
   for (const step of ['verify', 'screen', 'review']) {
     const res = await call(`/claims/${claimId}/${step}`, { method: 'POST', as: assessorA })
     if (res.status !== 200) throw new Error(`${step} failed: ${res.status}`)
+    if (step === 'verify') await signClaimConsent(claimId)
   }
   return claimId
+}
+
+/**
+ * The customer signs the pending POPIA consent form for a subject (created when the claim is
+ * verified, or sent by the insurer admin for a policy link). Returns the signed form.
+ */
+export async function signClaimConsent(subjectId: string, customer: TestActor = customerA) {
+  const list = (await (await call('/consents', { as: customer })).json()) as {
+    consents: { id: string; subjectId: string; status: string; signAs?: string }[]
+  }
+  const form = list.consents.find((x) => x.subjectId === subjectId && x.status === 'pending')
+  if (!form) throw new Error(`no pending consent form for ${subjectId}`)
+  const res = await call(`/consents/${form.id}/sign`, {
+    method: 'POST',
+    as: customer,
+    json: { agree: true, fullName: form.signAs, password: env.DEMO_LOGIN_PASSWORD },
+  })
+  if (res.status !== 200) throw new Error(`consent sign failed: ${res.status} ${await res.text()}`)
+  return ((await res.json()) as { consent: Record<string, unknown> }).consent
 }
 
 export async function decisionRows(claimId: string) {
@@ -230,4 +250,11 @@ export async function completeDocuments(requestId: string, customer: TestActor, 
     const v = await call(`/tenant/policy-requests/${requestId}/documents/${d.key}/verify`, { method: 'POST', as: admin, json: { verified: true } })
     if (v.status !== 200) throw new Error(`verify ${d.key}: ${v.status}`)
   }
+}
+
+/** Onboarding: the insurer admin sends the consent form (after the document check) and the customer signs it. */
+export async function sendAndSignLinkConsent(requestId: string, customer: TestActor, admin: TestActor) {
+  const sent = await call(`/tenant/policy-requests/${requestId}/consent`, { method: 'POST', as: admin })
+  if (sent.status !== 201) throw new Error(`consent send failed: ${sent.status} ${await sent.text()}`)
+  return signClaimConsent(requestId, customer)
 }

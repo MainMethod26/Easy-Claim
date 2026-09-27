@@ -164,3 +164,62 @@ export async function verifyDecision(
   }
   return { status: ok ? 'VALID' : 'TAMPERED', ...base }
 }
+
+// ---- Consent seals (migration 0015) ----
+// The same key seals signed POPIA consent forms, under its own FIPS 204 context string so a consent
+// seal can never be presented as a decision signature (or the reverse).
+const CONSENT_CONTEXT = new TextEncoder().encode('easyclaim/consent/v1')
+export const CONSENT_RECORD_VERSION = 'easyclaim-consent-record-v1'
+
+/** The facts a consent seal covers. Order is fixed; changing it is a new CONSENT_RECORD_VERSION. */
+export interface ConsentRecordFields {
+  id: string
+  tenant_id: string
+  user_id: string
+  subject_type: string
+  subject_id: string
+  template_version: number
+  body_sha256: string
+  signed_name: string
+  signed_at: string
+}
+
+export function canonicalConsentRecord(r: ConsentRecordFields): string {
+  return JSON.stringify([
+    CONSENT_RECORD_VERSION,
+    r.id,
+    r.tenant_id,
+    r.user_id,
+    r.subject_type,
+    r.subject_id,
+    r.template_version,
+    r.body_sha256,
+    r.signed_name,
+    r.signed_at,
+  ])
+}
+
+export async function sealConsent(signer: Signer, r: ConsentRecordFields) {
+  const record = canonicalConsentRecord(r)
+  const signature = ml_dsa65.sign(new TextEncoder().encode(record), signer.secretKey, { context: CONSENT_CONTEXT })
+  return { alg: INTEGRITY_ALG, keyId: signer.keyId, recordSha256: await sha256Hex(record), signature: toBase64(signature) }
+}
+
+/** VALID only when the stored record, its text hash and the seal all still match. */
+export async function verifyConsentSeal(
+  seedHex: string | undefined,
+  r: ConsentRecordFields,
+  seal: { alg: string | null; keyId: string | null; signature: string | null }
+): Promise<IntegrityStatus> {
+  if (!seal.signature || !seal.keyId) return 'UNSIGNED'
+  const signer = await getSigner(seedHex)
+  if (!signer) return 'UNAVAILABLE'
+  if (seal.alg !== INTEGRITY_ALG || seal.keyId !== signer.keyId) return 'UNKNOWN_KEY'
+  const sig = fromBase64(seal.signature)
+  try {
+    const ok = sig !== null && ml_dsa65.verify(sig, new TextEncoder().encode(canonicalConsentRecord(r)), signer.publicKey, { context: CONSENT_CONTEXT })
+    return ok ? 'VALID' : 'TAMPERED'
+  } catch {
+    return 'TAMPERED'
+  }
+}

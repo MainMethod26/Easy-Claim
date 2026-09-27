@@ -6,15 +6,20 @@ import '../core/api/api_exception.dart';
 import '../core/theme/ec_tokens.dart';
 import '../core/widgets/admin/ec_status_chip.dart';
 import '../core/widgets/state_views.dart';
+import '../data/models/consent_models.dart';
 import '../data/models/onboarding_models.dart';
+import '../data/repositories/consent_repository.dart';
 import '../data/repositories/repositories.dart';
+import '../widgets/consent_widgets.dart';
+import 'consent_form_screen.dart';
 import 'my_details_screen.dart';
 
 /// Customer: apply to one or more insurers with an existing policy, then upload each insurer's required
 /// documents. The insurer checks everything and approves; the policy then appears under "Your policies".
 class LinkPolicyScreen extends StatefulWidget {
-  const LinkPolicyScreen({super.key, this.repository});
+  const LinkPolicyScreen({super.key, this.repository, this.consents});
   final CoversRepository? repository;
+  final ConsentRepository? consents;
 
   @override
   State<LinkPolicyScreen> createState() => _LinkPolicyScreenState();
@@ -22,6 +27,10 @@ class LinkPolicyScreen extends StatefulWidget {
 
 class _LinkPolicyScreenState extends State<LinkPolicyScreen> {
   late final CoversRepository _repo = widget.repository ?? CoversRepository();
+  late final ConsentRepository _consentRepo = widget.consents ?? ConsentRepository();
+
+  /// Latest consent form per link request id (policy_link forms only).
+  Map<String, Consent> _consents = const {};
   List<InsurerOption> _insurers = const [];
   List<PolicyLinkRequest> _requests = const [];
   MyProfile? _me;
@@ -65,6 +74,62 @@ class _LinkPolicyScreenState extends State<LinkPolicyScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+    await _loadConsents();
+  }
+
+  /// Consent forms are optional extra information here: a failure leaves the requests usable.
+  Future<void> _loadConsents() async {
+    try {
+      final all = await _consentRepo.mine();
+      final latest = <String, Consent>{};
+      for (final c in all) {
+        if (c.subjectType == 'policy_link') latest.putIfAbsent(c.subjectId, () => c); // newest first
+      }
+      if (mounted) setState(() => _consents = latest);
+    } catch (_) {}
+  }
+
+  Future<void> _openConsent(Consent c) async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConsentFormScreen(consentId: c.id, repository: _consentRepo)));
+    await _load();
+  }
+
+  Widget _consentBlock(PolicyLinkRequest r, Consent c) {
+    final theme = Theme.of(context);
+    if (c.isPending) {
+      return Container(
+        margin: const EdgeInsets.only(top: EcSpace.md),
+        padding: const EdgeInsets.all(EcSpace.md),
+        decoration: BoxDecoration(
+          color: EcColors.brandText.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(EcRadius.md),
+          border: Border.all(color: EcColors.brandText.withValues(alpha: 0.35)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const Text('Your insurer checked your documents. Sign their consent form so they can approve your policy.'),
+          const SizedBox(height: EcSpace.sm),
+          FilledButton.icon(
+            key: Key('sign-consent-${r.id}'),
+            onPressed: () => _openConsent(c),
+            icon: const Icon(Icons.draw_outlined),
+            label: const Text('Sign consent form'),
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+          ),
+        ]),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: EcSpace.sm),
+      child: Row(children: [
+        Expanded(
+          child: Wrap(spacing: EcSpace.sm, runSpacing: EcSpace.xs, crossAxisAlignment: WrapCrossAlignment.center, children: [
+            Text('Consent form', style: theme.textTheme.bodySmall),
+            ConsentStatusChip(status: c.status),
+          ]),
+        ),
+        TextButton(key: Key('view-consent-${r.id}'), onPressed: () => _openConsent(c), child: const Text('View')),
+      ]),
+    );
   }
 
   Future<void> _openDetails() async {
@@ -162,6 +227,7 @@ class _LinkPolicyScreenState extends State<LinkPolicyScreen> {
                 Expanded(child: Text('Your insurer: ${r.infoMessage}')),
               ]),
             ),
+          if (_consents[r.id] != null) _consentBlock(r, _consents[r.id]!),
           if (r.decisionReason != null && r.status == 'rejected')
             Padding(padding: const EdgeInsets.only(top: EcSpace.sm), child: Text('Reason: ${r.decisionReason}', style: TextStyle(color: theme.colorScheme.error))),
           if (r.isOpen) ...[

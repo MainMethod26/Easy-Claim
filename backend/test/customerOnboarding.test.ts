@@ -15,8 +15,7 @@ import {
   saIdNumber,
   saveProfile,
   superadmin,
-  type TestActor,
-} from './helpers'
+  type TestActor, sendAndSignLinkConsent } from './helpers'
 
 // Customer onboarding with documents (migration 0012, src/onboarding/customerOnboarding.ts).
 const ID = saIdNumber('900514')
@@ -147,7 +146,15 @@ describe('documents and the insurer decision', () => {
     const blocked = await call(`/tenant/policy-requests/${reqId}/approve`, { method: 'POST', as: insurerAdminA, json: { planName: 'Classic' } })
     expect(await blocked.json()).toEqual({ error: 'documents_incomplete' })
     expect((await call(`/tenant/policy-requests/${reqId}/documents/policy_schedule/verify`, { method: 'POST', as: insurerAdminA, json: { verified: true } })).status).toBe(200)
-    expect((await json(await call(`/tenant/policy-requests/${reqId}`, { as: insurerAdminA }))).request.readyToApprove).toBe(true)
+    // Every document checked → the consent form can be sent; approval waits for the signature.
+    const checked = (await json(await call(`/tenant/policy-requests/${reqId}`, { as: insurerAdminA }))).request
+    expect(checked).toMatchObject({ readyForConsent: true, readyToApprove: false, consent: null })
+    await sendAndSignLinkConsent(reqId, customerA, insurerAdminA)
+    expect((await json(await call(`/tenant/policy-requests/${reqId}`, { as: insurerAdminA }))).request).toMatchObject({
+      readyForConsent: false,
+      readyToApprove: true,
+      consent: { status: 'signed', seal: 'VALID' },
+    })
     // Re-uploading a checked document un-checks it: the insurer must look again.
     expect((await upload(reqId, 'policy_schedule')).status).toBe(201)
     expect((await json(await call(`/tenant/policy-requests/${reqId}`, { as: insurerAdminA }))).request.readyToApprove).toBe(false)

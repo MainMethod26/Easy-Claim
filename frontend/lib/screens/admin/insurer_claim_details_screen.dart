@@ -8,6 +8,9 @@ import '../../core/widgets/admin/ec_section.dart';
 import '../../core/widgets/admin/ec_status_chip.dart';
 import '../../core/widgets/trust_cards.dart';
 import '../../widgets/claim_messages_panel.dart';
+import '../../widgets/consent_widgets.dart';
+import '../../data/models/consent_models.dart';
+import '../../data/repositories/consent_repository.dart';
 import '../../data/models/api_models.dart';
 import '../../data/models/claim_stage.dart';
 import '../../data/repositories/repositories.dart';
@@ -21,6 +24,7 @@ class InsurerClaimDetailsScreen extends StatefulWidget {
   final String claimId;
   final InsurerRepository? insurer;
   final ClaimsRepository? claims;
+  final ConsentRepository? consents;
   final bool readOnly;
   final String readOnlyNote;
   const InsurerClaimDetailsScreen({
@@ -28,6 +32,7 @@ class InsurerClaimDetailsScreen extends StatefulWidget {
     required this.claimId,
     this.insurer,
     this.claims,
+    this.consents,
     this.readOnly = false,
     this.readOnlyNote = 'Read-only view. Actions on this claim belong to its insurer staff.',
   });
@@ -48,6 +53,7 @@ class _ClaimFile {
 class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
   late final InsurerRepository _insurer = widget.insurer ?? InsurerRepository();
   late final ClaimsRepository _claims = widget.claims ?? ClaimsRepository();
+  late final ConsentRepository _consents = widget.consents ?? ConsentRepository();
   late Future<_ClaimFile> _future;
   DecisionIntegrity? _integrity;
   bool _busy = false;
@@ -84,7 +90,7 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
     return file;
   }
 
-  void _reload() => setState(() => _future = _load());
+  void _reload() => setState(() { _future = _load(); });
 
   Future<void> _run(Future<void> Function() action, String done) async {
     if (_busy) return;
@@ -106,6 +112,84 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
         if (mounted) setState(() => _integrity = result);
       }, 'Integrity checked');
 
+  Future<void> _viewConsent() async {
+    try {
+      final detail = await _consents.claimConsent(widget.claimId);
+      if (!mounted) return;
+      if (detail == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No consent form has been sent for this claim yet.')));
+        return;
+      }
+      await showConsentTextDialog(context, detail);
+    } catch (e) {
+      if (mounted) showErrorSnack(context, e);
+    }
+  }
+
+  Future<void> _sendConsent() => _run(() async {
+        await _consents.sendClaimConsent(widget.claimId);
+      }, 'Consent form sent to the customer');
+
+  /// POPIA: work past Verified waits for the customer's signed consent form. Claims verified
+  /// before consent forms existed have none and are not held up (the backend agrees).
+  static String? consentHold(Consent? c) {
+    if (c == null || c.isSigned) return null;
+    if (c.isWithdrawn) return 'The customer withdrew consent. Send a new consent form to continue.';
+    if (c.isDeclined) return 'The customer declined the consent form. Send a new consent form to continue.';
+    return 'Waiting for the customer to sign the consent form.';
+  }
+
+  Widget _consentSection(ClaimDetail c) {
+    final consent = c.consent;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    const finished = {BackendStage.paid, BackendStage.withdrawn, BackendStage.expired};
+    final canSend = !widget.readOnly &&
+        !finished.contains(c.stage) &&
+        (consent == null ? c.stage != BackendStage.draft && c.stage != BackendStage.submitted : consent.isRefused);
+    return _section('Consent (POPIA)', [
+      if (consent == null)
+        Text(
+          c.stage == BackendStage.submitted
+              ? "The customer's consent form is sent automatically when the claim is verified."
+              : 'No consent form on this claim.',
+          style: TextStyle(color: muted),
+        )
+      else ...[
+        Wrap(spacing: EcSpace.sm, runSpacing: EcSpace.sm, children: [
+          ConsentStatusChip(status: consent.status),
+          if (consent.isSigned) ConsentSealChip(seal: consent.seal),
+        ]),
+        const SizedBox(height: EcSpace.sm),
+        _kv('Sent', formatConsentDate(consent.requestedAt)),
+        if (consent.isSigned) _kv('Signed by', '${consent.signedName ?? '—'} · ${formatConsentDate(consent.signedAt)}'),
+        if (consent.isRefused) _kv(consent.isWithdrawn ? 'Withdrawn' : 'Declined', formatConsentDate(consent.respondedAt)),
+        if (consent.isRefused && consent.reason != null) _kv("Customer's reason", consent.reason!),
+        _kv('Wording', consent.templateVersion == 0 ? 'EasyClaim starter text' : 'Version ${consent.templateVersion}'),
+      ],
+      if (consent != null || canSend) ...[
+        const SizedBox(height: EcSpace.sm),
+        Wrap(spacing: EcSpace.sm, runSpacing: EcSpace.sm, children: [
+          if (consent != null)
+            OutlinedButton.icon(
+              key: const Key('view-consent'),
+              onPressed: _busy ? null : _viewConsent,
+              icon: const Icon(Icons.description_outlined),
+              label: const Text('View form'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+            ),
+          if (canSend)
+            FilledButton.icon(
+              key: const Key('send-consent'),
+              onPressed: _busy ? null : _sendConsent,
+              icon: const Icon(Icons.send_outlined),
+              label: Text(consent == null ? 'Send consent form' : 'Send a new consent form'),
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+            ),
+        ]),
+      ],
+    ]);
+  }
+
   Future<void> _openDecisionForm(ClaimDetail claim) async {
     final input = await showDialog<_DecisionInput>(
       context: context,
@@ -126,7 +210,9 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
     // Theme buttons: the next step of the workflow is a filled (brand) button, side actions are
     // outlined. Full width, at least 48 px tall.
     const fullWidth = Size(double.infinity, 48);
-    Widget button(String label, IconData icon, VoidCallback onPressed, {bool secondary = false}) => Padding(
+    // Forward steps (Screening, Review, Decision, Paid) wait for a signed consent form.
+    final hold = consentHold(file.claim.consent);
+    Widget button(String label, IconData icon, VoidCallback onPressed, {bool secondary = false, bool forward = false}) => Padding(
           padding: const EdgeInsets.only(bottom: EcSpace.sm),
           child: secondary
               ? OutlinedButton.icon(
@@ -136,7 +222,7 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
                   style: OutlinedButton.styleFrom(minimumSize: fullWidth),
                 )
               : FilledButton.icon(
-                  onPressed: _busy ? null : onPressed,
+                  onPressed: _busy || (forward && hold != null) ? null : onPressed,
                   icon: Icon(icon),
                   label: Text(label),
                   style: FilledButton.styleFrom(minimumSize: fullWidth),
@@ -180,48 +266,60 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
       }, 'Payout completed (simulated)');
     }
 
+    const forwardStages = {BackendStage.verified, BackendStage.screening, BackendStage.review, BackendStage.decision, BackendStage.appeal};
+    final holdNote = hold == null || !forwardStages.contains(stage)
+        ? null
+        : Padding(
+            key: const Key('consent-hold'),
+            padding: const EdgeInsets.only(bottom: EcSpace.sm),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.pause_circle_outline, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              const SizedBox(width: EcSpace.sm),
+              Expanded(child: Text(hold, style: const TextStyle(fontWeight: FontWeight.w600))),
+            ]),
+          );
+    final List<Widget> actions;
     switch (stage) {
       case BackendStage.submitted:
-        return [button('Verify claim', Icons.fact_check_outlined, () => advance('verify', 'Claim verified'))];
+        actions = [button('Verify claim', Icons.fact_check_outlined, () => advance('verify', 'Claim verified. The consent form was sent to the customer.'))];
       case BackendStage.verified:
-        return [button('Run screening', Icons.radar, () => advance('screen', 'Screening attached'))];
+        actions = [button('Run screening', Icons.radar, () => advance('screen', 'Screening attached'), forward: true)];
       case BackendStage.screening:
-        return [
-          button('Move to review', Icons.rate_review_outlined, () => advance('review', 'Claim moved to review')),
+        actions = [
+          button('Move to review', Icons.rate_review_outlined, () => advance('review', 'Claim moved to review'), forward: true),
           button('Request information', Icons.help_outline, requestInfo, secondary: true),
         ];
       case BackendStage.review:
-        return [
+        actions = [
           if (isManager)
-            button('Record decision', Icons.gavel, () => _openDecisionForm(file.claim))
+            button('Record decision', Icons.gavel, () => _openDecisionForm(file.claim), forward: true)
           else
             note('Manager decision required.'),
           button('Request information', Icons.help_outline, requestInfo, secondary: true),
         ];
       case BackendStage.decision:
         if (file.claim.status == 'Approved' && !file.payout.isPaid) {
-          if (!isManager) return [note('Manager payout required.')];
-          return [
-            button('Pay claim (simulated)', Icons.payments_outlined, pay),
-          ];
+          actions = isManager ? [button('Pay claim (simulated)', Icons.payments_outlined, pay, forward: true)] : [note('Manager payout required.')];
+        } else {
+          actions = [note(file.claim.status == 'Rejected' ? 'Rejected. The customer may appeal.' : 'Decision recorded.')];
         }
-        return [note(file.claim.status == 'Rejected' ? 'Rejected. The customer may appeal.' : 'Decision recorded.')];
       case BackendStage.appeal:
-        return [
+        actions = [
           if (file.claim.appealReason != null) note('Customer\'s appeal: "${file.claim.appealReason}"'),
-          if (!isManager) note('Manager must re-open the appeal.') else button('Re-review appeal', Icons.replay, () => advance('review', 'Appeal moved to review')),
+          if (!isManager) note('Manager must re-open the appeal.') else button('Re-review appeal', Icons.replay, () => advance('review', 'Appeal moved to review'), forward: true),
         ];
       case BackendStage.infoNeeded:
-        return [
+        actions = [
           note(file.claim.infoRequest == null
               ? 'Waiting for the customer to update the claim.'
               : 'Waiting for the customer. You asked: "${file.claim.infoRequest}"'),
         ];
       case BackendStage.paid:
-        return [note('Claim paid. No further action.')];
+        actions = [note('Claim paid. No further action.')];
       default:
-        return [note('No actions available for this stage.')];
+        actions = [note('No actions available for this stage.')];
     }
+    return [?holdNote, ...actions];
   }
 
   @override
@@ -309,6 +407,7 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
                     ] else
                       Text('Not paid.', style: TextStyle(color: muted)),
                   ]),
+                  if (c.stage != BackendStage.draft) _consentSection(c),
                   if (c.stage != BackendStage.draft)
                     ClaimMessagesPanel(claimId: widget.claimId, canPost: !widget.readOnly, repository: _claims, title: 'Messages with the customer'),
                   if (widget.readOnly)

@@ -1,7 +1,7 @@
 # Demo runbook
 
 Two ways to demo: **live** on the team's Cloudflare account (nothing to install), or **local** on one laptop (Worker
-with local D1/R2 via Miniflare plus the Flutter app). Updated 27 Sep 2026 (migrations 0001-0014).
+with local D1/R2 via Miniflare plus the Flutter app). Updated 27 Sep 2026 (migrations 0001-0015).
 
 ## Live (team Cloudflare account)
 
@@ -49,7 +49,7 @@ cd backend
 npm install
 npm run setup:local        # creates backend/.dev.vars: JWT_SECRET, MLDSA_SEED, PII_KEY (random), DEMO_LOGIN_PASSWORD=1234567
                            # an older .dev.vars? run: npm run setup:local -- --add-missing
-npm run demo:setup:local   # migrations 0001..0014, seed, demo accounts, quantum screening signals, the NORMAL + HIGH demo claims (with payout details)
+npm run demo:setup:local   # migrations 0001..0015, seed, demo accounts, quantum screening signals, the NORMAL + HIGH demo claims (with payout details)
 npm run dev                # http://127.0.0.1:8787 ; wait until `curl http://127.0.0.1:8787/api/v1/claims` answers 401
 ```
 
@@ -97,6 +97,11 @@ Anyone can also register a new customer from the sign-in screen ("Create account
 2. **Assessor (`assessor_discovery`)**: the queue shows the claim with its amount → Verify → Screen. The screening
    card shows the classical and quantum-kernel signals, the band and "Review required / Human decision required".
    Open `claim_demo_unusual` (seeded HIGH anomaly) and screen it: HIGH, and it is still just "Screening". → Review.
+   **POPIA consent:** Verify means "documents checked", and it sends `mike` the insurer's consent / claim mandate form.
+   Screen stays locked ("Waiting for the customer to sign") until `mike` opens the claim (or the Home banner), reads
+   the form, ticks "I agree", types his name and password and signs. The form is sealed with ML-DSA-65 and staff see
+   "Signed · Sealed". The seeded demo claims start at Verified without a form: press "Send consent form" first.
+   `mike` can withdraw consent later (Profile → Consent forms); the claim then stops until a new form is signed.
    The assessor sees "Manager decision required": no Decide or Pay button. Evidence rows open the file itself.
    **Hand-off:** "Request information" asks for a message and moves the claim to Info Needed. As `mike`, the claim
    shows the insurer's message with "Upload more" and "Reply"; sending the reply moves it back to Screening. Both sides
@@ -127,10 +132,14 @@ Anyone can also register a new customer from the sign-in screen ("Create account
       then upload each insurer's required documents (ID document, proof of address, policy schedule by default).
    e. The insurer admin → Policy requests → open the request: client details (ID masked; "Reveal" is recorded),
       open each document and tick "Checked". Approve unlocks only when every required document is checked; or
-      "Ask for more" (goes back to the customer) or Decline. Search any client with their EasyClaim ID, and change
+      "Ask for more" (goes back to the customer) or Decline. With every document checked, "Send consent form" sends
+      the insurer's POPIA consent form; Approve unlocks only once the customer has signed it. Search any client with their EasyClaim ID, and change
       the insurer's list under "Required docs".
       Approve (enter the plan name). The policy appears under the
       customer's covers, and the normal claim journey (steps 1–3) works on it.
+   f. The insurer admin → Consent forms: edit the insurer's own onboarding and claim consent wording (placeholders
+      such as `{{insurer}}` are filled in). Until it is saved, the EasyClaim POPIA starter text is used. Each save is
+      a new version; forms already sent keep the text the customer saw.
    The superadmin never sees claims: `/claims` is 403 and every claim URL is 404 for it.
 6. **Customer again**: claim shows Paid, the decision and "Decision verified". No model internals.
 7. **Security** (Postman folders 00, 5–8, 11, 12 or the script below; tokens are re-checked against the account on

@@ -12,8 +12,7 @@ import {
   call,
   claimStage,
   createSubmittedClaim,
-  customerA,
-} from './helpers'
+  customerA, signClaimConsent } from './helpers'
 
 // Seed: claim_disc_101 (tenant A = ins_discovery, Review), claim_sanlam_102 (tenant B =
 // ins_sanlam, Decision/Approved), claim_mom_103 (ins_momentum, Submitted).
@@ -148,6 +147,7 @@ describe('insurer transitions (role + tenant + state machine)', () => {
 
     expect((await call(`/claims/${id}/verify`, { method: 'POST', as: managerA })).status).toBe(200)
     expect(await claimStage(id)).toMatchObject({ stage: 'Verified' })
+    await signClaimConsent(id)
     expect((await call(`/claims/${id}/screen`, { method: 'POST', as: managerA })).status).toBe(200)
     expect((await call(`/claims/${id}/review`, { method: 'POST', as: managerA })).status).toBe(200)
     expect(await claimStage(id)).toMatchObject({ stage: 'Review' })
@@ -182,7 +182,10 @@ describe('insurer transitions (role + tenant + state machine)', () => {
 
   it('STATE-003 insufficient role → 403 (assessor, insurer admin, superadmin and customer cannot pay), audited', async () => {
     const id = await createSubmittedClaim()
-    for (const step of ['verify', 'screen', 'review']) await call(`/claims/${id}/${step}`, { method: 'POST', as: assessorA })
+    for (const step of ['verify', 'screen', 'review']) {
+      await call(`/claims/${id}/${step}`, { method: 'POST', as: assessorA })
+      if (step === 'verify') await signClaimConsent(id)
+    }
     await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Approved', reason: 'test' } })
 
     const before = (await auditRows('authz.role_denied')).length
@@ -207,7 +210,10 @@ describe('insurer transitions (role + tenant + state machine)', () => {
 
   it('STATE-005 a rejected decision cannot be paid, but can be appealed and re-reviewed by the manager only', async () => {
     const id = await createSubmittedClaim()
-    for (const step of ['verify', 'screen', 'review']) await call(`/claims/${id}/${step}`, { method: 'POST', as: assessorA })
+    for (const step of ['verify', 'screen', 'review']) {
+      await call(`/claims/${id}/${step}`, { method: 'POST', as: assessorA })
+      if (step === 'verify') await signClaimConsent(id)
+    }
     await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: { outcome: 'Rejected', reason: 'test' } })
 
     expect(await (await call(`/claims/${id}/pay`, { method: 'POST', as: managerA })).json()).toEqual({ error: 'not_approved' })
@@ -223,6 +229,7 @@ describe('insurer transitions (role + tenant + state machine)', () => {
   it('STATE-006 request-info round trip: insurer asks, customer answers, claim returns to Screening', async () => {
     const id = await createSubmittedClaim()
     await call(`/claims/${id}/verify`, { method: 'POST', as: managerA })
+    await signClaimConsent(id)
     await call(`/claims/${id}/screen`, { method: 'POST', as: managerA })
     expect((await call(`/claims/${id}/request-info`, { method: 'POST', as: managerA })).status).toBe(200)
     expect(await claimStage(id)).toMatchObject({ stage: 'Info Needed' })

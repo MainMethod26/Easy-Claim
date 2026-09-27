@@ -17,6 +17,7 @@ import { auditStatement, writeAuditEvent } from '../security/audit'
 import { decryptField, encryptField, isValidSaIdNumber, maskIdNumber } from '../security/pii'
 import { MAX_EVIDENCE_BYTES, isAllowedEvidenceType, matchesMagicBytes, sanitizeFilename, sha256Hex, ALLOWED_EVIDENCE_TYPES } from '../security/evidence'
 import type { Outcome } from './service'
+import { latestConsent } from '../consent/service'
 
 type C = Context<AppEnv>
 const now = () => new Date().toISOString()
@@ -388,6 +389,8 @@ export async function requestDetail(c: C, tenantId: string, requestId: string) {
     .bind(requestId)
     .first<{ status: string; info_message: string | null; decision_reason: string | null; created_at: string; updated_at: string | null; policy_id: string | null }>()
   const docs = await checklist(db, requestId, tenantId)
+  const documentsDone = docs.complete && (await hasProfile(db, req.user_id)) && req.status === 'pending'
+  const consent = await latestConsent(c, 'policy_link', requestId)
   return {
     id: req.id,
     policyNumber: req.policy_number,
@@ -399,7 +402,12 @@ export async function requestDetail(c: C, tenantId: string, requestId: string) {
     updatedAt: row!.updated_at,
     client: await clientCard(db, req.user_id),
     documents: docs.items,
-    readyToApprove: docs.complete && (await hasProfile(db, req.user_id)) && req.status === 'pending',
+    // Step 1: every required document checked → the consent form can be sent.
+    readyForConsent: documentsDone && (consent === null || !['pending', 'signed'].includes(consent.status)),
+    // POPIA consent / mandate form for this request (null until sent).
+    consent,
+    // Step 2: documents checked AND the customer signed → Approve.
+    readyToApprove: documentsDone && consent?.status === 'signed',
   }
 }
 

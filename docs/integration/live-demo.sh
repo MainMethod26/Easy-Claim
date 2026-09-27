@@ -20,6 +20,13 @@ req() {
 check() { # check LABEL EXPECTED ACTUAL
   if [ "$2" = "$3" ]; then PASS=$((PASS+1)); printf 'PASS  %-72s %s\n' "$1" "$3"; else FAIL=$((FAIL+1)); printf 'FAIL  %-72s expected %s got %s\n' "$1" "$2" "$3"; fi
 }
+# POPIA consent: the customer (mike) signs the pending consent form for a claim (typed name + password).
+sign_consent() {
+  local list; list=$(req GET /consents "$CUST" | cut -d' ' -f2-)
+  local id; id=$(echo "$list" | j "(o.consents.find(x=>x.subjectId==='$1'&&x.status==='pending')||{}).id")
+  local name; name=$(echo "$list" | j "(o.consents.find(x=>x.subjectId==='$1'&&x.status==='pending')||{}).signAs")
+  req POST "/consents/$id/sign" "$CUST" "{\"agree\":true,\"fullName\":\"$name\",\"password\":\"$PW\"}" | cut -c1-3
+}
 login() { req POST /auth/login "" "{\"username\":\"$1\",\"password\":\"$PW\"}" | cut -d' ' -f2- | j 'o.token'; }
 
 echo "== EasyClaim live demo against $BASE ($(date -u +%FT%TZ))"
@@ -69,6 +76,9 @@ check "evidence locked after submit -> 409" 409 "$(req POST /claims/$CID/evidenc
 check "assessor sees 1 evidence file" 1 "$(req GET /claims/$CID/evidence "$ASSA" | cut -d' ' -f2- | j 'o.evidence.length')"
 
 echo; echo "-- Insurer journey (assessor then manager) on the HIGH_ANOMALY demo claim (claim_demo_unusual, stage Verified)"
+check "screen before consent -> 409 consent_required" 409 "$(req POST /claims/claim_demo_unusual/screen "$ASSA" | cut -c1-3)"
+check "assessor sends the POPIA consent form -> 201" 201 "$(req POST /claims/claim_demo_unusual/consent "$ASSA" | cut -c1-3)"
+check "customer signs it (name + password) -> 200" 200 "$(sign_consent claim_demo_unusual)"
 R=$(req POST /claims/claim_demo_unusual/screen "$ASSA"); check "screen -> 200" 200 "${R:0:3}"
 check "signal band"            HIGH             "$(echo "${R:4}" | j 'o.riskSignals.anomalyBand')"
 check "recommendation"         REVIEW_REQUIRED  "$(echo "${R:4}" | j 'o.riskSignals.screeningRecommendation')"
@@ -88,12 +98,16 @@ check "decision signed with"   ML-DSA-65        "$(echo "${R:4}" | j 'o.integrit
 check "customer verifies decision integrity" VALID "$(req GET /claims/claim_demo_unusual/decision/verify "$CUST" | cut -d' ' -f2- | j 'o.integrity.status')"
 
 echo; echo "-- Approve + pay path on the NORMAL demo claim (claim_demo_normal)"
+check "send consent form -> 201" 201 "$(req POST /claims/claim_demo_normal/consent "$ASSA" | cut -c1-3)"
+check "customer signs -> 200" 200 "$(sign_consent claim_demo_normal)"
 for s in screen review; do check "$s -> 200" 200 "$(req POST /claims/claim_demo_normal/$s "$ASSA" | cut -c1-3)"; done
 check "approve without payout details -> 422" 422 "$(req POST /claims/claim_demo_normal/decide "$MANA" '{"outcome":"Approved","reason":"ok"}' | cut -c1-3)"
 echo "      (demo claims carry no payout details, so approval is refused by design; the approve+pay path runs on the new claim below)"
 
 echo; echo "-- Approve + pay path on the new customer claim $CID"
-for s in verify screen review; do check "$s -> 200" 200 "$(req POST /claims/$CID/$s "$ASSA" | cut -c1-3)"; done
+check "verify -> 200 (sends the consent form)" 200 "$(req POST /claims/$CID/verify "$ASSA" | cut -c1-3)"
+check "customer signs the consent form -> 200" 200 "$(sign_consent $CID)"
+for s in screen review; do check "$s -> 200" 200 "$(req POST /claims/$CID/$s "$ASSA" | cut -c1-3)"; done
 R=$(req POST /claims/$CID/decide "$MANA" '{"outcome":"Approved","reason":"Evidence verified, within cover"}'); check "approve -> 200" 200 "${R:0:3}"
 check "approved amount (cents)" 420000 "$(echo "${R:4}" | j 'o.approvedAmountCents')"
 check "decision integrity" VALID "$(req GET /claims/$CID/decision/verify "$CUST" | cut -d' ' -f2- | j 'o.integrity.status')"

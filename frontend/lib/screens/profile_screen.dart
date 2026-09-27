@@ -5,6 +5,7 @@ import 'auth_screen.dart';
 import 'package:flutter/material.dart';
 import '../widgets/setup_checklist.dart';
 import 'support_screen.dart';
+import 'consent_form_screen.dart';
 import '../widgets/aurora_background.dart';
 
 /// Profile Screen
@@ -138,6 +139,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 14),
 
+              // POPIA consent / mandate forms from insurers: read, sign or withdraw.
+              _buildSectionHeader('PRIVACY & CONSENT'),
+              _buildSettingsCard([
+                _buildActionRow(
+                  key: const Key('open-consent-forms'),
+                  icon: Icons.verified_user_outlined,
+                  iconColor: EcColors.info,
+                  title: 'Consent forms',
+                  subtitle: 'Forms your insurers sent you: sign, view or withdraw consent',
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConsentFormsScreen())),
+                ),
+              ]),
+
+              const SizedBox(height: 24),
+
               // Quick Entry 3: Support & Ombudsman
               _buildSectionHeader('SUPPORT & CLAIMS OMBUDSMAN'),
               _buildSettingsCard([
@@ -234,6 +250,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildActionRow({
+    Key? key,
     required IconData icon,
     required Color iconColor,
     required String title,
@@ -242,6 +259,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required VoidCallback onTap,
   }) {
     return ListTile(
+      key: key,
       onTap: onTap,
       leading: Container(
         width: 40,

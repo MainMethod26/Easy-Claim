@@ -9,6 +9,7 @@ import { DECISION_RULES_VERSION, evidenceDigest, gatedInsert, latestDecision, pa
 import { claimIdParam, decideSchema, emptyBodySchema, requestInfoSchema, validate } from '../security/validation'
 import { readRiskSignals, signalSummary } from '../screening/quantumSignal'
 import { getSigner, signDecision, verifyDecision } from '../security/integrity'
+import { consentInsert, latestConsentDetail, sendConsent } from '../consent/service'
 
 /**
  * Insurer-side claim operations. Each route is a thin wrapper: the state machine
@@ -39,9 +40,39 @@ function respond(c: Context<AppEnv>, claimId: string, from: string, to: ClaimSta
 router.post('/:claimId/verify', insurerOnly, validate('param', claimIdParam), async (c) => {
   const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'insurer')
   if (!claim) return c.json(notFound, 404)
-  const t = await transitionClaim(c, claim, 'Verified')
+  // Documents checked: the customer's POPIA consent / claim mandate form is created in the same batch
+  // (only if the stage change applies). Screening waits for the customer's signature.
+  const form = await consentInsert(c, claimSubject(claim), true)
+  const t = await transitionClaim(c, claim, 'Verified', { extra: [form.statement] })
   if (!t.ok) return c.json({ error: t.error }, t.status)
-  return respond(c, claim.id, claim.stage, 'Verified')
+  return c.json({ status: 'transitioned', claimId: claim.id, from: claim.stage, to: 'Verified', consentRequested: true })
+})
+
+function claimSubject(claim: { id: string; tenant_id: string | null; user_id: string }) {
+  return {
+    tenantId: claim.tenant_id as string,
+    userId: claim.user_id,
+    subjectType: 'claim' as const,
+    subjectId: claim.id,
+    subjectLabel: `claim ${claim.id.replace(/^claim_/, '').slice(0, 8).toUpperCase()}`,
+  }
+}
+
+// Send (or re-send after a decline or withdrawal) the consent form for a claim whose documents are
+// checked. Claims verified before consent forms existed get theirs this way.
+router.post('/:claimId/consent', insurerOnly, validate('param', claimIdParam), async (c) => {
+  const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'insurer')
+  if (!claim) return c.json(notFound, 404)
+  if (['Draft', 'Submitted', 'Withdrawn', 'Expired', 'Paid'].includes(claim.stage)) return c.json({ error: 'documents_not_checked' }, 409)
+  const r = await sendConsent(c, claimSubject(claim))
+  return r.ok ? c.json({ consent: r.value }, 201) : c.json({ error: r.error }, r.status)
+})
+
+// The latest consent form (full text and seal check) for the claim's tenant staff and its owner.
+router.get('/:claimId/consent', validate('param', claimIdParam), async (c) => {
+  const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'read')
+  if (!claim) return c.json(notFound, 404)
+  return c.json({ consent: await latestConsentDetail(c, 'claim', claim.id) })
 })
 
 router.post('/:claimId/screen', insurerOnly, validate('param', claimIdParam), async (c) => {

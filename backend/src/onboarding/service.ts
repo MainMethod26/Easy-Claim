@@ -15,6 +15,7 @@ import type { AppEnv } from '../types'
 import { auditStatement } from '../security/audit'
 import { hashPassword } from '../security/password'
 import { sha256Hex } from '../security/ledger'
+import { isSigned } from '../consent/service'
 import { checklist, checklistMany, defaultRequirementStatements, hasProfile, readyToApprove, type RequestDocumentDto } from './customerOnboarding'
 
 type C = Context<AppEnv>
@@ -337,6 +338,8 @@ export async function approvePolicyLink(c: C, tenantId: string, requestId: strin
   if (req.status !== 'pending') return { ok: false, status: 409, error: req.status === 'more_info' ? 'waiting_for_customer' : 'already_decided' }
   // Approval needs the client's details and every required document uploaded and checked by the insurer.
   if (!(await readyToApprove(db, tenantId, requestId))) return { ok: false, status: 409, error: 'documents_incomplete' }
+  // POPIA: then the customer must have signed the insurer's consent form (sent after the document check).
+  if (!(await isSigned(db, 'policy_link', requestId))) return { ok: false, status: 409, error: 'consent_required' }
   const actor = c.get('actor')
   const at = now()
   const policyId = `pol_${crypto.randomUUID()}`

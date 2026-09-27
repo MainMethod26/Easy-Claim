@@ -10,6 +10,8 @@ import {
   applicationStatusQuerySchema,
   approveApplicationSchema,
   approveLinkSchema,
+  consentKindParam,
+  consentTemplateSchema,
   easyclaimIdQuerySchema,
   linkStatusQuerySchema,
   moreInfoSchema,
@@ -37,6 +39,7 @@ import {
   rejectPolicyLink,
   tenantLinkRequests,
 } from '../onboarding/service'
+import { latestConsentDetail, saveTemplate, sendConsent, templatesFor } from '../consent/service'
 import {
   findCustomer,
   openDocument,
@@ -340,6 +343,30 @@ tenantAdmin.post('/policy-requests/:requestId/documents/:docKey/verify', validat
 tenantAdmin.post('/policy-requests/:requestId/request-info', validate('param', linkRequestIdParam), validate('json', moreInfoSchema), async (c) => {
   const r = await requestMoreInfo(c, c.get('actor').tenantId as string, c.req.valid('param').requestId, c.req.valid('json').message)
   return r.ok ? c.json({ status: 'more_info' }) : c.json({ error: r.error }, r.status)
+})
+
+// ---- POPIA consent forms: the insurer's own wording, and sending the form after the document check
+tenantAdmin.get('/consent-templates', async (c) => c.json(await templatesFor(c.env.DB, c.get('actor').tenantId as string)))
+
+tenantAdmin.put('/consent-templates/:kind', validate('param', consentKindParam), validate('json', consentTemplateSchema), async (c) =>
+  c.json({ template: await saveTemplate(c, c.get('actor').tenantId as string, c.req.valid('param').kind, c.req.valid('json').body) })
+)
+
+tenantAdmin.post('/policy-requests/:requestId/consent', validate('param', linkRequestIdParam), async (c) => {
+  const tenantId = c.get('actor').tenantId as string
+  const detail = await requestDetail(c, tenantId, c.req.valid('param').requestId)
+  if (!detail) return c.json({ error: 'not_found' }, 404)
+  if (detail.status !== 'pending') return c.json({ error: detail.status === 'more_info' ? 'waiting_for_customer' : 'already_decided' }, 409)
+  if (!detail.readyForConsent) return c.json({ error: detail.consent ? 'consent_already_sent' : 'documents_incomplete' }, 409)
+  const link = await c.env.DB.prepare('SELECT user_id, policy_number FROM policy_link_requests WHERE id = ?').bind(detail.id).first<{ user_id: string; policy_number: string }>()
+  const r = await sendConsent(c, { tenantId, userId: link!.user_id, subjectType: 'policy_link', subjectId: detail.id, subjectLabel: `linking policy ${link!.policy_number}` })
+  return r.ok ? c.json({ consent: r.value }, 201) : c.json({ error: r.error }, r.status)
+})
+
+tenantAdmin.get('/policy-requests/:requestId/consent', validate('param', linkRequestIdParam), async (c) => {
+  const detail = await requestDetail(c, c.get('actor').tenantId as string, c.req.valid('param').requestId)
+  if (!detail) return c.json({ error: 'not_found' }, 404)
+  return c.json({ consent: await latestConsentDetail(c, 'policy_link', detail.id) })
 })
 
 tenantAdmin.get('/requirements', async (c) => c.json({ requirements: await requirementsFor(c.env.DB, c.get('actor').tenantId as string) }))

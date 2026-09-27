@@ -55,7 +55,7 @@ class _InsurerDashboardScreenState extends State<InsurerDashboardScreen> {
     _future = _repo.queue();
   }
 
-  void _reload() => setState(() => _future = _repo.queue());
+  void _reload() => setState(() { _future = _repo.queue(); });
 
   void _signOut() {
     Session.instance.signOut();

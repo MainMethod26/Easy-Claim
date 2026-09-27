@@ -6,6 +6,7 @@ import { auditStatement, writeAuditEvent } from '../security/audit'
 import { loadAuthorizedClaim, transitionClaim } from '../security/claimAccess'
 import { MAIN_PATH, isClaimStage } from '../security/claimStateMachine'
 import { destinationHash, latestDecision, payoutFor } from '../security/ledger'
+import { latestConsent, policyConsentBlocked } from '../consent/service'
 import {
   appealSchema,
   claimIdParam,
@@ -94,7 +95,9 @@ router.post('/initiate', requireRole('CUSTOMER'), validate('json', initiateClaim
       ? 'policy_not_active'
       : policy.tenant_id === null
         ? 'policy_missing_tenant'
-        : null
+        : (await policyConsentBlocked(c.env.DB, policy.id))
+          ? 'consent_withdrawn'
+          : null
   if (!policy || reason) {
     await writeAuditEvent(c, {
       action: 'claim.initiate_rejected',
@@ -201,11 +204,12 @@ router.get('/:claimId', validate('param', claimIdParam), async (c) => {
   )
     .bind(claim.policy_id)
     .first<{ plan_name: string | null; insurer_name: string | null }>()
-  const [infoRequest, appeal] = await Promise.all([
+  const [infoRequest, appeal, consent] = await Promise.all([
     claim.stage === 'Info Needed' ? latestInfoRequest(c.env.DB, claim.id) : Promise.resolve(null),
     c.env.DB.prepare("SELECT body, created_at FROM claim_messages WHERE claim_id = ? AND kind = 'appeal' ORDER BY created_at DESC LIMIT 1")
       .bind(claim.id)
       .first<{ body: string; created_at: string }>(),
+    latestConsent(c, 'claim', claim.id),
   ])
   return c.json({
     claim: {
@@ -229,6 +233,8 @@ router.get('/:claimId', validate('param', claimIdParam), async (c) => {
       infoRequest,
       // The customer's latest appeal reason, if any.
       appealReason: appeal ? { body: appeal.body, createdAt: appeal.created_at } : null,
+      // POPIA consent / claim mandate form (null until the documents are checked).
+      consent,
     },
   })
 })

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 //   backend/src/endpoints/admin.ts  (what the server mounts)
 //   docs/API_CONTRACT.md            (the agreed contract)
 //   lib/data/repositories/admin_repositories.dart  (what the app calls)
+//   lib/data/repositories/consent_repository.dart  (POPIA consent forms: customer, claim staff, tenant)
 // Every mounted admin/tenant route must be documented with the same method, and every app
 // call must hit a documented route with that method. Role, tenant and response shapes are
 // asserted by backend/test/roleMatrix.test.ts, adminMetrics.test.ts and test/console_test.dart.
@@ -43,8 +44,8 @@ void main() {
     expect(missing, isEmpty, reason: 'Mounted but undocumented: $missing');
   });
 
-  test('every admin repository call targets a documented route with the same method', () {
-    final source = _read('lib/data/repositories/admin_repositories.dart');
+  Set<String> repositoryCalls(String path) {
+    final source = _read(path);
     final calls = <String>{};
     for (final m in RegExp(r"_api\.(get|post|put|patch|delete)\(").allMatches(source)) {
       // All string literals in the call's argument list up to the first ';' (covers ternaries).
@@ -53,7 +54,26 @@ void main() {
         calls.add('${m[1]!.toUpperCase()} ${_normalise(lit[1]!)}');
       }
     }
+    return calls;
+  }
+
+  test('every admin repository call targets a documented route with the same method', () {
+    final calls = repositoryCalls('lib/data/repositories/admin_repositories.dart');
     expect(calls, containsAll(['GET /tenant/overview', 'GET /tenant/audit', 'GET /admin/overview', 'GET /admin/audit']));
+    final missing = calls.difference(documented);
+    expect(missing, isEmpty, reason: 'Called by the app but not in the contract: $missing');
+  });
+
+  test('every consent repository call targets a documented route with the same method', () {
+    final calls = repositoryCalls('lib/data/repositories/consent_repository.dart');
+    expect(calls, containsAll([
+      'GET /consents',
+      'POST /consents/:consentId/sign',
+      'POST /consents/:consentId/withdraw',
+      'POST /claims/:claimId/consent',
+      'POST /tenant/policy-requests/:requestId/consent',
+      'PUT /tenant/consent-templates/:kind',
+    ]));
     final missing = calls.difference(documented);
     expect(missing, isEmpty, reason: 'Called by the app but not in the contract: $missing');
   });

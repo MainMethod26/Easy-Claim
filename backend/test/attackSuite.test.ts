@@ -18,8 +18,7 @@ import {
   managerB,
   mintToken,
   payoutRows,
-  superadmin,
-} from './helpers'
+  superadmin, signClaimConsent } from './helpers'
 
 // Integration pass: ATTACK-01..20 regression suite (docs/INTEGRATION_REPORT.md §24).
 // Several attacks are also covered in depth by the phase suites (auth, bola, tenant,
@@ -130,6 +129,7 @@ describe('screening trust boundary', () => {
   it('ATTACK-11 client-supplied quantum/classical scores are ignored or rejected', async () => {
     const id = await createSubmittedClaim()
     await call(`/claims/${id}/verify`, { method: 'POST', as: managerA })
+    await signClaimConsent(id)
     await insertHighSignal(id)
     // /screen takes no body: the fake values are ignored and the stored signal is returned.
     const screened = await json(

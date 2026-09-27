@@ -38,7 +38,7 @@ class _SuperadminClaimsScreenState extends State<SuperadminClaimsScreen> {
     return _ClaimsData(results[0] as List<TenantSummary>, results[1] as List<ClaimSummary>);
   }
 
-  void _reload() => setState(() => _future = _load());
+  void _reload() => setState(() { _future = _load(); });
 
   @override
   Widget build(BuildContext context) {

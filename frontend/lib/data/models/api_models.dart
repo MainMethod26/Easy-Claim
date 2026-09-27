@@ -2,6 +2,8 @@
 // database rows (snake_case); detail and action endpoints return camelCase. Each model maps
 // exactly the keys its endpoint returns; widgets never index raw maps.
 
+import 'consent_models.dart';
+
 String? _str(Object? v) => v is String ? v : null;
 int? _int(Object? v) => v is int ? v : (v is num ? v.toInt() : null);
 double _dbl(Object? v) => v is num ? v.toDouble() : 0;
@@ -112,6 +114,9 @@ class ClaimDetail {
   /// The customer's latest appeal reason.
   final String? appealReason;
 
+  /// Latest POPIA consent / claim mandate form (summary), or null until the documents are checked.
+  final Consent? consent;
+
   const ClaimDetail({
     required this.id,
     required this.policyId,
@@ -130,6 +135,7 @@ class ClaimDetail {
     this.updatedAt,
     this.infoRequest,
     this.appealReason,
+    this.consent,
   });
 
   factory ClaimDetail.fromJson(Map<String, dynamic> j) {
@@ -152,6 +158,7 @@ class ClaimDetail {
       updatedAt: _date(j['updatedAt']),
       infoRequest: j['infoRequest'] is Map ? _str((j['infoRequest'] as Map)['body']) : null,
       appealReason: j['appealReason'] is Map ? _str((j['appealReason'] as Map)['body']) : null,
+      consent: Consent.maybeFromJson(j['consent']),
     );
   }
 
@@ -365,12 +372,16 @@ class TransitionResult {
   final String from;
   final String to;
   final RiskSignals? riskSignals;
-  const TransitionResult({required this.from, required this.to, this.riskSignals});
+
+  /// True after /verify: the customer's consent form was created in the same step.
+  final bool consentRequested;
+  const TransitionResult({required this.from, required this.to, this.riskSignals, this.consentRequested = false});
 
   factory TransitionResult.fromJson(Map<String, dynamic> j) => TransitionResult(
         from: _str(j['from']) ?? '',
         to: _str(j['to']) ?? '',
         riskSignals: RiskSignals.maybeFromJson(j['riskSignals']),
+        consentRequested: j['consentRequested'] == true,
       );
 }
 

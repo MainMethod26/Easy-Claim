@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
-import { assessorA, auditRows, call, completeDocuments, customerA, customerB, insurerAdminA, insurerAdminB, managerA, saveProfile, superadmin } from './helpers'
+import { assessorA, auditRows, call, completeDocuments, customerA, customerB, insurerAdminA, insurerAdminB, managerA, saveProfile, superadmin, sendAndSignLinkConsent } from './helpers'
 
 // Insurer onboarding (apply → operator approves) and policy linking (customer requests → insurer approves).
 // src/onboarding/service.ts, migration 0011, docs/admin/ROLE_MATRIX.md.
@@ -145,6 +145,10 @@ describe('policy linking', () => {
     expect(early.status).toBe(409)
     expect(await early.json()).toEqual({ error: 'documents_incomplete' })
     await completeDocuments(requestId, customerB, insurerAdminA)
+    // Documents checked is not enough: the customer's signed POPIA consent form comes next.
+    const unsigned = await call(`/tenant/policy-requests/${requestId}/approve`, { method: 'POST', as: insurerAdminA, json: { planName: 'Discovery Classic Saver' } })
+    expect(await unsigned.json()).toEqual({ error: 'consent_required' })
+    await sendAndSignLinkConsent(requestId, customerB, insurerAdminA)
     const ok = await call(`/tenant/policy-requests/${requestId}/approve`, { method: 'POST', as: insurerAdminA, json: { planName: 'Discovery Classic Saver' } })
     expect(ok.status).toBe(200)
     const approved = (await json(ok)).request

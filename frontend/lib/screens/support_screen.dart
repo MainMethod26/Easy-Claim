@@ -59,7 +59,7 @@ class _SupportScreenState extends State<SupportScreen> {
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) return const LoadingView();
-          if (snap.hasError) return ErrorView(error: snap.error!, onRetry: () => setState(() => _future = _load()));
+          if (snap.hasError) return ErrorView(error: snap.error!, onRetry: () => setState(() { _future = _load(); }));
           final (claims, me) = snap.data!;
           return ListView(padding: const EdgeInsets.all(16), children: [
             _card(

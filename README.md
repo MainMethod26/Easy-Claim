@@ -33,7 +33,7 @@ Start here: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/API_CONTRACT.m
 cd backend
 npm install
 npm run setup:local        # backend/.dev.vars with JWT_SECRET, MLDSA_SEED and the demo password
-npm run demo:setup:local   # migrations 0001-0014, seed, demo accounts, quantum signals, demo claims
+npm run demo:setup:local   # migrations 0001-0015, seed, demo accounts, quantum signals, demo claims
 npm run dev                # http://127.0.0.1:8787 (port busy? see the runbook)
 
 cd ../frontend
@@ -75,6 +75,7 @@ bash docs/integration/live-demo.sh          # against a running local Worker
 | Audit | IMPLEMENTED: append-only `audit_events` for changes and refusals | `security/audit.ts` |
 | Flutter app | IMPLEMENTED against the real API (customer app with registration, assessor/manager claim portal, insurer-admin team portal, superadmin portal) | `frontend/lib` |
 | Customer onboarding | IMPLEMENTED: EasyClaim ID per customer, encrypted profile (SA ID checked), policy-link requests with per-insurer required documents; insurer admin reviews (ID masked, reveal audited) | `backend/src/onboarding/` |
+| POPIA consent | IMPLEMENTED: after the document check (onboarding and claim Verify) the customer signs the insurer's own consent / mandate form (name + password, sealed with ML-DSA-65); approval and screening wait for it; withdrawal stops further work | `backend/src/consent/` |
 | Stubs | Removed 27 Sep 2026: `/client/*`, `/profile`, `/activities/*`, `/ocr/process` now answer 404 | `docs/API_CONTRACT.md` |
 
 Open decisions and planned work: [docs/security/BACKEND_SECURITY_HANDOFF.md](docs/security/BACKEND_SECURITY_HANDOFF.md)

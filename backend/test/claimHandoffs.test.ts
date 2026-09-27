@@ -14,8 +14,7 @@ import {
   evidenceFile,
   insurerAdminA,
   managerA,
-  superadmin,
-} from './helpers'
+  superadmin, signClaimConsent } from './helpers'
 
 // Claim hand-offs (migration 0013, src/claims/messages.ts): information requests with a message,
 // the customer's answer, appeal and withdraw reasons, and the claim conversation.
@@ -29,6 +28,7 @@ async function screeningClaim(): Promise<string> {
   for (const step of ['verify', 'screen']) {
     const r = await call(`/claims/${id}/${step}`, { method: 'POST', as: assessorA })
     if (r.status !== 200) throw new Error(`${step} ${r.status}`)
+    if (step === 'verify') await signClaimConsent(id)
   }
   return id
 }

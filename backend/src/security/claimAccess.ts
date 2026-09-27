@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import { INSURER_ROLES, type AppEnv } from '../types'
 import { auditStatement, writeAuditEvent } from './audit'
 import { checkTransition, type ClaimStage } from './claimStateMachine'
+import { claimConsentBlock } from '../consent/service'
 
 export interface ClaimRow {
   id: string
@@ -101,9 +102,11 @@ export async function loadAuthorizedClaim(
   return null
 }
 
+const CONSENT_GATED = new Set<ClaimStage>(['Screening', 'Review', 'Decision', 'Paid'])
+
 export type TransitionOutcome =
   | { ok: true }
-  | { ok: false; status: 409; error: 'illegal_transition' | 'stale_state' }
+  | { ok: false; status: 409; error: 'illegal_transition' | 'stale_state' | 'consent_required' | 'consent_withdrawn' }
   | { ok: false; status: 403; error: 'forbidden' }
 
 export interface TransitionOptions {
@@ -162,6 +165,22 @@ export async function transitionClaim(
     return check.reason === 'role_not_permitted'
       ? { ok: false, status: 403, error: 'forbidden' }
       : { ok: false, status: 409, error: 'illegal_transition' }
+  }
+
+  // POPIA: work past the document check needs the customer's signed consent form, and a declined or
+  // withdrawn form stops further work. Enforced here so every route (staff and customer) obeys it.
+  if (CONSENT_GATED.has(to)) {
+    const blocked = await claimConsentBlock(c.env.DB, claim.id, claim.stage)
+    if (blocked) {
+      await writeAuditEvent(c, {
+        action: 'claim.transition_rejected',
+        resourceType: 'claim',
+        resourceId: claim.id,
+        outcome: 'denied',
+        details: { from: claim.stage, to, reason: blocked, ...opts.details },
+      })
+      return { ok: false, status: 409, error: blocked }
+    }
   }
 
   const now = new Date().toISOString()

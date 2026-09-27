@@ -102,6 +102,27 @@ class ApiException implements Exception {
         return 'Decisions cannot be signed right now. Ask an administrator to check the signing key.';
       case 'storage_unavailable':
         return 'Evidence storage is unavailable right now.';
+      // POPIA consent forms.
+      case 'consent_required':
+        return 'Waiting for the customer to sign the consent form.';
+      case 'consent_withdrawn':
+        return 'The customer withdrew consent. Send a new consent form to continue.';
+      case 'consent_already_sent':
+        return 'A consent form is already waiting for the customer to sign.';
+      case 'consent_already_signed':
+        return 'The customer has already signed the consent form.';
+      case 'documents_not_checked':
+        return 'Verify the claim (check its documents) before sending the consent form.';
+      case 'name_mismatch':
+        return 'The name must match the name on record.';
+      case 'too_many_attempts':
+        return 'Too many wrong passwords. Try again in 15 minutes.';
+      case 'signing_unavailable':
+        return 'Signing is unavailable right now. Try again later.';
+      case 'not_signed':
+        return 'This consent form is not signed, so it cannot be withdrawn.';
+      case 'subject_closed':
+        return 'This claim or request is closed, so the form can no longer be signed.';
     }
     switch (status) {
       case 400:

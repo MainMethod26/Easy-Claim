@@ -24,7 +24,7 @@ class _SuperadminDashboardScreenState extends State<SuperadminDashboardScreen> {
     _future = _repo.stats();
   }
 
-  void _reload() => setState(() => _future = _repo.stats());
+  void _reload() => setState(() { _future = _repo.stats(); });
 
   Widget _tile(String label, String value, IconData icon) => Expanded(
         child: Container(

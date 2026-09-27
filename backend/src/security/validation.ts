@@ -194,3 +194,14 @@ export const changePasswordSchema = z
   .object({ currentPassword: z.string().min(1).max(200), newPassword: z.string().min(8).max(200) })
   .strict()
   .refine((v) => v.currentPassword !== v.newPassword, { message: 'new password must differ' })
+
+// ---- POPIA consent forms (migration 0015) ----
+export const consentIdParam = z.object({ consentId: id })
+export const consentKindParam = z.object({ kind: z.enum(['onboarding', 'claim']) })
+/** The insurer's own wording. Long enough to say purpose, sharing, retention and the right to withdraw. */
+export const consentTemplateSchema = z.object({ body: z.string().trim().min(200).max(20000) }).strict()
+/** Signing: explicit agreement, the full name on record, and the account password (re-authentication). */
+export const signConsentSchema = z
+  .object({ agree: z.literal(true), fullName: z.string().trim().min(2).max(120), password: z.string().min(1).max(200) })
+  .strict()
+export const consentResponseSchema = z.object({ reason: z.string().trim().min(2).max(500).optional() }).strict()

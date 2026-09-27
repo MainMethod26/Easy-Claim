@@ -20,8 +20,7 @@ import {
   managerB,
   payoutRows,
   setPayoutDetails,
-  superadmin,
-} from './helpers'
+  superadmin, signClaimConsent } from './helpers'
 
 // Phase 3: decision + payout security. The legitimate demo payout is R4 200 (420 000 cents).
 const APPROVE = { outcome: 'Approved', reason: 'Documents verified, within cover' } as const
@@ -136,7 +135,10 @@ describe('decision authorization', () => {
     const { claimId } = (await res.json()) as { claimId: string }
     await call(`/claims/${claimId}/screening`, { method: 'PATCH', as: customerA, json: { causeOfLoss: 'x', incidentDate: '2026-01-10' } })
     await call(`/claims/${claimId}/submit`, { method: 'POST', as: customerA })
-    for (const step of ['verify', 'screen', 'review']) await call(`/claims/${claimId}/${step}`, { method: 'POST', as: managerA })
+    for (const step of ['verify', 'screen', 'review']) {
+      await call(`/claims/${claimId}/${step}`, { method: 'POST', as: managerA })
+      if (step === 'verify') await signClaimConsent(claimId)
+    }
     const decide = await call(`/claims/${claimId}/decide`, { method: 'POST', as: managerA, json: APPROVE })
     expect(decide.status).toBe(422)
     expect(await decide.json()).toEqual({ error: 'payout_details_missing' })
@@ -329,7 +331,10 @@ describe('decision is bound to the evidence set (Phase 2 → Phase 3)', () => {
       expect(up.status).toBe(201)
     }
     await call(`/claims/${id}/submit`, { method: 'POST', as: customerA })
-    for (const step of ['verify', 'screen', 'review']) await call(`/claims/${id}/${step}`, { method: 'POST', as: managerA })
+    for (const step of ['verify', 'screen', 'review']) {
+      await call(`/claims/${id}/${step}`, { method: 'POST', as: managerA })
+      if (step === 'verify') await signClaimConsent(id)
+    }
 
     const res = await call(`/claims/${id}/decide`, { method: 'POST', as: managerA, json: APPROVE })
     expect(res.status).toBe(200)

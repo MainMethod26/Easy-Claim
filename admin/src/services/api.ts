@@ -331,6 +331,9 @@ const ERROR_TEXT: Record<string, string> = {
   already_paid: 'This claim has already been paid.',
   not_approved: 'The claim is not approved.',
   validation_failed: 'The request was rejected as invalid.',
+  // POPIA consent forms (migration 0015): the customer must sign before work continues.
+  consent_required: 'Waiting for the customer to sign the POPIA consent form sent after verification.',
+  consent_withdrawn: 'The customer withdrew consent. Send a new consent form from the EasyClaim app to continue.',
 }
 
 export function describeError(err: unknown): string {
