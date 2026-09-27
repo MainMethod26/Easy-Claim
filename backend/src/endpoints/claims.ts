@@ -7,9 +7,11 @@ import { auditStatement, writeAuditEvent } from '../security/audit'
 import { loadAuthorizedClaim, transitionClaim } from '../security/claimAccess'
 import { MAIN_PATH, isClaimStage } from '../security/claimStateMachine'
 import { destinationHash, latestDecision, payoutFor } from '../security/ledger'
+import { applyProfileBanking, loadBanking } from '../onboarding/banking'
 import { latestConsent, policyConsentBlocked } from '../consent/service'
 import {
   appealSchema,
+  claimAmountSchema,
   claimIdParam,
   claimMessageSchema,
   initiateClaimSchema,
@@ -184,6 +186,9 @@ router.post('/:claimId/submit', requireRole('CUSTOMER'), validate('param', claim
     return c.json({ error: 'screening_incomplete' }, 422)
   }
 
+  // Banking details live on the profile now: copy the profile account onto the claim (if it has none).
+  await applyProfileBanking(c.env.DB, claim.id, claim.user_id)
+
   const t = await transitionClaim(c, claim, 'Submitted')
   if (!t.ok) return c.json({ error: t.error }, t.status)
 
@@ -191,7 +196,14 @@ router.post('/:claimId/submit', requireRole('CUSTOMER'), validate('param', claim
     event: 'ClaimSubmitted',
     data: { claimId: claim.id, timestamp: new Date().toISOString() },
   })
-  return c.json({ status: 'submitted', message: 'Claim successfully submitted for decision.', claimId: claim.id })
+  const banking = await loadBanking(c.env.DB, claim.user_id)
+  return c.json({
+    status: 'submitted',
+    message: 'Claim successfully submitted for decision.',
+    claimId: claim.id,
+    // Where a payout would go; null = no banking details on the profile yet.
+    payoutAccount: banking ? { bankName: banking.bank_name, accountLast4: banking.account_last4 } : null,
+  })
 })
 
 /**
@@ -350,6 +362,25 @@ router.put(
   }
 )
 
+/**
+ * The amount claimed, while the claim is still the customer's to edit (Draft / Info Needed). The payout
+ * account is not asked here any more: it comes from the customer's profile (PUT /covers/banking).
+ */
+router.put('/:claimId/amount', requireRole('CUSTOMER'), validate('param', claimIdParam), validate('json', claimAmountSchema), async (c) => {
+  const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'owner-write')
+  if (!claim) return c.json(notFound, 404)
+  const { claimedAmountCents } = c.req.valid('json')
+  const at = new Date().toISOString()
+  const written = await c.env.DB.prepare(
+    "UPDATE claims SET claimed_amount_cents = ?, updated_at = ? WHERE id = ? AND stage IN ('Draft', 'Info Needed')"
+  )
+    .bind(claimedAmountCents, at, claim.id)
+    .run()
+  if (written.meta.changes !== 1) return c.json({ error: 'amount_locked', stage: claim.stage }, 409)
+  await writeAuditEvent(c, { action: 'claim.amount_set', resourceType: 'claim', resourceId: claim.id, outcome: 'success', details: { claimedAmountCents } })
+  return c.json({ status: 'amount_saved', claimedAmountCents })
+})
+
 /** Masked view of the money side of a claim: inputs, latest decision, payout (if any). */
 router.get('/:claimId/payout', validate('param', claimIdParam), async (c) => {
   const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'read')
@@ -434,6 +465,7 @@ router.post(
     const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'owner-write')
     if (!claim) return c.json(notFound, 404)
     if (claim.stage !== 'Info Needed') return c.json({ error: 'not_waiting_for_you', stage: claim.stage }, 409)
+    await applyProfileBanking(c.env.DB, claim.id, claim.user_id)
     const t = await transitionClaim(c, claim, 'Screening', {
       details: { reply: true },
       extra: [messageStatement(c, claim, 'customer_reply', c.req.valid('json').message, true)],

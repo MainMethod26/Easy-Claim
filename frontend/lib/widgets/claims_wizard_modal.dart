@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../screens/banking_details_screen.dart';
 import '../core/theme/ec_tokens.dart';
 import '../core/api/api_client.dart';
 import '../core/widgets/state_views.dart';
@@ -16,7 +17,7 @@ const _ink = EcColors.ink;
 const _muted = EcColors.inkMuted;
 
 /// Customer claim wizard. Every step is backed by the API (docs/API_CONTRACT.md):
-/// initiate → verify-eligibility → PATCH screening → PUT payout-details → POST evidence →
+/// initiate → verify-eligibility → PATCH screening → PUT amount (payout account from the profile) → POST evidence →
 /// submit → GET claim + timeline. Nothing is simulated; failures are shown with their reason.
 class ClaimsWizardModal extends StatefulWidget {
   final Policy? policy;
@@ -73,9 +74,6 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
   final _policeCase = TextEditingController();
   final _details = TextEditingController();
   final _amount = TextEditingController();
-  final _bank = TextEditingController();
-  final _holder = TextEditingController();
-  final _account = TextEditingController();
   String _cause = _causes.first;
   DateTime? _incidentDate;
   String? _localError;
@@ -99,10 +97,10 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
       _w.resume(r);
       _incidentDate = _w.incidentDate;
       if (_w.claimedAmountCents != null) _amount.text = (_w.claimedAmountCents! / 100).toStringAsFixed(2);
-      if (_w.bankName != null) _bank.text = _w.bankName!;
     }
     _w.addListener(_onChange);
     _w.loadPolicies();
+    _w.loadBanking();
   }
 
   void _onChange() {
@@ -113,7 +111,7 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
   void dispose() {
     _w.removeListener(_onChange);
     _w.dispose();
-    for (final c in [_item, _location, _policeCase, _details, _amount, _bank, _holder, _account]) {
+    for (final c in [_item, _location, _policeCase, _details, _amount]) {
       c.dispose();
     }
     super.dispose();
@@ -143,10 +141,7 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
       case ClaimWizardStep.payout:
         final cents = randToCents(_amount.text);
         if (cents == null) return _fail('Enter the amount you are claiming in Rand.');
-        if (_bank.text.trim().length < 2 || _holder.text.trim().length < 2) return _fail('Enter the bank and account holder.');
-        final account = _account.text.replaceAll(RegExp(r'\s'), '');
-        if (!RegExp(r'^[0-9]{6,20}$').hasMatch(account)) return _fail('Account number must be 6 to 20 digits.');
-        await _w.savePayout(claimedAmountCents: cents, bankName: _bank.text.trim(), accountHolder: _holder.text.trim(), accountNumber: account);
+        await _w.saveAmount(cents);
       case ClaimWizardStep.evidence:
         _w.finishEvidence();
       case ClaimWizardStep.review:
@@ -402,21 +397,53 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
     ]);
   }
 
+  Future<void> _openBanking() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => BankingDetailsScreen(repository: widget.coversRepository)));
+    await _w.loadBanking();
+  }
+
   Widget _stepPayout() {
+    final account = _w.payoutAccountText;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('Where should a payout go if your claim is approved? You cannot change this after submitting.',
-          style: TextStyle(color: _muted)),
+      const Text('How much are you claiming?', style: TextStyle(color: _muted)),
       _label('Amount you are claiming (Rand)'),
-      TextField(controller: _amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: _input('e.g. 4200')),
-      _label('Bank'),
-      TextField(controller: _bank, decoration: _input('e.g. Standard Bank')),
-      _label('Account holder'),
-      TextField(controller: _holder, decoration: _input('Name on the account')),
-      _label('Account number'),
-      TextField(controller: _account, keyboardType: TextInputType.number, decoration: _input('6 to 20 digits')),
-      const SizedBox(height: 8),
-      const Text('Only the last four digits are shown back. The full number is never displayed again.',
-          style: TextStyle(color: _muted, fontSize: 12.5)),
+      TextField(
+        key: const Key('wizard-amount'),
+        controller: _amount,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: _input('e.g. 4200'),
+      ),
+      const SizedBox(height: 16),
+      // Banking details are a profile thing: shown here, never typed into a claim.
+      Container(
+        key: const Key('wizard-payout-account'),
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE2E8F0))),
+        child: Row(children: [
+          const Icon(Icons.account_balance_rounded, color: _ink, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: !_w.bankingLoaded
+                ? const Text('Checking your banking details…', style: TextStyle(color: _muted))
+                : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(account == null ? 'No banking details on your profile yet' : 'Paid into $account',
+                        style: const TextStyle(fontWeight: FontWeight.w700, color: _ink)),
+                    Text(
+                      account == null
+                          ? 'You can still submit. Add them under Profile › Banking details before your claim is approved.'
+                          : 'From Profile › Banking details.',
+                      style: const TextStyle(color: _muted, fontSize: 12.5),
+                    ),
+                  ]),
+          ),
+          TextButton(
+            key: const Key('wizard-banking'),
+            onPressed: _w.busy ? null : _openBanking,
+            child: Text(account == null ? 'Add' : 'Change'),
+          ),
+        ]),
+      ),
     ]);
   }
 
@@ -459,7 +486,7 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
       _row('Incident date', _w.incidentDate == null ? '—' : formatIsoDate(_w.incidentDate!)),
       _row('What happened', _w.causeOfLoss ?? '—'),
       _row('Claimed amount', formatRand(_w.claimedAmountCents)),
-      _row('Payout account', '${_w.bankName ?? ''} ••••${_w.accountLast4 ?? ''}'),
+      _row('Payout account', _w.payoutAccountText == null ? 'Not added yet (Profile › Banking details)' : '${_w.payoutAccountText} (from your profile)'),
       _row('Evidence', '${_w.evidence.length} file(s)'),
       const SizedBox(height: 12),
       const Text(

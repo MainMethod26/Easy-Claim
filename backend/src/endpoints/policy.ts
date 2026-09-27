@@ -4,6 +4,7 @@ import type { AppEnv } from '../types'
 import { requireRole } from '../security/rbac'
 import { writeAuditEvent } from '../security/audit'
 import {
+  bankingSchema,
   customerProfileSchema,
   linkRequestIdParam,
   linkRequestSchema,
@@ -14,6 +15,7 @@ import {
 import { getMyProfile, requirementsFor, resubmitRequest, saveMyProfile, uploadRequestDocument } from '../onboarding/customerOnboarding'
 import { listInsurers, myLinkRequests, requestPolicyLink } from '../onboarding/service'
 import { publishLink } from '../realtime/publish'
+import { getMyBanking, saveMyBanking } from '../onboarding/banking'
 
 const router = new Hono<AppEnv>()
 
@@ -34,6 +36,11 @@ router.put('/profile', requireRole('CUSTOMER'), validate('json', customerProfile
   const r = await saveMyProfile(c, c.req.valid('json'))
   return r.ok ? c.json(r.value) : c.json({ error: r.error }, r.status)
 })
+
+// Banking details on the profile: the payout account used for every claim (account number hashed).
+router.get('/banking', requireRole('CUSTOMER'), async (c) => c.json(await getMyBanking(c)))
+
+router.put('/banking', requireRole('CUSTOMER'), validate('json', bankingSchema), async (c) => c.json(await saveMyBanking(c, c.req.valid('json'))))
 
 /** What an insurer needs before it can approve a request. */
 router.get('/insurers/:tenantId/requirements', requireRole('CUSTOMER'), validate('param', tenantIdParam), async (c) =>

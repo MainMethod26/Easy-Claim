@@ -59,6 +59,18 @@ export const payoutDetailsSchema = z
   })
   .strict()
 
+/** Profile banking details (the payout account for every claim). The number is hashed, never stored. */
+export const bankingSchema = z
+  .object({
+    bankName: z.string().trim().min(2).max(100),
+    accountHolder: z.string().trim().min(2).max(100),
+    accountNumber: z.string().regex(/^[0-9]{6,20}$/),
+  })
+  .strict()
+
+/** The amount claimed, set while the claim is still editable (banking comes from the profile). */
+export const claimAmountSchema = z.object({ claimedAmountCents: amountCents }).strict()
+
 /** POST /pay takes no body: amount and destination are server-determined. */
 export const emptyBodySchema = z.object({}).strict()
 

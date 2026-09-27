@@ -5,6 +5,7 @@ import '../core/theme/ec_tokens.dart';
 
 import '../data/models/onboarding_models.dart';
 import '../data/repositories/repositories.dart';
+import '../screens/banking_details_screen.dart';
 import '../screens/link_policy_screen.dart';
 import '../screens/my_details_screen.dart';
 
@@ -25,6 +26,7 @@ class _SetupChecklistState extends State<SetupChecklist> with LiveRefresh {
   MyProfile? _me;
   int _policies = 0;
   int _openRequests = 0;
+  BankingDetails? _banking;
   bool _loaded = false;
 
   @override
@@ -50,6 +52,9 @@ class _SetupChecklistState extends State<SetupChecklist> with LiveRefresh {
         _openRequests = (r[2] as List<PolicyLinkRequest>).where((q) => q.isOpen).length;
         _loaded = true;
       });
+      // Separate call: an older server without banking details must not hide the whole guide.
+      final banking = await _repo.banking();
+      if (mounted) setState(() => _banking = banking);
     } catch (_) {
       if (mounted) setState(() => _loaded = true); // The rest of Home still works; the guide just stays quiet.
     }
@@ -109,6 +114,13 @@ class _SetupChecklistState extends State<SetupChecklist> with LiveRefresh {
               : (_openRequests > 0 ? '$_openRequests request${_openRequests == 1 ? '' : 's'} with your insurer' : 'Connect a policy you already hold so you can claim on it'),
           () => _open(const LinkPolicyScreen()),
           key: const Key('setup-link'),
+        ),
+        step(
+          _banking != null,
+          'Banking details',
+          _banking != null ? 'Payouts go to ${_banking!.masked}' : 'Where approved claims are paid. Add it once; every claim uses it',
+          () => _open(BankingDetailsScreen(repository: widget.repository)),
+          key: const Key('setup-banking'),
         ),
       ]),
     );

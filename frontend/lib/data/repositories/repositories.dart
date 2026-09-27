@@ -109,6 +109,17 @@ class CoversRepository {
         'idNumber': idNumber.trim(),
       }));
 
+  /// The payout account on the profile, or null when none was added yet.
+  Future<BankingDetails?> banking() async => BankingDetails.fromJson((await _api.get('/covers/banking'))['banking']);
+
+  /// Saves the payout account. The full number is sent once; only the last 4 digits come back.
+  Future<BankingDetails> saveBanking({required String bankName, required String accountHolder, required String accountNumber}) async =>
+      BankingDetails.fromJson((await _api.put('/covers/banking', {
+        'bankName': bankName.trim(),
+        'accountHolder': accountHolder.trim(),
+        'accountNumber': accountNumber,
+      }))['banking'])!;
+
   Future<void> uploadRequestDocument(String requestId, String docKey, {required List<int> bytes, required String filename}) async =>
       _api.upload('/covers/link-requests/$requestId/documents/$docKey', bytes: bytes, filename: filename);
 
@@ -148,6 +159,11 @@ class ClaimsRepository {
     });
   }
 
+  /// The amount claimed (Draft / Info Needed). The payout account comes from the profile.
+  Future<void> setAmount(String claimId, int claimedAmountCents) async =>
+      _api.put('/claims/$claimId/amount', {'claimedAmountCents': claimedAmountCents});
+
+  /// Older per-claim payout details route (still served; the app now uses [setAmount] + profile banking).
   Future<void> setPayoutDetails(
     String claimId, {
     required int claimedAmountCents,

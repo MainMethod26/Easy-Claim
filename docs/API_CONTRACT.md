@@ -149,6 +149,8 @@ payout, evidence, decision/verify) and gets 403 on every claim action and on `/r
 | POST `/covers/link-requests` | CUSTOMER | `{tenantId, policyNumber ^[A-Za-z0-9-]{4,32}$}` | 201 `{request}` pending | 400, 403, 404 `unknown_insurer`, 409 `request_pending`/`policy_already_linked` | – | `cover.link_requested` | `CoversRepository.requestLink` |
 | GET `/covers/profile` | CUSTOMER | – | `{easyclaimId, profile:null\|{legalName,email,phone,dateOfBirth,idNumberMasked,updatedAt}}` | 403 | – | – | `CoversRepository.profile` |
 | PUT `/covers/profile` | CUSTOMER | `{legalName, email, phone, dateOfBirth YYYY-MM-DD, idNumber 13 digits}` (SA ID: Luhn + must match DOB) | `{easyclaimId, profile}` (ID only masked; stored AES-GCM encrypted) | 400 `invalid_id_number`/`id_number_date_mismatch`, 403, 503 `pii_unavailable` | – | `customer.profile_saved` | `CoversRepository.saveProfile` |
+| GET `/covers/banking` | CUSTOMER | – | `{banking:null\|{bankName, accountHolder, accountLast4, updatedAt}}` | 403 | – | – | `CoversRepository.banking` |
+| PUT `/covers/banking` | CUSTOMER | `{bankName, accountHolder, accountNumber ^[0-9]{6,20}$}` | `{banking}` (last 4 only; number hashed, never stored) | 400, 403 | – | `customer.banking_saved` | `CoversRepository.saveBanking` |
 | GET `/covers/insurers/:tenantId/requirements` | CUSTOMER | – | `{requirements:[{key,label,required}]}` | 400, 403 | – | – | Link a policy |
 | POST `/covers/link-requests/:requestId/documents/:docKey` | CUSTOMER, own open request | multipart `file` (PDF/JPEG/PNG, magic bytes, ≤10 MB) | 201 `{documents:[checklist]}`; re-upload un-checks it | 400, 404, 409 `request_closed`, 413, 415, 503 | – | `onboarding.document_uploaded` / `_rejected` | `CoversRepository.uploadRequestDocument` |
 | POST `/covers/link-requests/:requestId/resubmit` | CUSTOMER | – | `{status:'pending'}` (from `more_info`) | 404, 409 `not_waiting_for_you` | – | `cover.link_resubmitted` | `CoversRepository.resubmit` |
@@ -158,6 +160,7 @@ payout, evidence, decision/verify) and gets 403 on every claim action and on `/r
 | POST `/claims/verify-eligibility` | CUSTOMER | `{policyId}` | `{verified, context:{isIdentityValid:null,isPolicyActive,waitingPeriodCleared:null}}` | 400 | – | – | wizard step 2 |
 | PATCH `/claims/:id/screening` | owner | `{causeOfLoss (1..2000), incidentDate}` | `{status:"screening_updated", message}` | 404, 409 `claim_not_editable` | Draft or Info Needed (Info Needed → Screening) | `claim.screening_updated` | `ClaimsRepository.describe` |
 | PUT `/claims/:id/payout-details` | owner | `{claimedAmountCents 1..1e8, bankName, accountHolder, accountNumber ^[0-9]{6,20}$}` | `{status:"payout_details_saved", claimedAmountCents, destination:{bankName, accountLast4}}` | 404, 409 `payout_details_locked` | Draft / Info Needed | `claim.payout_details_set` | `ClaimsRepository.setPayoutDetails` |
+| PUT `/claims/:id/amount` | owner | `{claimedAmountCents 1..1e8}` | `{status:"amount_saved", claimedAmountCents}` | 404, 409 `amount_locked` | Draft / Info Needed | `claim.amount_set` | `ClaimsRepository.setAmount` (the app no longer sends bank details with a claim) |
 | POST `/claims/:id/evidence` | owner | multipart `file` (PDF/JPEG/PNG ≤ 10 MiB; declared type must match bytes) | 201 `{status:"uploaded", evidenceId, sha256}` | 400, 404, 409, 413, 415, 503 | Draft / Info Needed | `evidence.uploaded` / `evidence.rejected` | `ClaimsRepository.uploadEvidence` |
 | GET `/claims/:id/evidence` | owner or tenant staff | – | `{evidence:[{id,display_name,mime_type,size_bytes,sha256,created_at}]}` | 404 | – | – | claim detail |
 | GET `/claims/:id/evidence/:eid/verify` | owner or tenant staff | – | `{status:"VALID"\|"TAMPERED", evidenceId, expectedHash, actualHash}` | 404 | – | `evidence.integrity_verified` | insurer detail |
@@ -224,6 +227,14 @@ see "Consent forms (POPIA)".
 Nightly (`wrangler.toml` `[triggers]`): claims left in `Info Needed` for 30 days move to `Expired` (`status` `Closed`)
 through the state machine's SYSTEM edge, with a `claim.stage_changed` audit row (`actor_role` `SYSTEM`) per claim.
 
+
+## Banking details on the profile (migration 0017)
+
+New claims no longer ask for bank details. The customer saves one payout account under Profile › Banking details
+(`PUT /covers/banking`); `POST /claims/:id/submit` (and `/respond`) copies it onto a claim that has none, and
+`/decide` with `Approved` picks it up if the customer added it after submitting (otherwise 422
+`payout_details_missing` as before). A claim that has a destination keeps it; the decision freezes it and `/pay`
+pays only to it. The submit response adds `payoutAccount: {bankName, accountLast4} | null`.
 
 ## Claim hand-offs (migration 0013)
 

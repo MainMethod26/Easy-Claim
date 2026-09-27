@@ -3,12 +3,13 @@ import type { AppEnv } from '../types'
 import { requireRole } from '../security/rbac'
 import { messageStatement } from '../claims/messages'
 import { writeAuditEvent } from '../security/audit'
-import { loadAuthorizedClaim, transitionClaim } from '../security/claimAccess'
+import { loadAuthorizedClaim, transitionClaim, type ClaimRow } from '../security/claimAccess'
 import { checkTransition, type ClaimStage } from '../security/claimStateMachine'
 import { DECISION_RULES_VERSION, evidenceDigest, gatedInsert, latestDecision, payoutFor } from '../security/ledger'
 import { claimIdParam, decideSchema, emptyBodySchema, requestInfoSchema, validate } from '../security/validation'
 import { readRiskSignals, signalSummary } from '../screening/quantumSignal'
 import { getSigner, signDecision, verifyDecision } from '../security/integrity'
+import { applyProfileBanking } from '../onboarding/banking'
 import { consentInsert, latestConsentDetail, publishConsent, sendConsent } from '../consent/service'
 
 /**
@@ -137,8 +138,9 @@ router.post('/:claimId/request-info', insurerOnly, validate('param', claimIdPara
  * the amount the customer claimed; the payout destination is snapshotted by hash.
  */
 router.post('/:claimId/decide', insurerOnly, validate('param', claimIdParam), validate('json', decideSchema), async (c) => {
-  const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'insurer')
-  if (!claim) return c.json(notFound, 404)
+  const loaded = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'insurer')
+  if (!loaded) return c.json(notFound, 404)
+  let claim: ClaimRow = loaded
   const actor = c.get('actor')
   const { outcome, reason, approvedAmountCents } = c.req.valid('json')
 
@@ -162,6 +164,10 @@ router.post('/:claimId/decide', insurerOnly, validate('param', claimIdParam), va
   }
   let approved: number | null = null
   if (outcome === 'Approved') {
+    // Banking lives on the customer's profile: a claim submitted before the customer added it picks it up now.
+    if (!claim.payout_destination_hash && (await applyProfileBanking(c.env.DB, claim.id, claim.user_id))) {
+      claim = (await loadAuthorizedClaim(c, claim.id, 'insurer')) ?? claim
+    }
     if (claim.claimed_amount_cents === null || !claim.payout_destination_hash) return reject('payout_details_missing', 422)
     approved = approvedAmountCents ?? claim.claimed_amount_cents
     if (approved > claim.claimed_amount_cents) return reject('amount_exceeds_claimed', 422)

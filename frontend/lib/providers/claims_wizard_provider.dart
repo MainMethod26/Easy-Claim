@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../core/api/api_exception.dart';
 import '../data/models/api_models.dart';
+import '../data/models/onboarding_models.dart';
 import '../data/models/claim_stage.dart';
 import '../data/repositories/consent_repository.dart';
 import '../data/repositories/repositories.dart';
@@ -23,7 +24,7 @@ extension ClaimWizardStepInfo on ClaimWizardStep {
       case ClaimWizardStep.whatHappened:
         return 'What happened';
       case ClaimWizardStep.payout:
-        return 'Amount & payout account';
+        return 'Amount claimed';
       case ClaimWizardStep.evidence:
         return 'Supporting evidence';
       case ClaimWizardStep.review:
@@ -80,6 +81,10 @@ class ClaimsWizardProvider with ChangeNotifier {
   int? _claimedAmountCents;
   String? _bankName;
   String? _accountLast4;
+
+  /// The payout account on the customer's profile (Profile › Banking details); null = not added yet.
+  BankingDetails? _banking;
+  bool _bankingLoaded = false;
   final List<UploadedEvidence> _evidence = [];
   ClaimDetail? _submitted;
   ClaimTimeline? _timeline;
@@ -100,8 +105,13 @@ class ClaimsWizardProvider with ChangeNotifier {
   String? get causeOfLoss => _causeOfLoss;
   DateTime? get incidentDate => _incidentDate;
   int? get claimedAmountCents => _claimedAmountCents;
-  String? get bankName => _bankName;
-  String? get accountLast4 => _accountLast4;
+  String? get bankName => _banking?.bankName ?? _bankName;
+  String? get accountLast4 => _banking?.accountLast4 ?? _accountLast4;
+  BankingDetails? get banking => _banking;
+  bool get bankingLoaded => _bankingLoaded;
+
+  /// "Capitec ••••7890", or null when there is no payout account yet.
+  String? get payoutAccountText => accountLast4 == null ? null : '${bankName ?? ''} ••••$accountLast4'.trim();
   List<UploadedEvidence> get evidence => List.unmodifiable(_evidence);
   ClaimDetail? get submittedClaim => _submitted;
   ClaimTimeline? get timeline => _timeline;
@@ -251,18 +261,28 @@ class ClaimsWizardProvider with ChangeNotifier {
     }
   }
 
-  Future<void> savePayout({required int claimedAmountCents, required String bankName, required String accountHolder, required String accountNumber}) async {
+  /// Loads the payout account from the profile. Quiet on failure: the claim can still be submitted and
+  /// the account added later (it is needed before the claim is approved).
+  Future<void> loadBanking() async {
+    try {
+      _banking = await _covers.banking();
+    } catch (_) {
+      _banking = null;
+    }
+    _bankingLoaded = true;
+    notifyListeners();
+  }
+
+  /// Saves the amount claimed. Banking details are not asked here: they come from the profile.
+  Future<void> saveAmount(int claimedAmountCents) async {
     final id = _claimId;
     if (id == null) return;
     final ok = await _run(() async {
-      await _claims.setPayoutDetails(id,
-          claimedAmountCents: claimedAmountCents, bankName: bankName, accountHolder: accountHolder, accountNumber: accountNumber);
+      await _claims.setAmount(id, claimedAmountCents);
       return true;
     });
     if (ok == true) {
       _claimedAmountCents = claimedAmountCents;
-      _bankName = bankName;
-      _accountLast4 = accountNumber.length >= 4 ? accountNumber.substring(accountNumber.length - 4) : accountNumber;
       _goTo(ClaimWizardStep.evidence);
     }
   }

@@ -211,6 +211,28 @@ class MyProfile {
   factory MyProfile.fromJson(Map<String, dynamic> j) => MyProfile(easyclaimId: _s(j['easyclaimId']) ?? '', profile: CustomerProfile.fromJson(j['profile']));
 }
 
+/// GET|PUT /covers/banking: the customer's payout account for every claim (only the last 4 digits come back).
+class BankingDetails {
+  final String bankName;
+  final String accountHolder;
+  final String accountLast4;
+  final DateTime? updatedAt;
+  const BankingDetails({required this.bankName, required this.accountHolder, required this.accountLast4, this.updatedAt});
+
+  static BankingDetails? fromJson(Object? v) {
+    if (v is! Map<String, dynamic>) return null;
+    return BankingDetails(
+      bankName: _s(v['bankName']) ?? '',
+      accountHolder: _s(v['accountHolder']) ?? '',
+      accountLast4: _s(v['accountLast4']) ?? '',
+      updatedAt: _d(v['updatedAt']),
+    );
+  }
+
+  /// "Capitec ••••7890".
+  String get masked => '$bankName ••••$accountLast4';
+}
+
 /// Who a request is from (insurer view).
 class ClientCard {
   final String? easyclaimId;
