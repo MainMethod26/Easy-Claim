@@ -3,6 +3,9 @@ import '../widgets/setup_checklist.dart';
 import 'link_policy_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../core/auth/session.dart';
+import '../core/realtime/live_refresh.dart';
+import '../core/realtime/realtime_service.dart';
+import '../core/widgets/live_indicator.dart';
 import '../core/theme/ec_status_colors.dart';
 import '../core/theme/ec_tokens.dart';
 import '../core/widgets/ec_tap_target.dart';
@@ -51,7 +54,7 @@ class EasyClaimHomeScreen extends StatefulWidget {
   State<EasyClaimHomeScreen> createState() => _EasyClaimHomeScreenState();
 }
 
-class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
+class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> with LiveRefresh {
   late final HomeScreenProvider _home = HomeScreenProvider(claims: widget.claimsRepository);
 
   /// Bumped on pull-to-refresh so the consent banner reloads too.
@@ -67,6 +70,14 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
     super.initState();
     _home.addListener(_onProviderUpdate);
   }
+
+  // Live: claim stages, messages and claim consent forms. The consent banner and the setup
+  // checklist follow their own notices.
+  @override
+  bool wantsLive(RealtimeEvent e) => e.isClaimEvent;
+
+  @override
+  void onLive() => _home.refresh(quiet: true);
 
   void _onProviderUpdate() {
     if (mounted) setState(() {});
@@ -141,6 +152,8 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
                           children: [
                             const EasyClaimLogo(size: 42.0),
                             Row(children: [
+                              const LiveIndicator(),
+                              const SizedBox(width: 8.0),
                               NotificationBellButton(unreadCount: _home.actionCount, onTap: _showNotifications),
                               const SizedBox(width: 12.0),
                               EcTapTarget(
@@ -261,6 +274,10 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
         ),
         'Latest claim: ${primary.title}, ${stage.label}. Open claim stages',
       ),
+      if (MandateBadge.labelFor(primary.consent?.status, primary.consent?.viewedAt) != null) ...[
+        const SizedBox(height: 8),
+        MandateBadge(key: const Key('home-claim-mandate'), status: primary.consent?.status, viewedAt: primary.consent?.viewedAt, customer: true),
+      ],
       const SizedBox(height: 10),
       Container(
         width: double.infinity,
@@ -292,13 +309,19 @@ class _EasyClaimHomeScreenState extends State<EasyClaimHomeScreen> {
               borderRadius: EcRadius.card,
               border: Border.all(color: EcColors.line),
             ),
-            child: Row(children: [
-              Expanded(
-                child: Text('${c.category ?? 'Claim'} · ${formatRand(c.claimedAmountCents)}',
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-              ),
-              Text(presentStage(c.stage, status: c.status).label,
-                  style: const TextStyle(color: EcColors.brandText, fontWeight: FontWeight.w700)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(
+                  child: Text('${c.category ?? 'Claim'} · ${formatRand(c.claimedAmountCents)}',
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                ),
+                Text(presentStage(c.stage, status: c.status).label,
+                    style: const TextStyle(color: EcColors.brandText, fontWeight: FontWeight.w700)),
+              ]),
+              if (MandateBadge.labelFor(c.consentStatus, c.consentViewedAt) != null) ...[
+                const SizedBox(height: 6),
+                MandateBadge(status: c.consentStatus, viewedAt: c.consentViewedAt, customer: true),
+              ],
             ]),
           ),
       ],

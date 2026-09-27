@@ -93,6 +93,7 @@ class Session extends ChangeNotifier {
 
   void start({required String token, required AuthActor actor, Duration? expiresIn}) {
     signedOutByUser = false;
+    endReason = null;
     _token = token;
     _actor = actor;
     _expiresAt = expiresIn == null ? null : DateTime.now().add(expiresIn);
@@ -102,9 +103,18 @@ class Session extends ChangeNotifier {
   /// True when the last sign-out was the user's own choice (not an expired or rejected token).
   bool signedOutByUser = false;
 
-  /// Ends the session. [byUser] is false when the API rejected the token (see ApiClient).
-  void signOut({bool byUser = true}) {
+  /// Why the last session ended when it was not the user's choice, e.g. [reasonRevoked]
+  /// (an administrator disabled or changed the account, announced over the live channel).
+  String? endReason;
+
+  /// The account was disabled or changed by an administrator (realtime `session.revoked`).
+  static const reasonRevoked = 'revoked';
+
+  /// Ends the session. [byUser] is false when the API rejected the token (see ApiClient) or the
+  /// live channel announced a revocation ([reason] = [reasonRevoked]).
+  void signOut({bool byUser = true, String? reason}) {
     signedOutByUser = byUser;
+    endReason = byUser ? null : reason;
     if (_token == null && _actor == null) return;
     _token = null;
     _actor = null;

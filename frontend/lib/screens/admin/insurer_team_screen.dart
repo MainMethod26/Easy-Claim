@@ -76,6 +76,7 @@ class _InsurerTeamScreenState extends State<InsurerTeamScreen> {
     return EcAsync<_TeamData>(
       reloadKey: _reloadKey,
       load: _load,
+      live: (e) => e.type == 'team.updated',
       builder: (context, data, _) => EcPage(children: [
         EcPageHeader(
           title: data.tenant.name,

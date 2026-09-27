@@ -275,3 +275,38 @@ form, `signAs` (the name to type).
 
 `GET /tenant/policy-requests/:requestId` also returns `readyForConsent` (every document checked, no open form),
 `consent` (summary) and `readyToApprove` (documents checked AND form signed).
+
+## Live updates (Durable Object WebSocket, migration 0016)
+
+One live channel per audience: `user:<customerId>` (a customer's devices), `tenant:<tenantId>` (all signed-in staff
+of one insurer), `platform` (superadmin). Browsers cannot set headers on a WebSocket, so the app exchanges its token
+for a 60-second ticket (own audience: a ticket is not an API token and an API token is not a ticket), then opens
+`wss://<api>/api/v1/realtime/connect?ticket=<ticket>`. The connect route checks the ticket, the `Origin`
+(ALLOWED_ORIGINS, stops cross-site WebSocket hijacking) and the account (active, same role/insurer, not revoked).
+
+Notices are **change signals only** (ids, stage, status); the app re-fetches through the normal routes, so every
+permission check stays server-side. Clients send `ping` (answer `pong`) and re-sync everything on reconnect.
+
+| Event `type` | Fields | Sent to | When |
+|---|---|---|---|
+| `hello` | `at` | the new socket | on connect |
+| `claim.updated` | `claimId, stage` | customer + insurer staff | every stage change (submit, verify, screen, review, info request, reply, decision, pay, appeal, withdraw, expiry) |
+| `claim.message` | `claimId, from: customer\|insurer` | both | a message on the claim thread |
+| `claim.evidence` | `claimId` | both | evidence uploaded after submission |
+| `consent.updated` | `consentId, subjectType, subjectId, status: pending\|viewed\|signed\|declined\|withdrawn` | both | form sent, first opened, signed, declined, withdrawn |
+| `link.updated` | `requestId, change: created\|document_uploaded\|resubmitted\|document_checked\|more_info\|approved\|rejected` | both | any policy-link step |
+| `team.updated` | `userId, status` | insurer staff + platform | an account enabled/disabled |
+| `application.created` | `applicationId` | platform | a new insurer application |
+| `session.revoked` | `reason` | only that user's sockets, then closed (code 4001) | account disabled |
+
+| Method + path | Request | Response | Errors | Audit | Frontend |
+|---|---|---|---|---|---|
+| POST `/realtime/ticket` | bearer token | `{ticket, expiresIn: 60, path}` | 401, 503 `realtime_unavailable` | – | RealtimeService |
+| GET `/realtime/connect` | `?ticket=`, `Upgrade: websocket`, allowed `Origin` | 101 WebSocket | 401, 403 `origin_not_allowed`, 426 | – | RealtimeService |
+
+Also new: consent summaries carry `viewedAt` (first open by the customer; `GET /consents/:consentId` records it and
+audits `consent.viewed`); `GET /claims` rows carry `consent_status` and `consent_viewed_at`; policy-link rows carry
+`consentStatus` and `consentViewedAt`; `GET /tenant/overview` adds `attention: {awaitingMandate, mandateOpened,
+mandateDeclined, consentWithdrawn, infoNeeded, newClaims}`; `POST /claims/:claimId/consent` is also allowed for
+INSURER_ADMIN (sending a form is a communication; the admin still cannot move a claim); the tenant audit feed now
+includes customers' actions on the insurer's consent forms and policy-link requests.

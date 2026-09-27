@@ -65,6 +65,10 @@ class ClaimSummary {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  /// Latest POPIA form on the claim (`consent_status`, `consent_viewed_at`), null when none was sent.
+  final String? consentStatus;
+  final DateTime? consentViewedAt;
+
   const ClaimSummary({
     required this.id,
     required this.policyId,
@@ -75,6 +79,8 @@ class ClaimSummary {
     this.claimedAmountCents,
     this.createdAt,
     this.updatedAt,
+    this.consentStatus,
+    this.consentViewedAt,
   });
 
   factory ClaimSummary.fromJson(Map<String, dynamic> j) => ClaimSummary(
@@ -87,6 +93,8 @@ class ClaimSummary {
         claimedAmountCents: _int(j['claimed_amount_cents']),
         createdAt: _date(j['created_at']),
         updatedAt: _date(j['updated_at']),
+        consentStatus: _str(j['consent_status']),
+        consentViewedAt: _date(j['consent_viewed_at']),
       );
 }
 

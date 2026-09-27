@@ -34,6 +34,31 @@ class ApiClient {
   /// Shared instance used by the app. Tests build their own with a mock http client.
   static ApiClient shared = ApiClient();
 
+  /// When this app last started or finished a write (POST/PUT/PATCH/upload). Live notices that
+  /// arrive right after are usually the echo of the user's own action, so no toast is shown.
+  static DateTime? lastWriteAt;
+
+  static void _noteWrite() => lastWriteAt = DateTime.now();
+
+  /// True while a write is in flight or finished less than [window] ago.
+  static bool recentlyWrote([Duration window = const Duration(seconds: 2)]) {
+    final t = lastWriteAt;
+    return _writesInFlight > 0 || (t != null && DateTime.now().difference(t) < window);
+  }
+
+  static int _writesInFlight = 0;
+
+  Future<Map<String, dynamic>> _write(Future<http.Response> Function() call) async {
+    _writesInFlight++;
+    _noteWrite();
+    try {
+      return await _send(call);
+    } finally {
+      _writesInFlight--;
+      _noteWrite();
+    }
+  }
+
   Map<String, String> _headers({bool json = false, Map<String, String>? extra}) => {
         if (json) 'Content-Type': 'application/json',
         if (_session.token != null) 'Authorization': 'Bearer ${_session.token}',
@@ -44,20 +69,24 @@ class ApiClient {
 
   Future<Map<String, dynamic>> get(String path) => _send(() => _http.get(_uri(path), headers: _headers()));
 
-  Future<Map<String, dynamic>> post(String path, {Object? body, Map<String, String>? headers}) => _send(
-        () => _http.post(_uri(path), headers: _headers(json: body != null, extra: headers), body: body == null ? null : jsonEncode(body)),
-      );
+  /// [isWrite] false for requests that change nothing the user would see (e.g. a live-channel
+  /// ticket), so they do not mute live notices (see [recentlyWrote]).
+  Future<Map<String, dynamic>> post(String path, {Object? body, Map<String, String>? headers, bool isWrite = true}) {
+    Future<http.Response> call() =>
+        _http.post(_uri(path), headers: _headers(json: body != null, extra: headers), body: body == null ? null : jsonEncode(body));
+    return isWrite ? _write(call) : _send(call);
+  }
 
   Future<Map<String, dynamic>> patch(String path, Object body) =>
-      _send(() => _http.patch(_uri(path), headers: _headers(json: true), body: jsonEncode(body)));
+      _write(() => _http.patch(_uri(path), headers: _headers(json: true), body: jsonEncode(body)));
 
   Future<Map<String, dynamic>> put(String path, Object body) =>
-      _send(() => _http.put(_uri(path), headers: _headers(json: true), body: jsonEncode(body)));
+      _write(() => _http.put(_uri(path), headers: _headers(json: true), body: jsonEncode(body)));
 
   /// Uploads one file as multipart field `file` with an explicit content type (the backend
   /// checks the declared type against the file's magic bytes).
   Future<Map<String, dynamic>> upload(String path, {required List<int> bytes, required String filename}) {
-    return _send(() async {
+    return _write(() async {
       final request = http.MultipartRequest('POST', _uri(path))
         ..headers.addAll(_headers())
         ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename, contentType: _mediaType(filename)));

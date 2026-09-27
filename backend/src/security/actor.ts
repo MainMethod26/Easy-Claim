@@ -70,24 +70,31 @@ export async function resolveActor(c: Context<AppEnv>): Promise<Actor | null> {
   // The signature proves who issued the token, not that the account is still allowed in. One indexed
   // lookup makes disabling an account, changing its role/insurer or changing its password take effect
   // on the very next request instead of when the token expires.
-  const account = await c.env.DB.prepare('SELECT role, tenant_id, status, token_version FROM users WHERE id = ?')
-    .bind(result.actor.id)
-    .first<{ role: string; tenant_id: string | null; status: string; token_version: number | null }>()
-  const ver = (payload as Record<string, unknown>).ver
-  const reason = !account
-    ? 'unknown_account'
-    : account.status !== 'active'
-      ? 'account_disabled'
-      : account.role !== result.actor.role || (account.tenant_id ?? null) !== result.actor.tenantId
-        ? 'account_changed'
-        : (typeof ver === 'number' ? ver : 0) !== (account.token_version ?? 0)
-          ? 'token_revoked'
-          : null
+  const reason = await accountRejection(c.env.DB, result.actor, (payload as Record<string, unknown>).ver)
   if (reason) {
     console.warn(`[${c.get('requestId')}] token rejected: ${reason}`)
     return null
   }
   return result.actor
+}
+
+/**
+ * Why a verified token no longer matches its account (disabled, role/insurer changed, revoked), or null
+ * when it still does. Shared by API tokens and realtime tickets.
+ */
+export async function accountRejection(db: D1Database, actor: Actor, ver: unknown): Promise<string | null> {
+  const account = await db.prepare('SELECT role, tenant_id, status, token_version FROM users WHERE id = ?')
+    .bind(actor.id)
+    .first<{ role: string; tenant_id: string | null; status: string; token_version: number | null }>()
+  return !account
+    ? 'unknown_account'
+    : account.status !== 'active'
+      ? 'account_disabled'
+      : account.role !== actor.role || (account.tenant_id ?? null) !== actor.tenantId
+        ? 'account_changed'
+        : (typeof ver === 'number' ? ver : 0) !== (account.token_version ?? 0)
+          ? 'token_revoked'
+          : null
 }
 
 export type ClaimRejectReason =

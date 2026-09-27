@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/realtime/live_refresh.dart';
+import '../core/realtime/realtime_service.dart';
 import '../core/theme/ec_status_colors.dart';
 import '../core/theme/ec_tokens.dart';
 import '../core/widgets/admin/ec_status_chip.dart';
@@ -59,6 +61,71 @@ class ConsentBadge extends StatelessWidget {
       ),
     );
     return tooltip == null ? badge : Tooltip(message: tooltip!, child: badge);
+  }
+}
+
+/// Where a claim's or policy request's POPIA mandate stands, as staff and customers see it.
+/// `superseded` forms and subjects without a form have no state (null).
+enum MandateState {
+  awaiting('Awaiting POPIA mandate', 'Consent form to sign', Icons.hourglass_top_rounded, EcToneKind.warning),
+  reading('Customer is reading', 'Consent form to sign', Icons.visibility_outlined, EcToneKind.info),
+  signed('Mandate signed', 'Signed', Icons.task_alt, EcToneKind.success),
+  rejected('Mandate rejected', 'You declined', Icons.do_not_disturb_on_outlined, EcToneKind.danger),
+  withdrawn('Consent withdrawn', 'You withdrew consent', Icons.undo, EcToneKind.danger);
+
+  const MandateState(this.staffLabel, this.customerLabel, this.icon, this.kind);
+  final String staffLabel;
+  final String customerLabel;
+  final IconData icon;
+  final EcToneKind kind;
+
+  /// Maps a backend status (+ the customer's first-open time) to a state.
+  static MandateState? of(String? status, DateTime? viewedAt) => switch (status) {
+        ConsentStatus.pending => viewedAt == null ? awaiting : reading,
+        'viewed' => reading,
+        ConsentStatus.signed => signed,
+        ConsentStatus.declined => rejected,
+        ConsentStatus.withdrawn => withdrawn,
+        _ => null,
+      };
+}
+
+/// The one mandate indicator used everywhere (queues, claim file, policy requests, customer cards):
+/// "Awaiting POPIA mandate" (amber), "Customer is reading" (blue), "Mandate signed" (green),
+/// "Mandate rejected" / "Consent withdrawn" (red). With [customer] the wording is the customer's
+/// own ("Consent form to sign", "Signed", "You declined", "You withdrew consent"). Nothing is shown
+/// without a form unless [noneLabel] is given. Icon + text, never colour alone; the label wraps.
+class MandateBadge extends StatelessWidget {
+  const MandateBadge({super.key, required this.status, this.viewedAt, this.customer = false, this.noneLabel});
+  final String? status;
+  final DateTime? viewedAt;
+  final bool customer;
+  final String? noneLabel;
+
+  /// The text a badge shows for these values (null = no badge).
+  static String? labelFor(String? status, DateTime? viewedAt, {bool customer = false}) {
+    final s = MandateState.of(status, viewedAt);
+    return s == null ? null : (customer ? s.customerLabel : s.staffLabel);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = MandateState.of(status, viewedAt);
+    if (s == null) {
+      if (noneLabel == null || status == ConsentStatus.superseded) return const SizedBox.shrink();
+      return ConsentBadge(key: const Key('mandate-badge'), label: noneLabel!, icon: Icons.remove_circle_outline);
+    }
+    // Customers see one "to sign" state whether or not they already opened the form.
+    final toSign = customer && (s == MandateState.awaiting || s == MandateState.reading);
+    final label = customer ? s.customerLabel : s.staffLabel;
+    final tip = !customer && s == MandateState.reading && viewedAt != null ? 'Opened ${formatConsentDate(viewedAt)}' : null;
+    return ConsentBadge(
+      key: const Key('mandate-badge'),
+      label: label,
+      icon: toSign ? Icons.draw_outlined : s.icon,
+      kind: toSign ? EcToneKind.warning : s.kind,
+      tooltip: tip,
+    );
   }
 }
 
@@ -220,9 +287,16 @@ class PendingConsentBanner extends StatefulWidget {
   State<PendingConsentBanner> createState() => _PendingConsentBannerState();
 }
 
-class _PendingConsentBannerState extends State<PendingConsentBanner> {
+class _PendingConsentBannerState extends State<PendingConsentBanner> with LiveRefresh {
   late final ConsentRepository _repo = widget.repository ?? ConsentRepository();
   List<Consent> _pending = const [];
+
+  // Live: a form sent, signed, declined or withdrawn (on any device).
+  @override
+  bool wantsLive(RealtimeEvent e) => e.isConsent;
+
+  @override
+  void onLive() => _load();
 
   @override
   void initState() {

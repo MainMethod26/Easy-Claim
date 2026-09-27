@@ -13,6 +13,7 @@ import {
 } from '../security/validation'
 import { getMyProfile, requirementsFor, resubmitRequest, saveMyProfile, uploadRequestDocument } from '../onboarding/customerOnboarding'
 import { listInsurers, myLinkRequests, requestPolicyLink } from '../onboarding/service'
+import { publishLink } from '../realtime/publish'
 
 const router = new Hono<AppEnv>()
 
@@ -42,11 +43,13 @@ router.get('/insurers/:tenantId/requirements', requireRole('CUSTOMER'), validate
 router.post('/link-requests/:requestId/documents/:docKey', requireRole('CUSTOMER'), validate('param', requestDocParam), async (c) => {
   const { requestId, docKey } = c.req.valid('param')
   const r = await uploadRequestDocument(c, requestId, docKey)
+  if (r.ok) await publishLink(c, requestId, 'document_uploaded')
   return r.ok ? c.json({ documents: r.value }, 201) : c.json({ error: r.error }, r.status)
 })
 
 router.post('/link-requests/:requestId/resubmit', requireRole('CUSTOMER'), validate('param', linkRequestIdParam), async (c) => {
   const r = await resubmitRequest(c, c.req.valid('param').requestId)
+  if (r.ok) await publishLink(c, c.req.valid('param').requestId, 'resubmitted')
   return r.ok ? c.json({ status: 'pending' }) : c.json({ error: r.error }, r.status)
 })
 
@@ -55,6 +58,7 @@ router.get('/link-requests', requireRole('CUSTOMER'), async (c) => c.json({ requ
 router.post('/link-requests', requireRole('CUSTOMER'), validate('json', linkRequestSchema), async (c) => {
   const { tenantId, policyNumber } = c.req.valid('json')
   const r = await requestPolicyLink(c, tenantId, policyNumber)
+  if (r.ok) await publishLink(c, r.value.id, 'created')
   return r.ok ? c.json({ request: r.value }, 201) : c.json({ error: r.error }, r.status)
 })
 

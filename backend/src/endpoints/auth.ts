@@ -7,6 +7,7 @@ import { LOCKOUT_FAILURES, LOCKOUT_WINDOW_MS, dummyHash, hashPassword, verifyPas
 import { changePasswordSchema, insurerApplicationSchema, loginSchema, registerSchema, validate } from '../security/validation'
 import { submitApplication } from '../onboarding/service'
 import { ensureEasyclaimId, newEasyclaimId } from '../onboarding/customerOnboarding'
+import { publish } from '../realtime/publish'
 
 /**
  * Accounts and sign-in (team role model, 26 Sep 2026).
@@ -221,5 +222,6 @@ authInfo.post('/password', validate('json', changePasswordSchema), async (c) => 
 authPublic.post('/insurer-applications', validate('json', insurerApplicationSchema), async (c) => {
   const r = await submitApplication(c, c.req.valid('json'))
   if (!r.ok) return c.json({ error: r.error }, r.status)
+  publish(c, [{ platform: true }], { type: 'application.created', applicationId: r.value.id })
   return c.json({ application: { id: r.value.id, status: r.value.status, companyName: r.value.companyName } }, 201)
 })

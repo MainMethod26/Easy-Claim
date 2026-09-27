@@ -7,6 +7,7 @@ import '../../core/widgets/admin/ec_section.dart';
 import '../../core/widgets/admin/ec_status_chip.dart';
 import '../../data/models/onboarding_models.dart';
 import '../../data/repositories/admin_repositories.dart';
+import '../../widgets/consent_widgets.dart';
 import 'console_common.dart';
 import 'policy_request_detail_screen.dart';
 
@@ -34,7 +35,7 @@ class _PolicyRequestsPageState extends State<PolicyRequestsPage> {
 
   Future<void> _open(String requestId) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PolicyRequestDetailScreen(requestId: requestId, repository: _repo)));
-    setState(() => _reload++);
+    if (mounted) setState(() => _reload++);
   }
 
   Future<void> _lookup() async {
@@ -62,6 +63,7 @@ class _PolicyRequestsPageState extends State<PolicyRequestsPage> {
     return EcAsync<List<PolicyLinkRequest>>(
       reloadKey: '$_status-$_reload',
       load: () => _repo.policyRequests(status: _status),
+      live: (e) => e.isLinkEvent,
       builder: (context, rows, _) => EcPage(children: [
         EcPageHeader(
           title: 'Policy requests',
@@ -121,6 +123,13 @@ class _PolicyRequestsPageState extends State<PolicyRequestsPage> {
                       ? const EcStatusChip(label: 'All checked', icon: Icons.verified_outlined, kind: EcToneKind.success)
                       : Text('$uploaded/${req.length} uploaded · $checked checked');
                 },
+              ),
+              EcColumn(
+                label: 'POPIA mandate',
+                cell: (r) => ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 220),
+                  child: MandateBadge(key: Key('mandate-${r.id}'), status: r.consentStatus, viewedAt: r.consentViewedAt, noneLabel: 'Not sent yet'),
+                ),
               ),
               EcColumn(label: 'Received', cell: (r) => Text(fmtWhen(r.createdAt))),
               EcColumn(label: '', cell: (r) => TextButton(key: Key('open-request-${r.id}'), onPressed: () => _open(r.id), child: const Text('Open'))),

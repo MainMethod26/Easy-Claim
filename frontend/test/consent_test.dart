@@ -257,7 +257,7 @@ void main() {
       await _settle(tester);
 
       expect(find.text('Consent (POPIA)'), findsOneWidget);
-      expect(find.text('Waiting for signature'), findsOneWidget);
+      expect(find.text('Awaiting POPIA mandate'), findsOneWidget); // sent, not opened yet
       expect(find.byKey(const Key('consent-hold')), findsOneWidget);
       expect(find.text('Waiting for the customer to sign the consent form.'), findsOneWidget);
       final screen = tester.widget<ButtonStyleButton>(find.widgetWithText(FilledButton, 'Run screening'));
@@ -301,15 +301,30 @@ void main() {
       expect(find.text('Send consent form'), findsOneWidget);
     });
 
-    testWidgets('insurer admin: consent section is read-only (no Send button)', (tester) async {
+    testWidgets('insurer admin: may re-send a declined form, but has no claim-moving actions', (tester) async {
       _surface(tester, const Size(1200, 4000));
       signInAs('usr_admin_discovery', 'INSURER_ADMIN', tenantId: 'ins_discovery');
       stubClaim('Verified', consent: consentJson(status: 'declined', respondedAt: '2026-09-27T10:00:00Z'));
+      backend.on('POST /claims/claim_1/consent', {'consent': consentJson(id: 'cst_2')}, status: 201);
       await tester.pumpWidget(_app(const InsurerClaimDetailsScreen(claimId: 'claim_1', readOnly: true)));
       await _settle(tester);
       expect(find.text('Consent (POPIA)'), findsOneWidget);
-      expect(find.text('Declined'), findsWidgets);
+      expect(find.text('Mandate rejected'), findsOneWidget);
       expect(find.byKey(const Key('view-consent')), findsOneWidget);
+      expect(find.text('Send a new consent form'), findsOneWidget);
+      expect(find.text('Run screening'), findsNothing);
+      expect(find.byKey(const Key('consent-hold')), findsNothing);
+      await tester.tap(find.byKey(const Key('send-consent')));
+      await _settle(tester);
+      expect(backend.last('POST /claims/claim_1/consent'), isNotNull);
+    });
+
+    testWidgets('platform admin: consent section stays read-only (no Send button)', (tester) async {
+      _surface(tester, const Size(1200, 4000));
+      signInAs('usr_super', 'SUPERADMIN');
+      stubClaim('Verified', consent: consentJson(status: 'declined', respondedAt: '2026-09-27T10:00:00Z'));
+      await tester.pumpWidget(_app(const InsurerClaimDetailsScreen(claimId: 'claim_1', readOnly: true)));
+      await _settle(tester);
       expect(find.byKey(const Key('send-consent')), findsNothing);
     });
   });

@@ -77,4 +77,11 @@ void main() {
     final missing = calls.difference(documented);
     expect(missing, isEmpty, reason: 'Called by the app but not in the contract: $missing');
   });
+
+  test('the live-channel ticket call targets a documented route', () {
+    final calls = repositoryCalls('lib/data/repositories/realtime_repository.dart');
+    expect(calls, {'POST /realtime/ticket'});
+    expect(calls.difference(documented), isEmpty);
+    expect(documented, contains('GET /realtime/connect'));
+  });
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../core/api/api_client.dart';
+import '../core/realtime/live_refresh.dart';
+import '../core/realtime/realtime_service.dart';
 import '../widgets/claim_messages_panel.dart';
 import '../widgets/claims_wizard_modal.dart';
 import '../core/theme/ec_status_colors.dart';
@@ -35,11 +37,25 @@ class _ClaimView {
   const _ClaimView(this.claim, this.timeline, this.decision, this.payout, this.integrity, this.evidenceCount);
 }
 
-class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
+class _ClaimActivityScreenState extends State<ClaimActivityScreen> with LiveRefresh {
   late final ClaimsRepository _repo = widget.repository ?? ClaimsRepository();
   late Future<List<ClaimSummary>> _claimsFuture;
   String? _selectedId;
   Future<_ClaimView>? _viewFuture;
+
+  /// A live reload keeps the current claim on screen until the new data is there.
+  bool _quiet = false;
+
+  // Live: stage changes (timeline, info request), evidence and consent forms of any claim (the
+  // picker shows every claim's stage). Messages refresh inside the messages panel.
+  @override
+  bool wantsLive(RealtimeEvent e) => e.isClaimEvent && e.type != RealtimeEvent.claimMessage;
+
+  @override
+  void onLive() => setState(() {
+        _quiet = true;
+        _claimsFuture = _loadClaims();
+      });
 
   @override
   void initState() {
@@ -70,9 +86,13 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
     return _ClaimView(r[0] as ClaimDetail, r[1] as ClaimTimeline, decision, r[3] as PayoutInfo, integrity, (r[4] as List).length);
   }
 
-  void _reload() => setState(() { _claimsFuture = _loadClaims(); });
+  void _reload() => setState(() {
+        _quiet = false;
+        _claimsFuture = _loadClaims();
+      });
 
   void _select(String id) => setState(() {
+        _quiet = false;
         _selectedId = id;
         _viewFuture = _loadView(id);
       });
@@ -257,8 +277,9 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
           child: FutureBuilder<List<ClaimSummary>>(
             future: _claimsFuture,
             builder: (context, snap) {
-              if (snap.connectionState != ConnectionState.done) return const LoadingView(message: 'Loading your claims…');
-              if (snap.hasError) return ErrorView(error: snap.error!, onRetry: _reload);
+              final stale = _quiet && snap.hasData;
+              if (snap.connectionState != ConnectionState.done && !stale) return const LoadingView(message: 'Loading your claims…');
+              if (snap.hasError && !stale) return ErrorView(error: snap.error!, onRetry: _reload);
               final claims = snap.data!;
               return RefreshIndicator(
                 onRefresh: () async => _reload(),
@@ -281,8 +302,9 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
                           key: ValueKey(_selectedId),
                           future: _viewFuture,
                           builder: (context, s) {
-                            if (s.connectionState != ConnectionState.done) return const LoadingView();
-                            if (s.hasError) return ErrorView(error: s.error!, onRetry: () => _select(_selectedId!));
+                            final stale = _quiet && s.hasData;
+                            if (s.connectionState != ConnectionState.done && !stale) return const LoadingView();
+                            if (s.hasError && !stale) return ErrorView(error: s.error!, onRetry: () => _select(_selectedId!));
                             return _claimBody(s.data!);
                           },
                         ),

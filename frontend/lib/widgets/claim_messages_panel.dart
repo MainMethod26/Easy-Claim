@@ -4,13 +4,15 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../core/api/api_exception.dart';
+import '../core/realtime/live_refresh.dart';
+import '../core/realtime/realtime_service.dart';
 import '../core/widgets/state_views.dart';
 import '../data/models/api_models.dart';
 import '../data/repositories/repositories.dart';
 
 /// The conversation on a claim: what the insurer asked for, the customer's answers, appeal and
 /// withdraw reasons, and general messages. Customers and the claim's assessors/managers can post
-/// ([canPost]); insurer admins read only.
+/// ([canPost]); insurer admins read only. New messages appear live, like a chat.
 class ClaimMessagesPanel extends StatefulWidget {
   const ClaimMessagesPanel({super.key, required this.claimId, this.canPost = true, this.repository, this.title = 'Messages'});
   final String claimId;
@@ -39,7 +41,7 @@ String _who(ClaimMessage m) => m.mine
         _ => 'Insurer',
       };
 
-class _ClaimMessagesPanelState extends State<ClaimMessagesPanel> {
+class _ClaimMessagesPanelState extends State<ClaimMessagesPanel> with LiveRefresh {
   late final ClaimsRepository _repo = widget.repository ?? ClaimsRepository();
   final _text = TextEditingController();
   List<ClaimMessage>? _messages;
@@ -58,10 +60,21 @@ class _ClaimMessagesPanelState extends State<ClaimMessagesPanel> {
     super.dispose();
   }
 
+  @override
+  bool wantsLive(RealtimeEvent e) => e.type == RealtimeEvent.claimMessage && e.claimId == widget.claimId;
+
+  @override
+  void onLive() => _load();
+
   Future<void> _load() async {
     try {
       final m = await _repo.messages(widget.claimId);
-      if (mounted) setState(() => _messages = m);
+      if (mounted) {
+        setState(() {
+          _messages = m;
+          _error = null;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e);
     }

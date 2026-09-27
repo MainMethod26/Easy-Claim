@@ -82,6 +82,7 @@ class _SuperadminAccountsScreenState extends State<SuperadminAccountsScreen> {
     return EcAsync<_AccountsData>(
       reloadKey: '$_tenantFilter-$_reloadKey',
       load: _load,
+      live: (e) => e.type == 'team.updated',
       builder: (context, data, _) {
         final names = {for (final t in data.tenants) t.id: t.name};
         return EcPage(children: [

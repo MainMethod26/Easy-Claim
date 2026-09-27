@@ -25,7 +25,10 @@ typedef Handler = (int, Object?) Function(SentRequest request);
 /// /api/v1 prefix and without the query string). Unknown routes answer 404 not_found.
 class FakeBackend {
   static const base = 'http://test.local/api/v1';
-  final Map<String, Handler> routes = {};
+  final Map<String, Handler> routes = {
+    // No live channel unless a test opts in (see FakeRealtime): the app stays "Offline".
+    'POST /realtime/ticket': (_) => (503, {'error': 'realtime_unavailable'}),
+  };
   final List<SentRequest> requests = [];
 
   void on(String route, Object? body, {int status = 200}) => routes[route] = (_) => (status, body);

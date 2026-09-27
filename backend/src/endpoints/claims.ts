@@ -1,3 +1,4 @@
+import { publish } from '../realtime/publish'
 import { Hono } from 'hono'
 import { TENANT_ROLES, type AppEnv } from '../types'
 import { requireRole } from '../security/rbac'
@@ -42,7 +43,10 @@ router.get('/', validate('query', listQuerySchema), async (c) => {
   const page = async (scopeSql: string, scopeValue: string) => {
     // Keyset paging on (created_at, id), same order as the index; one extra row tells us if there is more.
     const { results } = await c.env.DB.prepare(
-      `SELECT id, policy_id, tenant_id, stage, status, category, claimed_amount_cents, created_at, updated_at
+      `SELECT id, policy_id, tenant_id, stage, status, category, claimed_amount_cents, created_at, updated_at,
+         -- POPIA indicator for queues: latest consent form status, and when the customer opened it.
+         (SELECT k.status FROM consents k WHERE k.subject_type = 'claim' AND k.subject_id = claims.id ORDER BY k.requested_at DESC, k.rowid DESC LIMIT 1) AS consent_status,
+         (SELECT k.viewed_at FROM consents k WHERE k.subject_type = 'claim' AND k.subject_id = claims.id ORDER BY k.requested_at DESC, k.rowid DESC LIMIT 1) AS consent_viewed_at
        FROM claims WHERE ${scopeSql}
          AND (? IS NULL OR stage = ?)
          AND (? IS NULL OR COALESCE(created_at, '') < ? OR (COALESCE(created_at, '') = ? AND id < ?))
@@ -463,6 +467,7 @@ router.post('/:claimId/messages', validate('param', claimIdParam), validate('jso
     c.env.DB.prepare('UPDATE claims SET updated_at = ? WHERE id = ?').bind(new Date().toISOString(), claim.id),
     auditStatement(c, { action: 'claim.message_posted', resourceType: 'claim', resourceId: claim.id, outcome: 'success' }),
   ])
+  publish(c, [{ user: claim.user_id }, { tenant: claim.tenant_id }], { type: 'claim.message', claimId: claim.id, from: isCustomer ? 'customer' : 'insurer' })
   return c.json({ messages: await listMessages(c, claim.id) }, 201)
 })
 

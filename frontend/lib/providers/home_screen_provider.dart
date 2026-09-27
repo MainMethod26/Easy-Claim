@@ -29,10 +29,14 @@ class HomeScreenProvider with ChangeNotifier {
       .where((c) => c.stage == 'Draft' || c.stage == 'Info Needed' || (c.stage == 'Decision' && c.status == 'Rejected'))
       .length;
 
-  Future<void> refresh() async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+  /// [quiet] (live updates): keep showing the current claims while reloading, and keep them if
+  /// the reload fails.
+  Future<void> refresh({bool quiet = false}) async {
+    if (!quiet) {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+    }
     try {
       final list = await _claims.list();
       ClaimDetail? primary;
@@ -46,8 +50,9 @@ class HomeScreenProvider with ChangeNotifier {
       _list = list;
       _primary = primary;
       _timeline = timeline;
+      _error = null;
     } catch (e) {
-      _error = e;
+      if (!quiet) _error = e;
     } finally {
       _isLoading = false;
       notifyListeners();

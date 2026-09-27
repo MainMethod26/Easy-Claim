@@ -6,7 +6,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../types'
 import { requireRole } from '../security/rbac'
 import { consentIdParam, consentResponseSchema, signConsentSchema, validate } from '../security/validation'
-import { myConsent, myConsents, respondNo, signConsent } from './service'
+import { myConsents, openMyConsent, respondNo, signConsent } from './service'
 
 export const consents = new Hono<AppEnv>()
 consents.use('*', requireRole('CUSTOMER'))
@@ -14,7 +14,7 @@ consents.use('*', requireRole('CUSTOMER'))
 consents.get('/', async (c) => c.json({ consents: await myConsents(c) }))
 
 consents.get('/:consentId', validate('param', consentIdParam), async (c) => {
-  const found = await myConsent(c, c.req.valid('param').consentId)
+  const found = await openMyConsent(c, c.req.valid('param').consentId)
   return found ? c.json({ consent: found }) : c.json({ error: 'not_found' }, 404)
 })
 

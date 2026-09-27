@@ -38,6 +38,8 @@ export interface Actor {
 
 export type Bindings = {
   DB: D1Database
+  // Live updates (Durable Object, src/realtime/hub.ts). Optional: without it the app simply polls/refreshes.
+  REALTIME?: DurableObjectNamespace
   CLAIM_EVENTS: Queue
   RATE_LIMITER?: RateLimit
   // Private evidence storage (Phase 2). Optional so the API degrades to 503 on evidence

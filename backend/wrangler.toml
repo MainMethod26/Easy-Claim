@@ -12,6 +12,16 @@ database_name = "easy-claim-db"
 # without telling the team; local dev uses its own copy under .wrangler/state (run `npm run demo:setup:local`).
 database_id = "92281ee9-13f3-4c98-a027-e1e8a68ac372"
 
+# Live updates: one Durable Object per audience (a customer, an insurer's staff, the platform).
+# SQLite-backed class (works on the free plan). See src/realtime/hub.ts.
+[[durable_objects.bindings]]
+name = "REALTIME"
+class_name = "RealtimeHub"
+
+[[migrations]]
+tag = "v1-realtime"
+new_sqlite_classes = ["RealtimeHub"]
+
 [[queues.producers]]
 queue = "claim-events"
 binding = "CLAIM_EVENTS"

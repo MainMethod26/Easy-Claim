@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../core/api/api_client.dart';
 import '../core/api/api_exception.dart';
+import '../core/realtime/live_refresh.dart';
+import '../core/realtime/realtime_service.dart';
 import '../core/theme/ec_tokens.dart';
 import '../core/widgets/admin/ec_status_chip.dart';
 import '../core/widgets/state_views.dart';
@@ -25,7 +27,7 @@ class LinkPolicyScreen extends StatefulWidget {
   State<LinkPolicyScreen> createState() => _LinkPolicyScreenState();
 }
 
-class _LinkPolicyScreenState extends State<LinkPolicyScreen> {
+class _LinkPolicyScreenState extends State<LinkPolicyScreen> with LiveRefresh {
   late final CoversRepository _repo = widget.repository ?? CoversRepository();
   late final ConsentRepository _consentRepo = widget.consents ?? ConsentRepository();
 
@@ -56,9 +58,20 @@ class _LinkPolicyScreenState extends State<LinkPolicyScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
+  // Live: the insurer checked a document, asked for more, approved or declined; or sent, and the
+  // customer (on another device) signed, the request's consent form.
+  @override
+  bool wantsLive(RealtimeEvent e) => e.isLinkEvent;
+
+  @override
+  void onLive() {
+    if (!_busy && _busyDoc == null) _load(quiet: true);
+  }
+
+  /// [quiet] (live updates): keep the current requests on screen while reloading.
+  Future<void> _load({bool quiet = false}) async {
     setState(() {
-      _loading = true;
+      _loading = !quiet;
       _loadError = null;
     });
     try {

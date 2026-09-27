@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../core/realtime/live_refresh.dart';
+import '../core/realtime/realtime_service.dart';
 import '../core/theme/ec_status_colors.dart';
 import '../core/theme/ec_tokens.dart';
 import '../core/widgets/ec_tap_target.dart';
@@ -26,7 +28,7 @@ class CoversScreen extends StatefulWidget {
 }
 
 
-class _CoversScreenState extends State<CoversScreen> {
+class _CoversScreenState extends State<CoversScreen> with LiveRefresh {
   late final CoversProvider _provider = widget.provider ?? CoversProvider();
   Future<List<InsurerOption>>? _insurersFuture;
 
@@ -35,6 +37,13 @@ class _CoversScreenState extends State<CoversScreen> {
     super.initState();
     _provider.addListener(_onProviderUpdate);
   }
+
+  // Live: an approved policy link adds a policy.
+  @override
+  bool wantsLive(RealtimeEvent e) => e.type == RealtimeEvent.linkUpdated;
+
+  @override
+  void onLive() => _provider.refresh(quiet: true);
 
   void _onProviderUpdate() {
     if (mounted) setState(() {});

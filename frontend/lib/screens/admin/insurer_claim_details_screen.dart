@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/auth/session.dart';
+import '../../core/realtime/live_refresh.dart';
+import '../../core/realtime/realtime_service.dart';
 import '../../core/widgets/state_views.dart';
 import '../../core/theme/ec_tokens.dart';
 import '../../core/widgets/admin/ec_confirm_dialog.dart';
@@ -50,13 +52,29 @@ class _ClaimFile {
   const _ClaimFile(this.claim, this.evidence, this.payout, this.decision, this.signals);
 }
 
-class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
+class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> with LiveRefresh {
   late final InsurerRepository _insurer = widget.insurer ?? InsurerRepository();
   late final ClaimsRepository _claims = widget.claims ?? ClaimsRepository();
   late final ConsentRepository _consents = widget.consents ?? ConsentRepository();
   late Future<_ClaimFile> _future;
   DecisionIntegrity? _integrity;
   bool _busy = false;
+
+  /// A live reload keeps the current file on screen until the new one is loaded.
+  bool _quiet = false;
+
+  // Live: stage changes, evidence, messages and the consent form of this claim.
+  @override
+  bool wantsLive(RealtimeEvent e) => e.concernsClaim(widget.claimId);
+
+  @override
+  void onLive() {
+    if (_busy) return; // the action in progress reloads when it finishes
+    setState(() {
+      _quiet = true;
+      _future = _load();
+    });
+  }
 
   @override
   void initState() {
@@ -90,7 +108,10 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
     return file;
   }
 
-  void _reload() => setState(() { _future = _load(); });
+  void _reload() => setState(() {
+        _quiet = false;
+        _future = _load();
+      });
 
   Future<void> _run(Future<void> Function() action, String done) async {
     if (_busy) return;
@@ -139,14 +160,18 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
     return 'Waiting for the customer to sign the consent form.';
   }
 
+  /// Claim staff and the insurer admin may send (or re-send) the consent form: sending is a
+  /// communication, not a claim step. The platform admin never can.
+  bool get _maySendConsent => !widget.readOnly || (Session.instance.actor?.isInsurerAdmin ?? false);
+
   Widget _consentSection(ClaimDetail c) {
     final consent = c.consent;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     const finished = {BackendStage.paid, BackendStage.withdrawn, BackendStage.expired};
-    final canSend = !widget.readOnly &&
+    final canSend = _maySendConsent &&
         !finished.contains(c.stage) &&
         (consent == null ? c.stage != BackendStage.draft && c.stage != BackendStage.submitted : consent.isRefused);
-    return _section('Consent (POPIA)', [
+    return _section('Consent (POPIA)', trailing: consent == null ? null : Flexible(child: MandateBadge(status: consent.status, viewedAt: consent.viewedAt)), [
       if (consent == null)
         Text(
           c.stage == BackendStage.submitted
@@ -155,12 +180,12 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
           style: TextStyle(color: muted),
         )
       else ...[
-        Wrap(spacing: EcSpace.sm, runSpacing: EcSpace.sm, children: [
-          ConsentStatusChip(status: consent.status),
-          if (consent.isSigned) ConsentSealChip(seal: consent.seal),
-        ]),
-        const SizedBox(height: EcSpace.sm),
+        if (consent.isSigned) ...[
+          ConsentSealChip(seal: consent.seal),
+          const SizedBox(height: EcSpace.sm),
+        ],
         _kv('Sent', formatConsentDate(consent.requestedAt)),
+        _kv('Opened by customer', consent.viewedAt == null ? 'Not yet' : formatConsentDate(consent.viewedAt)),
         if (consent.isSigned) _kv('Signed by', '${consent.signedName ?? '—'} · ${formatConsentDate(consent.signedAt)}'),
         if (consent.isRefused) _kv(consent.isWithdrawn ? 'Withdrawn' : 'Declined', formatConsentDate(consent.respondedAt)),
         if (consent.isRefused && consent.reason != null) _kv("Customer's reason", consent.reason!),
@@ -342,8 +367,9 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
       body: FutureBuilder<_ClaimFile>(
         future: _future,
         builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done) return const LoadingView(message: 'Loading claim…');
-          if (snap.hasError) return ErrorView(error: snap.error!, onRetry: _reload);
+          final stale = _quiet && snap.hasData;
+          if (snap.connectionState != ConnectionState.done && !stale) return const LoadingView(message: 'Loading claim…');
+          if (snap.hasError && !stale) return ErrorView(error: snap.error!, onRetry: _reload);
           final file = snap.data!;
           final c = file.claim;
           final stage = presentStage(c.stage, status: c.status);
@@ -426,9 +452,10 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
   }
 
   /// One card per part of the claim file (theme card: 8 px radius, 1 px border).
-  Widget _section(String title, List<Widget> children) => _spaced(
+  Widget _section(String title, List<Widget> children, {Widget? trailing}) => _spaced(
         EcSection(
           title: title,
+          trailing: trailing,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
         ),
       );

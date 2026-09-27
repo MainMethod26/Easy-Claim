@@ -51,6 +51,7 @@ import {
   setRequirements,
 } from '../onboarding/customerOnboarding'
 import { auditPage, platformIntegrity, platformOverview, platformSecurity, tenantOverview } from '../admin/metrics'
+import { publish, publishLink, revokeLive } from '../realtime/publish'
 
 /**
  * Platform and tenant administration (team role model, 26 Sep 2026).
@@ -119,6 +120,9 @@ async function setUserStatus(c: Context<AppEnv>, user: UserRow, status: 'active'
   // Any status change also bumps token_version, so a disabled account's tokens stop working at once.
   await c.env.DB.prepare('UPDATE users SET status = ?, token_version = token_version + 1 WHERE id = ?').bind(status, user.id).run()
   await writeAuditEvent(c, { action: auditAction, resourceType: 'user', resourceId: user.id, outcome: 'success', details: { status } })
+  // Admin control, live: a disabled account's open app is signed out now, not at its next request.
+  if (status === 'disabled') revokeLive(c, user, 'account_disabled')
+  publish(c, [{ tenant: user.tenant_id }, { platform: true }], { type: 'team.updated', userId: user.id, status })
   return c.json({ user: publicUser({ ...user, status }) })
 }
 
@@ -310,11 +314,13 @@ tenantAdmin.get('/policy-requests', validate('query', linkStatusQuerySchema), as
 
 tenantAdmin.post('/policy-requests/:requestId/approve', validate('param', linkRequestIdParam), validate('json', approveLinkSchema), async (c) => {
   const r = await approvePolicyLink(c, c.get('actor').tenantId as string, c.req.valid('param').requestId, c.req.valid('json').planName)
+  if (r.ok) await publishLink(c, c.req.valid('param').requestId, 'approved')
   return r.ok ? c.json({ request: r.value }) : c.json({ error: r.error }, r.status)
 })
 
 tenantAdmin.post('/policy-requests/:requestId/reject', validate('param', linkRequestIdParam), validate('json', rejectSchema), async (c) => {
   const r = await rejectPolicyLink(c, c.get('actor').tenantId as string, c.req.valid('param').requestId, c.req.valid('json').reason)
+  if (r.ok) await publishLink(c, c.req.valid('param').requestId, 'rejected')
   return r.ok ? c.json({ request: r.value }) : c.json({ error: r.error }, r.status)
 })
 
@@ -337,11 +343,13 @@ tenantAdmin.get('/policy-requests/:requestId/documents/:docKey', validate('param
 tenantAdmin.post('/policy-requests/:requestId/documents/:docKey/verify', validate('param', requestDocParam), validate('json', verifyDocumentSchema), async (c) => {
   const { requestId, docKey } = c.req.valid('param')
   const r = await setDocumentVerified(c, c.get('actor').tenantId as string, requestId, docKey, c.req.valid('json').verified)
+  if (r.ok) await publishLink(c, requestId, 'document_checked')
   return r.ok ? c.json({ documents: r.value }) : c.json({ error: r.error }, r.status)
 })
 
 tenantAdmin.post('/policy-requests/:requestId/request-info', validate('param', linkRequestIdParam), validate('json', moreInfoSchema), async (c) => {
   const r = await requestMoreInfo(c, c.get('actor').tenantId as string, c.req.valid('param').requestId, c.req.valid('json').message)
+  if (r.ok) await publishLink(c, c.req.valid('param').requestId, 'more_info')
   return r.ok ? c.json({ status: 'more_info' }) : c.json({ error: r.error }, r.status)
 })
 

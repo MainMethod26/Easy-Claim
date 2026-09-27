@@ -3,6 +3,7 @@ import { INSURER_ROLES, type AppEnv } from '../types'
 import { auditStatement, writeAuditEvent } from './audit'
 import { checkTransition, type ClaimStage } from './claimStateMachine'
 import { claimConsentBlock } from '../consent/service'
+import { publish } from '../realtime/publish'
 
 export interface ClaimRow {
   id: string
@@ -218,5 +219,7 @@ export async function transitionClaim(
     })
     return { ok: false, status: 409, error: 'stale_state' }
   }
+  // Live update for the customer and the insurer's staff (ids and stage only).
+  publish(c, [{ user: claim.user_id }, { tenant: claim.tenant_id }], { type: 'claim.updated', claimId: claim.id, stage: to })
   return { ok: true }
 }

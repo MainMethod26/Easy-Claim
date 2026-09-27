@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../core/realtime/live_refresh.dart';
+import '../core/realtime/realtime_service.dart';
 import '../core/theme/ec_tokens.dart';
 
 import '../data/models/onboarding_models.dart';
@@ -18,7 +20,7 @@ class SetupChecklist extends StatefulWidget {
   State<SetupChecklist> createState() => _SetupChecklistState();
 }
 
-class _SetupChecklistState extends State<SetupChecklist> {
+class _SetupChecklistState extends State<SetupChecklist> with LiveRefresh {
   late final CoversRepository _repo = widget.repository ?? CoversRepository();
   MyProfile? _me;
   int _policies = 0;
@@ -30,6 +32,13 @@ class _SetupChecklistState extends State<SetupChecklist> {
     super.initState();
     _load();
   }
+
+  // Live: a policy request approved, declined or asking for more.
+  @override
+  bool wantsLive(RealtimeEvent e) => e.type == RealtimeEvent.linkUpdated;
+
+  @override
+  void onLive() => _load();
 
   Future<void> _load() async {
     try {

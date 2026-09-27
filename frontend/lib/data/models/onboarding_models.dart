@@ -82,6 +82,10 @@ class PolicyLinkRequest {
   final List<RequestDocument> documents;
   final bool documentsComplete;
 
+  /// Latest POPIA form on the request (null until sent) and when the customer first opened it.
+  final String? consentStatus;
+  final DateTime? consentViewedAt;
+
   const PolicyLinkRequest({
     required this.id,
     required this.tenantId,
@@ -98,6 +102,8 @@ class PolicyLinkRequest {
     this.infoMessage,
     this.documents = const [],
     this.documentsComplete = false,
+    this.consentStatus,
+    this.consentViewedAt,
   });
 
   factory PolicyLinkRequest.fromJson(Map<String, dynamic> j) {
@@ -118,6 +124,8 @@ class PolicyLinkRequest {
       infoMessage: _s(j['infoMessage']),
       documents: _docs(j['documents']),
       documentsComplete: j['documentsComplete'] == true,
+      consentStatus: _s(j['consentStatus']),
+      consentViewedAt: _d(j['consentViewedAt']),
     );
   }
 

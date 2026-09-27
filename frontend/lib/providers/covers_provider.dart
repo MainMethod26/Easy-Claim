@@ -21,14 +21,18 @@ class CoversProvider with ChangeNotifier {
   Object? get error => _error;
   int get selectedTabIndex => _selectedTabIndex;
 
-  Future<void> refresh() async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+  /// [quiet] (live updates): no loading state, and a failed reload keeps the current list.
+  Future<void> refresh({bool quiet = false}) async {
+    if (!quiet) {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+    }
     try {
       _policies = await _repo.myPolicies();
+      _error = null;
     } catch (e) {
-      _error = e;
+      if (!quiet) _error = e;
     } finally {
       _isLoading = false;
       notifyListeners();

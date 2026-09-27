@@ -102,6 +102,36 @@ class StaffCounts {
   }
 }
 
+/// GET /tenant/overview `attention`: live work counters for the insurer admin. Mandate counts use
+/// the latest form per claim or policy request only.
+class AttentionCounts {
+  final int awaitingMandate;
+  final int mandateOpened;
+  final int mandateDeclined;
+  final int consentWithdrawn;
+  final int infoNeeded;
+  final int newClaims;
+  const AttentionCounts({
+    this.awaitingMandate = 0,
+    this.mandateOpened = 0,
+    this.mandateDeclined = 0,
+    this.consentWithdrawn = 0,
+    this.infoNeeded = 0,
+    this.newClaims = 0,
+  });
+  factory AttentionCounts.fromJson(Object? v) {
+    final j = _m(v);
+    return AttentionCounts(
+      awaitingMandate: _i(j['awaitingMandate']),
+      mandateOpened: _i(j['mandateOpened']),
+      mandateDeclined: _i(j['mandateDeclined']),
+      consentWithdrawn: _i(j['consentWithdrawn']),
+      infoNeeded: _i(j['infoNeeded']),
+      newClaims: _i(j['newClaims']),
+    );
+  }
+}
+
 /// GET /tenant/overview.
 class TenantOverview {
   final String? tenantId;
@@ -114,6 +144,7 @@ class TenantOverview {
   final IntegrityMix integrity;
   final StaffCounts staff;
   final int pendingPolicyRequests;
+  final AttentionCounts attention;
   const TenantOverview({
     this.tenantId,
     this.tenantName,
@@ -125,6 +156,7 @@ class TenantOverview {
     required this.integrity,
     required this.staff,
     this.pendingPolicyRequests = 0,
+    this.attention = const AttentionCounts(),
   });
   factory TenantOverview.fromJson(Map<String, dynamic> j) {
     final t = _m(j['tenant']);
@@ -139,6 +171,7 @@ class TenantOverview {
       integrity: IntegrityMix.fromJson(j['integrity']),
       staff: StaffCounts.fromJson(j['staff']),
       pendingPolicyRequests: _i(j['pendingPolicyRequests']),
+      attention: AttentionCounts.fromJson(j['attention']),
     );
   }
 }
@@ -217,6 +250,9 @@ class AdminAuditEvent {
   final String resourceType;
   final String? resourceId;
   final String outcome;
+
+  /// claim.stage_changed only: the stage the claim moved to (null otherwise).
+  final String? toStage;
   const AdminAuditEvent({
     required this.id,
     this.occurredAt,
@@ -226,6 +262,7 @@ class AdminAuditEvent {
     required this.resourceType,
     this.resourceId,
     required this.outcome,
+    this.toStage,
   });
   factory AdminAuditEvent.fromJson(Map<String, dynamic> j) => AdminAuditEvent(
         id: _s(j['id']) ?? '',
@@ -236,6 +273,7 @@ class AdminAuditEvent {
         resourceType: _s(j['resourceType']) ?? '',
         resourceId: _s(j['resourceId']),
         outcome: _s(j['outcome']) ?? 'failure',
+        toStage: _s(j['toStage']),
       );
 }
 

@@ -25,6 +25,7 @@ import { auditStatement, writeAuditEvent } from '../security/audit'
 import { sha256Hex } from '../security/ledger'
 import { LOCKOUT_FAILURES, LOCKOUT_WINDOW_MS, verifyPassword } from '../security/password'
 import { getSigner, sealConsent, verifyConsentSeal, type IntegrityStatus } from '../security/integrity'
+import { publish } from '../realtime/publish'
 
 type C = Context<AppEnv>
 const now = () => new Date().toISOString()
@@ -116,6 +117,17 @@ function render(body: string, vars: Record<string, string>): string {
   return body.replace(/\{\{(insurer|customer|easyclaimId|subject|date)\}\}/g, (_, k: string) => vars[k] ?? '')
 }
 
+/** Live notice to both sides that a form changed (ids and status only). */
+export function publishConsent(c: C, r: { id: string; user_id: string; tenant_id: string; subject_type: string; subject_id: string }, status: string) {
+  publish(c, [{ user: r.user_id }, { tenant: r.tenant_id }], {
+    type: 'consent.updated',
+    consentId: r.id,
+    subjectType: r.subject_type,
+    subjectId: r.subject_id,
+    status,
+  })
+}
+
 // ------------------------------------------------------------------ sending
 
 interface SubjectFacts {
@@ -189,6 +201,7 @@ export async function sendConsent(c: C, s: SubjectFacts): Promise<ConsentOutcome
     if (String(err).includes('UNIQUE')) return { ok: false, status: 409, error: 'consent_already_sent' }
     throw err
   }
+  publishConsent(c, { id, user_id: s.userId, tenant_id: s.tenantId, subject_type: s.subjectType, subject_id: s.subjectId }, 'pending')
   return { ok: true, value: (await latestConsent(c, s.subjectType, s.subjectId))! }
 }
 
@@ -212,6 +225,7 @@ interface ConsentRow {
   signature: string | null
   responded_at: string | null
   response_reason: string | null
+  viewed_at: string | null
 }
 
 export interface ConsentSummaryDto {
@@ -221,6 +235,8 @@ export interface ConsentSummaryDto {
   status: ConsentStatus
   templateVersion: number
   requestedAt: string
+  /** When the customer first opened the form (null = not yet read). */
+  viewedAt: string | null
   signedName: string | null
   signedAt: string | null
   respondedAt: string | null
@@ -258,6 +274,7 @@ async function toSummary(c: C, r: ConsentRow): Promise<ConsentSummaryDto> {
     status: r.status,
     templateVersion: r.template_version,
     requestedAt: r.requested_at,
+    viewedAt: r.viewed_at,
     signedName: r.signed_name,
     signedAt: r.signed_at,
     respondedAt: r.responded_at,
@@ -361,6 +378,27 @@ export async function myConsent(c: C, consentId: string): Promise<ConsentDetailD
   return r ? toDetail(c, r, true) : null
 }
 
+/**
+ * The customer opens a form. The first open of a pending form records viewed_at (audited) and tells the
+ * insurer live that the customer is reading it.
+ */
+export async function openMyConsent(c: C, consentId: string): Promise<ConsentDetailDto | null> {
+  const r = await ownRow(c, consentId)
+  if (!r) return null
+  if (r.status === 'pending' && !r.viewed_at) {
+    const at = now()
+    const res = await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE consents SET viewed_at = ? WHERE id = ? AND user_id = ? AND status = 'pending' AND viewed_at IS NULL").bind(at, r.id, r.user_id),
+      auditStatement(c, { action: 'consent.viewed', resourceType: 'consent', resourceId: r.id, outcome: 'success' }, { onlyIfPreviousChanged: true }),
+    ])
+    if (res[0].meta.changes === 1) {
+      r.viewed_at = at
+      publishConsent(c, r, 'viewed')
+    }
+  }
+  return toDetail(c, r, true)
+}
+
 /** A form can only be answered while its subject is still open. */
 async function subjectOpen(db: D1Database, r: ConsentRow): Promise<boolean> {
   if (r.subject_type === 'policy_link') {
@@ -419,6 +457,7 @@ export async function signConsent(c: C, consentId: string, input: { fullName: st
     ),
   ])
   if (res[0].meta.changes !== 1) return { ok: false, status: 409, error: 'not_pending' }
+  publishConsent(c, r, 'signed')
   return { ok: true, value: (await myConsent(c, consentId))! }
 }
 
@@ -442,5 +481,6 @@ export async function respondNo(c: C, consentId: string, action: 'decline' | 'wi
     ),
   ])
   if (res[0].meta.changes !== 1) return { ok: false, status: 409, error: action === 'decline' ? 'not_pending' : 'not_signed' }
+  publishConsent(c, r, to)
   return { ok: true, value: (await myConsent(c, consentId))! }
 }

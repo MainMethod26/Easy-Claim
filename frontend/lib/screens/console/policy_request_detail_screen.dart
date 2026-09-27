@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/api/api_exception.dart';
+import '../../core/realtime/live_refresh.dart';
+import '../../core/realtime/realtime_service.dart';
 import '../../core/theme/ec_tokens.dart';
 import '../../core/widgets/admin/ec_confirm_dialog.dart';
 import '../../core/widgets/admin/ec_section.dart';
@@ -29,7 +31,7 @@ class PolicyRequestDetailScreen extends StatefulWidget {
   State<PolicyRequestDetailScreen> createState() => _PolicyRequestDetailScreenState();
 }
 
-class _PolicyRequestDetailScreenState extends State<PolicyRequestDetailScreen> {
+class _PolicyRequestDetailScreenState extends State<PolicyRequestDetailScreen> with LiveRefresh {
   late final TenantAdminRepository _repo = widget.repository ?? TenantAdminRepository();
   late final ConsentRepository _consents = widget.consents ?? ConsentRepository();
   PolicyRequestDetail? _d;
@@ -42,6 +44,15 @@ class _PolicyRequestDetailScreenState extends State<PolicyRequestDetailScreen> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  // Live: the customer uploaded or resubmitted, opened / signed / declined / withdrew the form.
+  @override
+  bool wantsLive(RealtimeEvent e) => e.concernsRequest(widget.requestId);
+
+  @override
+  void onLive() {
+    if (_busy == null) _load();
   }
 
   Future<void> _load() async {
@@ -170,7 +181,9 @@ class _PolicyRequestDetailScreenState extends State<PolicyRequestDetailScreen> {
           ? 'Every document is checked. Send the customer your consent form; they sign it in the app.'
           : 'Send the consent form once every required document is uploaded and checked.';
     } else if (c.isPending) {
-      hint = 'Waiting for the customer to sign.';
+      hint = c.viewedAt == null
+          ? 'Waiting for the customer to sign.'
+          : 'The customer opened the form ${formatConsentDate(c.viewedAt)} and has not signed yet.';
     } else if (c.isSigned) {
       hint = 'Signed by ${c.signedName ?? '—'} on ${formatConsentDate(c.signedAt)}. You can approve.';
     } else {
@@ -182,7 +195,7 @@ class _PolicyRequestDetailScreenState extends State<PolicyRequestDetailScreen> {
       title: 'Step 2 · Consent form (POPIA)',
       subtitle: 'Your consent / mandate wording (Consent forms page). The customer must sign before you approve.',
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (c != null) ...[ConsentStatusChip(status: c.status), const SizedBox(height: EcSpace.sm)],
+        if (c != null) ...[MandateBadge(status: c.status, viewedAt: c.viewedAt), const SizedBox(height: EcSpace.sm)],
         Text(hint, key: const Key('consent-step-hint')),
         if (c != null && c.isSigned) ...[
           const SizedBox(height: EcSpace.sm),

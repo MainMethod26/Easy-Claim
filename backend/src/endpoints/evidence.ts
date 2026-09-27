@@ -1,3 +1,4 @@
+import { publish } from '../realtime/publish'
 import { Hono } from 'hono'
 import type { AppEnv } from '../types'
 import { requireRole } from '../security/rbac'
@@ -154,6 +155,7 @@ router.post('/:claimId/evidence', requireRole('CUSTOMER'), validate('param', cla
 
   await c.env.CLAIM_EVENTS?.send({ event: 'ClaimEvidenceUploaded', data: { claimId: claim.id, timestamp: now } })
 
+  if (claim.stage !== 'Draft') publish(c, [{ tenant: claim.tenant_id }, { user: claim.user_id }], { type: 'claim.evidence', claimId: claim.id })
   return c.json({ status: 'uploaded', evidenceId, sha256: hash }, 201)
 })
 

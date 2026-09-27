@@ -1,7 +1,7 @@
 # Demo runbook
 
 Two ways to demo: **live** on the team's Cloudflare account (nothing to install), or **local** on one laptop (Worker
-with local D1/R2 via Miniflare plus the Flutter app). Updated 27 Sep 2026 (migrations 0001-0015).
+with local D1/R2 via Miniflare plus the Flutter app). Updated 27 Sep 2026 (migrations 0001-0016).
 
 ## Live (team Cloudflare account)
 
@@ -49,7 +49,7 @@ cd backend
 npm install
 npm run setup:local        # creates backend/.dev.vars: JWT_SECRET, MLDSA_SEED, PII_KEY (random), DEMO_LOGIN_PASSWORD=1234567
                            # an older .dev.vars? run: npm run setup:local -- --add-missing
-npm run demo:setup:local   # migrations 0001..0015, seed, demo accounts, quantum screening signals, the NORMAL + HIGH demo claims (with payout details)
+npm run demo:setup:local   # migrations 0001..0016, seed, demo accounts, quantum screening signals, the NORMAL + HIGH demo claims (with payout details)
 npm run dev                # http://127.0.0.1:8787 ; wait until `curl http://127.0.0.1:8787/api/v1/claims` answers 401
 ```
 
@@ -72,6 +72,22 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8787/api/v1
 flutter run -d chrome --web-port 5174 -t lib/main_admin.dart --dart-define=API_BASE_URL=http://127.0.0.1:8787/api/v1
 ```
 (5174 must be added to `ALLOWED_ORIGINS` for the second web app.)
+
+## Live side-by-side demo (realtime)
+
+Open two browser windows next to each other (one normal, one private, so both stay signed in):
+left `admin_discovery` (or `assessor_discovery`), right `mike`. Both headers show a green **Live** dot.
+
+1. Left (assessor): open a Submitted claim → Verify. Right: "Your insurer sent a POPIA consent form" appears at once.
+2. Right: open the form. Left: the badge turns **Customer is reading**.
+3. Right: sign (name + password). Left: **Mandate signed**, and Screening unlocks without a refresh.
+   Or decline. Left: **Mandate rejected**; the insurer admin presses "Send a new consent form" and it appears on the right.
+4. Left (insurer admin → Overview): the "Needs attention" counters and the live activity feed move with every step.
+5. Messages on the claim thread appear on the other side like chat.
+6. Admin control: as `admin_discovery` → Team → Disable an assessor who is signed in elsewhere. That app signs out
+   at once with "Your access was changed by your administrator."
+
+Full list of live interactions and similar real-world systems: [REALTIME_AND_ADMIN_CONTROL.md](REALTIME_AND_ADMIN_CONTROL.md).
 
 ## 3. Demo accounts (password `1234567`, local and live)
 

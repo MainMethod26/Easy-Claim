@@ -77,6 +77,19 @@ export interface TenantOverview {
   staff: StaffCounts
   /** Customers' policy-link requests waiting for this insurer's decision. */
   pendingPolicyRequests: number
+  /** Live work counters for the insurer admin (see docs/admin/METRICS.md). */
+  attention: AttentionCounts
+}
+
+export interface AttentionCounts {
+  /** Latest POPIA form per subject: sent and not yet opened / opened but not signed / declined / withdrawn. */
+  awaitingMandate: number
+  mandateOpened: number
+  mandateDeclined: number
+  consentWithdrawn: number
+  /** Claims waiting on the customer (Info Needed) and new claims not yet verified (Submitted). */
+  infoNeeded: number
+  newClaims: number
 }
 
 export interface PlatformTenantSummary {
@@ -113,6 +126,8 @@ export interface AdminAuditEvent {
   resourceType: string
   resourceId: string | null
   outcome: 'success' | 'denied' | 'failure'
+  /** claim.stage_changed only: the new stage (for "Claim moved to Screening"). Other details are never exposed. */
+  toStage: string | null
 }
 
 export interface AuditPage {
@@ -317,7 +332,41 @@ export async function tenantOverview(db: D1Database, tenantId: string, windowDay
     .prepare(`SELECT count(*) AS n FROM policy_link_requests WHERE tenant_id = ? AND status = 'pending'`)
     .bind(tenantId)
     .first<{ n: number }>()
-  return { tenant, generatedAt: new Date().toISOString(), claims, decisions, payouts, screening, integrity, staff, pendingPolicyRequests: pending?.n ?? 0 }
+  return {
+    tenant,
+    generatedAt: new Date().toISOString(),
+    claims,
+    decisions,
+    payouts,
+    screening,
+    integrity,
+    staff,
+    pendingPolicyRequests: pending?.n ?? 0,
+    attention: await attentionCounts(db, tenantId, claims.byStage),
+  }
+}
+
+/** Latest form per subject only, so a re-sent form replaces the declined one in the counts. */
+async function attentionCounts(db: D1Database, tenantId: string, byStage: Record<string, number>): Promise<AttentionCounts> {
+  const { results } = await db
+    .prepare(
+      `SELECT CASE WHEN k.status = 'pending' AND k.viewed_at IS NOT NULL THEN 'opened' ELSE k.status END AS s, count(*) AS n
+       FROM consents k
+       WHERE k.tenant_id = ? AND k.rowid = (SELECT k2.rowid FROM consents k2 WHERE k2.subject_type = k.subject_type AND k2.subject_id = k.subject_id
+                                             ORDER BY k2.requested_at DESC, k2.rowid DESC LIMIT 1)
+       GROUP BY s`
+    )
+    .bind(tenantId)
+    .all<{ s: string; n: number }>()
+  const by = Object.fromEntries(results.map((r) => [r.s, r.n])) as Record<string, number>
+  return {
+    awaitingMandate: by.pending ?? 0,
+    mandateOpened: by.opened ?? 0,
+    mandateDeclined: by.declined ?? 0,
+    consentWithdrawn: by.withdrawn ?? 0,
+    infoNeeded: byStage['Info Needed'] ?? 0,
+    newClaims: byStage['Submitted'] ?? 0,
+  }
 }
 
 // ------------------------------------------------------------------ audit
@@ -332,9 +381,21 @@ interface AuditRow {
   resource_type: string
   resource_id: string | null
   outcome: AdminAuditEvent['outcome']
+  details?: string | null
 }
 
-const AUDIT_COLUMNS = 'id, occurred_at, actor_id, actor_role, actor_tenant_id, action, resource_type, resource_id, outcome'
+/** For stage changes only: the stage a claim moved to (a fixed state name, never free text). */
+function toStageOf(r: AuditRow): string | null {
+  if (r.action !== 'claim.stage_changed' || !r.details) return null
+  try {
+    const to = (JSON.parse(r.details) as { to?: unknown }).to
+    return typeof to === 'string' && (CLAIM_STAGES as readonly string[]).includes(to) ? to : null
+  } catch {
+    return null
+  }
+}
+
+const AUDIT_COLUMNS = 'id, occurred_at, actor_id, actor_role, actor_tenant_id, action, resource_type, resource_id, outcome, details'
 
 /**
  * A tenant's audit scope: events by the tenant's own staff, plus events on the tenant's claims,
@@ -349,6 +410,8 @@ const TENANT_SCOPE_SQL = `(
   OR (resource_type = 'user' AND resource_id IN (SELECT id FROM users WHERE tenant_id = :t))
   OR (resource_type = 'policy' AND resource_id IN (SELECT id FROM policies WHERE tenant_id = :t))
   OR (resource_type = 'tenant' AND resource_id = :t)
+  OR (resource_type = 'consent' AND resource_id IN (SELECT id FROM consents WHERE tenant_id = :t))
+  OR (resource_type = 'policy_link_request' AND resource_id IN (SELECT id FROM policy_link_requests WHERE tenant_id = :t))
 )`
 const TENANT_SCOPE_BINDS = (TENANT_SCOPE_SQL.match(/:t/g) ?? []).length
 
@@ -365,6 +428,7 @@ function toAuditEvent(r: AuditRow, viewerTenant: Scope): AdminAuditEvent {
     resourceType: r.resource_type,
     resourceId: r.resource_id,
     outcome: r.outcome,
+    toStage: toStageOf(r),
   }
 }
 

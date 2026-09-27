@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/api/api_exception.dart';
+import '../../core/realtime/realtime_service.dart';
 import '../../core/theme/ec_tokens.dart';
 import '../../core/widgets/admin/ec_confirm_dialog.dart';
 import '../../core/widgets/admin/ec_data_table.dart';
@@ -19,13 +20,14 @@ EcStatusChip decisionChip(String status) => switch (status) {
 
 /// Pending / approved / rejected tabs over one list loader; shared by both review queues.
 class _ReviewQueue<T> extends StatefulWidget {
-  const _ReviewQueue({required this.title, required this.subtitle, required this.load, required this.columns, required this.actions, required this.emptyTitle});
+  const _ReviewQueue({required this.title, required this.subtitle, required this.load, required this.columns, required this.actions, required this.emptyTitle, this.live});
   final String title;
   final String subtitle;
   final Future<List<T>> Function(String status) load;
   final List<EcColumn<T>> columns;
   final List<Widget> Function(BuildContext context, T row, VoidCallback reload) actions;
   final String emptyTitle;
+  final bool Function(RealtimeEvent event)? live;
 
   @override
   State<_ReviewQueue<T>> createState() => _ReviewQueueState<T>();
@@ -40,6 +42,7 @@ class _ReviewQueueState<T> extends State<_ReviewQueue<T>> {
     return EcAsync<List<T>>(
       reloadKey: '$_status-$_reload',
       load: () => widget.load(_status),
+      live: widget.live,
       builder: (context, rows, _) {
         void reload() => setState(() => _reload++);
         return EcPage(children: [
@@ -133,6 +136,7 @@ class InsurerApplicationsPage extends StatelessWidget {
       title: 'Insurer applications',
       subtitle: 'Check the company and its FSP licence number before approving. Approval creates the insurer and its first admin.',
       emptyTitle: 'No applications here',
+      live: (e) => e.type == RealtimeEvent.applicationCreated,
       load: (status) => repo.applications(status: status),
       columns: [
         EcColumn(

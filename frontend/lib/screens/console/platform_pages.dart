@@ -28,6 +28,7 @@ class _PlatformOverviewPageState extends State<PlatformOverviewPage> {
     return EcAsync<PlatformOverview>(
       reloadKey: _days,
       load: () => _repo.overview(days: _days),
+      live: (e) => e.type == 'application.created' || e.type == 'team.updated',
       builder: (context, o, _) {
         final staff = o.usersByRole.entries.where((e) => e.key != 'CUSTOMER' && e.key != 'SUPERADMIN').fold<int>(0, (s, e) => s + e.value);
         return EcPage(children: [

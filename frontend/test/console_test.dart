@@ -19,8 +19,8 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
-void _desktop(WidgetTester tester) {
-  tester.view.physicalSize = const Size(1440, 1100);
+void _desktop(WidgetTester tester, {double height = 1100}) {
+  tester.view.physicalSize = Size(1440, height);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
 }
@@ -63,7 +63,7 @@ void main() {
     setUp(() => signInAs('usr_admin_discovery', 'INSURER_ADMIN', tenantId: 'ins_discovery', displayName: 'Discovery Insurer Admin'));
 
     testWidgets('overview shows real KPIs, charts and team from /tenant/overview', (tester) async {
-      _desktop(tester);
+      _desktop(tester, height: 2600);
       backend.on('GET /tenant/overview', _tenantOverview);
       await tester.pumpWidget(_app(const InsurerAdminConsole()));
       await _settle(tester);
@@ -98,6 +98,7 @@ void main() {
       backend.on('GET /tenant/overview', _tenantOverview);
       var calls = 0;
       backend.onDynamic('GET /tenant/audit', (r) {
+        if (r.query['limit'] == '25') return (200, {'events': []}); // the Overview's live activity panel
         calls++;
         return calls == 1
             ? (200, {'events': [_event('e1', '2026-09-26T20:00:00Z'), _event('e2', '2026-09-26T19:00:00Z', outcome: 'denied', action: 'authz.claim_access_denied')], 'nextBefore': '2026-09-26T19:00:00Z'})
@@ -111,7 +112,7 @@ void main() {
       expect(find.text('authz.claim_access_denied'), findsOneWidget);
       expect(find.text('Denied'), findsOneWidget);
       expect(find.text('Assessor'), findsWidgets); // actor shown by role; id withheld by the server
-      final first = backend.requests.firstWhere((r) => r.path == '/tenant/audit');
+      final first = backend.requests.firstWhere((r) => r.path == '/tenant/audit' && r.query['limit'] != '25');
       expect(first.query, {'limit': '50'});
       await tester.tap(find.text('Load older events'));
       await _settle(tester);

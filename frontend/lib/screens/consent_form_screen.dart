@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../core/api/api_exception.dart';
+import '../core/realtime/live_refresh.dart';
+import '../core/realtime/realtime_service.dart';
 import '../core/theme/ec_tokens.dart';
 import '../core/widgets/state_views.dart';
 import '../data/models/consent_models.dart';
@@ -20,7 +22,7 @@ class ConsentFormScreen extends StatefulWidget {
   State<ConsentFormScreen> createState() => _ConsentFormScreenState();
 }
 
-class _ConsentFormScreenState extends State<ConsentFormScreen> {
+class _ConsentFormScreenState extends State<ConsentFormScreen> with LiveRefresh {
   late final ConsentRepository _repo = widget.repository ?? ConsentRepository();
   final _name = TextEditingController();
   final _password = TextEditingController();
@@ -58,6 +60,18 @@ class _ConsentFormScreenState extends State<ConsentFormScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  // Live: this form changed elsewhere (signed on another device, replaced by a new form).
+  @override
+  bool wantsLive(RealtimeEvent e) => e.isConsent && e.consentId == widget.consentId && e.status != 'viewed';
+
+  @override
+  bool get reloadOnResync => false;
+
+  @override
+  void onLive() {
+    if (!_busy) _load();
   }
 
   bool get _canSign => _agree && _name.text.trim().length >= 2 && _password.text.isNotEmpty && !_busy;
@@ -308,11 +322,25 @@ class ConsentFormsScreen extends StatefulWidget {
   State<ConsentFormsScreen> createState() => _ConsentFormsScreenState();
 }
 
-class _ConsentFormsScreenState extends State<ConsentFormsScreen> {
+class _ConsentFormsScreenState extends State<ConsentFormsScreen> with LiveRefresh {
   late final ConsentRepository _repo = widget.repository ?? ConsentRepository();
   late Future<List<Consent>> _future = _repo.mine();
+  bool _quiet = false;
 
-  void _reload() => setState(() { _future = _repo.mine(); });
+  // Live: a new form from an insurer, or a form signed / declined / withdrawn elsewhere.
+  @override
+  bool wantsLive(RealtimeEvent e) => e.isConsent;
+
+  @override
+  void onLive() => setState(() {
+        _quiet = true;
+        _future = _repo.mine();
+      });
+
+  void _reload() => setState(() {
+        _quiet = false;
+        _future = _repo.mine();
+      });
 
   Future<void> _open(Consent c) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ConsentFormScreen(consentId: c.id, repository: _repo)));
@@ -327,8 +355,9 @@ class _ConsentFormsScreenState extends State<ConsentFormsScreen> {
       body: FutureBuilder<List<Consent>>(
         future: _future,
         builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done) return const LoadingView();
-          if (snap.hasError) return ErrorView(error: snap.error!, onRetry: _reload);
+          final stale = _quiet && snap.hasData;
+          if (snap.connectionState != ConnectionState.done && !stale) return const LoadingView();
+          if (snap.hasError && !stale) return ErrorView(error: snap.error!, onRetry: _reload);
           final items = snap.data!;
           return RefreshIndicator(
             onRefresh: () async => _reload(),

@@ -103,17 +103,20 @@ describe('claims: consent after the document check', () => {
     expect((await auditRows('consent.withdraw', String(signed.id))).length).toBe(1)
   })
 
-  it('CON-04 a declined form keeps the claim waiting; only staff of that insurer can re-send', async () => {
+  it('CON-04 a declined form keeps the claim waiting; staff or the insurer admin of that insurer can re-send', async () => {
     const id = await verifiedClaim()
     const form = await pendingForm(id)
     expect((await call(`/consents/${form.id}/decline`, { method: 'POST', as: customerA, json: {} })).status).toBe(200)
     expect((await call(`/consents/${form.id}/withdraw`, { method: 'POST', as: customerA, json: {} })).status).toBe(409) // not signed
     expect(await (await call(`/claims/${id}/screen`, { method: 'POST', as: assessorA })).json()).toEqual({ error: 'consent_required' })
-    expect((await call(`/claims/${id}/consent`, { method: 'POST', as: insurerAdminA })).status).toBe(403)
     expect((await call(`/claims/${id}/consent`, { method: 'POST', as: customerA })).status).toBe(403)
     expect((await call(`/claims/${id}/consent`, { method: 'POST', as: superadmin })).status).toBe(403)
+    expect((await call(`/claims/${id}/consent`, { method: 'POST', as: insurerAdminB })).status).toBe(404)
     expect((await call(`/claims/${id}/consent`, { method: 'GET', as: customerB })).status).toBe(404)
-    expect((await call(`/claims/${id}/consent`, { method: 'POST', as: managerA })).status).toBe(201)
+    // The insurer admin sends the mandate (a communication), but still cannot move the claim.
+    expect((await call(`/claims/${id}/consent`, { method: 'POST', as: insurerAdminA })).status).toBe(201)
+    expect((await call(`/claims/${id}/consent`, { method: 'POST', as: managerA })).status).toBe(409)
+    expect((await call(`/claims/${id}/screen`, { method: 'POST', as: insurerAdminA })).status).toBe(403)
   })
 
   it('CON-05 the text, subject and signature are fixed once written, and forms are never deleted', async () => {

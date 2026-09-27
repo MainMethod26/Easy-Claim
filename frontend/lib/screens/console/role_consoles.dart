@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../core/auth/session.dart';
+import '../../core/theme/ec_tokens.dart';
 import '../../core/widgets/admin/ec_admin_shell.dart';
+import '../../core/widgets/live_indicator.dart';
 import '../../data/repositories/admin_repositories.dart';
 import '../../data/repositories/consent_repository.dart';
 import '../../data/repositories/repositories.dart';
@@ -26,8 +28,11 @@ void signOutToLogin(BuildContext context) {
 /// One console = one role's destinations inside the shared responsive shell. Pages are built
 /// lazily and kept alive once visited.
 class _Console extends StatefulWidget {
-  const _Console({required this.scopeLabel, required this.scopeIcon, required this.items, this.scopeName});
+  const _Console({required this.scopeLabel, required this.scopeIcon, required this.items, this.scopeName, this.selection});
   final String scopeLabel;
+
+  /// Lets a page switch destinations (e.g. an Overview card opening the filtered Claims list).
+  final ValueNotifier<int>? selection;
 
   /// Optional friendlier scope label (e.g. the insurer's name), shown once loaded.
   final Future<String> Function()? scopeName;
@@ -46,9 +51,26 @@ class _ConsoleState extends State<_Console> {
   @override
   void initState() {
     super.initState();
+    widget.selection?.addListener(_onSelection);
     widget.scopeName?.call().then((n) {
       if (mounted) setState(() => _scopeName = n);
     }).catchError((_) {}); // cosmetic only: keep the id on failure
+  }
+
+  @override
+  void dispose() {
+    widget.selection?.removeListener(_onSelection);
+    super.dispose();
+  }
+
+  void _onSelection() {
+    final i = widget.selection!.value;
+    if (i != _index && i >= 0 && i < widget.items.length) setState(() => _index = i);
+  }
+
+  void _select(int i) {
+    setState(() => _index = i);
+    widget.selection?.value = i;
   }
 
   @override
@@ -61,7 +83,9 @@ class _ConsoleState extends State<_Console> {
       scopeIcon: widget.scopeIcon,
       destinations: [for (final i in widget.items) i.$1],
       selectedIndex: _index,
-      onSelect: (i) => setState(() => _index = i),
+      onSelect: _select,
+      // Real state of the live channel (dot + "Live" / "Offline").
+      actions: const [Center(child: LiveIndicator()), SizedBox(width: EcSpace.sm)],
       pageTitle: widget.items[_index].$1.label,
       userName: actor?.label,
       userRole: actor?.userRole.label,
@@ -117,30 +141,65 @@ class ClaimStaffConsole extends StatelessWidget {
   }
 }
 
-/// INSURER_ADMIN: dashboards, team and audit for its own insurer; claims are read-only.
-class InsurerAdminConsole extends StatelessWidget {
+/// INSURER_ADMIN: the insurer's control centre. Live "Needs attention" counters and activity,
+/// policy requests, team, consent wording and audit for its own insurer; claims are read-only
+/// (it may send a claim's consent form, but never moves a claim).
+class InsurerAdminConsole extends StatefulWidget {
   const InsurerAdminConsole({super.key, this.tenantRepository, this.insurerRepository, this.consentRepository});
   final TenantAdminRepository? tenantRepository;
   final InsurerRepository? insurerRepository;
   final ConsentRepository? consentRepository;
 
+  /// Destination indexes (Overview cards switch to these).
+  static const claimsTab = 1;
+  static const policyRequestsTab = 2;
+
+  @override
+  State<InsurerAdminConsole> createState() => _InsurerAdminConsoleState();
+}
+
+class _InsurerAdminConsoleState extends State<InsurerAdminConsole> {
+  final _selection = ValueNotifier<int>(0);
+  final _claimsFilter = ValueNotifier<WorklistFilter?>(null);
+
+  @override
+  void dispose() {
+    _selection.dispose();
+    _claimsFilter.dispose();
+    super.dispose();
+  }
+
+  void _openClaims(WorklistFilter filter) {
+    _claimsFilter.value = filter;
+    _selection.value = InsurerAdminConsole.claimsTab;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final tenant = tenantRepository ?? TenantAdminRepository();
-    final claims = insurerRepository ?? InsurerRepository();
+    final tenant = widget.tenantRepository ?? TenantAdminRepository();
+    final claims = widget.insurerRepository ?? InsurerRepository();
     return _Console(
       scopeLabel: Session.instance.actor?.tenantId ?? 'Insurer',
       scopeName: () async => (await tenant.tenant()).name,
       scopeIcon: Icons.apartment_outlined,
+      selection: _selection,
       items: [
-        (_overview, (_) => InsurerOverviewPage(repository: tenant)),
+        (
+          _overview,
+          (_) => InsurerOverviewPage(
+                repository: tenant,
+                onOpenClaims: _openClaims,
+                onOpenPolicyRequests: () => _selection.value = InsurerAdminConsole.policyRequestsTab,
+              ),
+        ),
         (
           _claims,
           (_) => ClaimsWorklistPage(
                 title: 'Claims',
-                subtitle: 'Read-only. Assessors and managers work claims; you manage the team.',
+                subtitle: 'Read-only. Assessors and managers work claims; you can send or re-send a claim’s consent form.',
                 readOnly: true,
                 load: claims.queue,
+                filter: _claimsFilter,
               ),
         ),
         (const EcNavItem(label: 'Policy requests', icon: Icons.link_outlined, selectedIcon: Icons.link), (_) => PolicyRequestsPage(repository: tenant)),
@@ -148,13 +207,13 @@ class InsurerAdminConsole extends StatelessWidget {
         (const EcNavItem(label: 'Required docs', icon: Icons.fact_check_outlined, selectedIcon: Icons.fact_check), (_) => RequirementsPage(repository: tenant)),
         (
           const EcNavItem(label: 'Consent forms', icon: Icons.verified_user_outlined, selectedIcon: Icons.verified_user),
-          (_) => ConsentTemplatesPage(repository: consentRepository),
+          (_) => ConsentTemplatesPage(repository: widget.consentRepository),
         ),
         (
           _audit,
           (_) => AuditLogPage(
                 title: 'Audit log',
-                subtitle: 'Your staff’s actions and every event on your insurer’s claims and accounts.',
+                subtitle: 'Your staff’s actions, your customers’ consent and policy-request actions, and every event on your insurer’s claims and accounts.',
                 load: ({before, outcome, action}) => tenant.audit(before: before, outcome: outcome, action: action),
               ),
         ),

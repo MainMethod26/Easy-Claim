@@ -31,6 +31,9 @@ class Consent {
   final DateTime? signedAt;
   final DateTime? respondedAt;
 
+  /// First time the customer opened the form (null until then). Staff see "Customer is reading".
+  final DateTime? viewedAt;
+
   /// The customer's own reason for declining or withdrawing.
   final String? reason;
 
@@ -54,6 +57,7 @@ class Consent {
     this.signedName,
     this.signedAt,
     this.respondedAt,
+    this.viewedAt,
     this.reason,
     this.seal,
     this.insurerName,
@@ -73,6 +77,7 @@ class Consent {
         signedName: _s(j['signedName']),
         signedAt: _d(j['signedAt']),
         respondedAt: _d(j['respondedAt']),
+        viewedAt: _d(j['viewedAt']),
         reason: _s(j['reason']),
         seal: _s(j['seal']),
         insurerName: _s(j['insurerName']),

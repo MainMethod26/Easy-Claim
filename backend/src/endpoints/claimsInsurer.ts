@@ -9,7 +9,7 @@ import { DECISION_RULES_VERSION, evidenceDigest, gatedInsert, latestDecision, pa
 import { claimIdParam, decideSchema, emptyBodySchema, requestInfoSchema, validate } from '../security/validation'
 import { readRiskSignals, signalSummary } from '../screening/quantumSignal'
 import { getSigner, signDecision, verifyDecision } from '../security/integrity'
-import { consentInsert, latestConsentDetail, sendConsent } from '../consent/service'
+import { consentInsert, latestConsentDetail, publishConsent, sendConsent } from '../consent/service'
 
 /**
  * Insurer-side claim operations. Each route is a thin wrapper: the state machine
@@ -45,6 +45,7 @@ router.post('/:claimId/verify', insurerOnly, validate('param', claimIdParam), as
   const form = await consentInsert(c, claimSubject(claim), true)
   const t = await transitionClaim(c, claim, 'Verified', { extra: [form.statement] })
   if (!t.ok) return c.json({ error: t.error }, t.status)
+  publishConsent(c, { id: form.id, user_id: claim.user_id, tenant_id: claim.tenant_id as string, subject_type: 'claim', subject_id: claim.id }, 'pending')
   return c.json({ status: 'transitioned', claimId: claim.id, from: claim.stage, to: 'Verified', consentRequested: true })
 })
 
@@ -59,9 +60,10 @@ function claimSubject(claim: { id: string; tenant_id: string | null; user_id: st
 }
 
 // Send (or re-send after a decline or withdrawal) the consent form for a claim whose documents are
-// checked. Claims verified before consent forms existed get theirs this way.
-router.post('/:claimId/consent', insurerOnly, validate('param', claimIdParam), async (c) => {
-  const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'insurer')
+// checked. Claims verified before consent forms existed get theirs this way. The insurer admin may send
+// it too (a communication, not a claim decision: the admin still cannot move the claim).
+router.post('/:claimId/consent', requireRole('ASSESSOR', 'MANAGER', 'INSURER_ADMIN'), validate('param', claimIdParam), async (c) => {
+  const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'read')
   if (!claim) return c.json(notFound, 404)
   if (['Draft', 'Submitted', 'Withdrawn', 'Expired', 'Paid'].includes(claim.stage)) return c.json({ error: 'documents_not_checked' }, 409)
   const r = await sendConsent(c, claimSubject(claim))

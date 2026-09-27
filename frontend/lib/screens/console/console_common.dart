@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/realtime/live_refresh.dart';
+import '../../core/realtime/realtime_service.dart';
 import '../../core/theme/ec_status_colors.dart';
 import '../../core/theme/ec_tokens.dart';
 import '../../core/widgets/admin/ec_charts.dart';
@@ -9,37 +11,60 @@ import '../../core/widgets/state_views.dart';
 import '../../data/models/admin_models.dart';
 
 /// Loads [load] and renders [builder] with the shared loading / error states. Pull-to-refresh
-/// and [reloadKey] changes (e.g. a new reporting window) both reload.
+/// and [reloadKey] changes (e.g. a new reporting window) both reload. With [live], a live notice
+/// it accepts (and every resync after a reconnect) reloads quietly: the current data stays on
+/// screen until the new data is there.
 class EcAsync<T> extends StatefulWidget {
-  const EcAsync({super.key, required this.load, required this.builder, this.reloadKey});
+  const EcAsync({super.key, required this.load, required this.builder, this.reloadKey, this.live});
   final Future<T> Function() load;
   final Widget Function(BuildContext context, T data, VoidCallback reload) builder;
   final Object? reloadKey;
+  final bool Function(RealtimeEvent event)? live;
 
   @override
   State<EcAsync<T>> createState() => _EcAsyncState<T>();
 }
 
-class _EcAsyncState<T> extends State<EcAsync<T>> {
+class _EcAsyncState<T> extends State<EcAsync<T>> with LiveRefresh {
   late Future<T> _future = widget.load();
+  bool _quiet = false;
+
+  @override
+  bool wantsLive(RealtimeEvent event) => widget.live?.call(event) ?? false;
+
+  @override
+  bool get reloadOnResync => widget.live != null;
+
+  @override
+  void onLive() => setState(() {
+        _quiet = true;
+        _future = widget.load();
+      });
 
   @override
   void didUpdateWidget(covariant EcAsync<T> old) {
     super.didUpdateWidget(old);
-    if (old.reloadKey != widget.reloadKey) _future = widget.load();
+    if (old.reloadKey != widget.reloadKey) {
+      _quiet = false;
+      _future = widget.load();
+    }
   }
 
-  void _reload() => setState(() { _future = widget.load(); });
+  void _reload() => setState(() {
+        _quiet = false;
+        _future = widget.load();
+      });
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<T>(
       future: _future,
       builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
+        final stale = _quiet && snap.hasData;
+        if (snap.connectionState != ConnectionState.done && !stale) {
           return const Center(child: Padding(padding: EdgeInsets.all(EcSpace.xxl), child: CircularProgressIndicator()));
         }
-        if (snap.hasError) return Center(child: EcStateMessage.error(errorMessage(snap.error!), onRetry: _reload));
+        if (snap.hasError && !stale) return Center(child: EcStateMessage.error(errorMessage(snap.error!), onRetry: _reload));
         return RefreshIndicator(onRefresh: () async => _reload(), child: widget.builder(context, snap.data as T, _reload));
       },
     );

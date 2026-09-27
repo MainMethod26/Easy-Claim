@@ -11,6 +11,7 @@ import riskSignals from './screening/routes'
 import { processQueueBatch } from './endpoints/ocr'
 import { decisionIntegrity, integrityInfo } from './integrity/routes'
 import { consents } from './consent/routes'
+import { realtimeConnect, realtimeTicket } from './realtime/routes'
 import { requireActor } from './security/actor'
 import { authInfo, authPublic } from './endpoints/auth'
 import { superadmin, tenantAdmin } from './endpoints/admin'
@@ -71,6 +72,9 @@ app.use('/api/*', async (c, next) => {
 // Sign-in and customer self-registration: the only /api/v1 routes reachable without a token
 // (src/endpoints/auth.ts). The per-IP rate limit above still applies to them.
 app.route('/api/v1/auth', authPublic)
+// Realtime WebSocket upgrade: authenticated by a short-lived ticket (+ Origin), not the bearer header,
+// because browsers cannot set headers on a WebSocket (src/realtime/routes.ts).
+app.route('/api/v1/realtime', realtimeConnect)
 
 // Every other API route requires a verified bearer token. See src/security/actor.ts.
 app.use('/api/v1/*', requireActor)
@@ -107,6 +111,7 @@ app.route('/api/v1/claims', evidence)
 app.route('/api/v1/claims', riskSignals) // Phase 4: read-only advisory screening signal
 app.route('/api/v1/claims', decisionIntegrity) // Phase 5: ML-DSA decision verification
 app.route('/api/v1/integrity', integrityInfo) // Phase 5: public key
+app.route('/api/v1/realtime', realtimeTicket) // POST /ticket for the WebSocket above
 app.route('/api/v1/consents', consents) // POPIA consent forms: the customer reads, signs, declines, withdraws
 // Removed 27 Sep 2026 (assessment): /client/*, /profile, /activities/*, /ocr/process returned fixed
 // or fake data and nothing called them. Real equivalents: /claims/:id/messages, /covers/profile,
@@ -124,6 +129,8 @@ app.onError((err, c) => {
 })
 
 export { app }
+// Durable Object class for live updates (wrangler.toml [[durable_objects.bindings]]).
+export { RealtimeHub } from './realtime/hub'
 
 export default {
   fetch: app.fetch,

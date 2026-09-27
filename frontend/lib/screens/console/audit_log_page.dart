@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/realtime/live_refresh.dart';
+import '../../core/realtime/realtime_service.dart';
 import '../../core/theme/ec_tokens.dart';
 import '../../core/widgets/admin/ec_data_table.dart';
 import '../../core/widgets/admin/ec_section.dart';
@@ -24,7 +26,7 @@ class AuditLogPage extends StatefulWidget {
   State<AuditLogPage> createState() => _AuditLogPageState();
 }
 
-class _AuditLogPageState extends State<AuditLogPage> {
+class _AuditLogPageState extends State<AuditLogPage> with LiveRefresh {
   final _events = <AdminAuditEvent>[];
   String? _next;
   String? _outcome;
@@ -41,6 +43,10 @@ class _AuditLogPageState extends State<AuditLogPage> {
     'decision.': 'Decision integrity',
     'screening.': 'Screening',
     'evidence.': 'Evidence',
+    'consent.': 'Consent forms',
+    'cover.': 'Policy requests',
+    'onboarding.': 'Onboarding documents',
+    'policy.': 'Policy decisions',
     'tenant.': 'Tenant admin',
     'admin.': 'Platform admin',
   };
@@ -51,11 +57,25 @@ class _AuditLogPageState extends State<AuditLogPage> {
     _load(reset: true);
   }
 
-  Future<void> _load({bool reset = false}) async {
+  // Live: any change notice adds audit rows. Only the first page is refreshed, and only while
+  // the viewer has not paged back to older events.
+  @override
+  bool wantsLive(RealtimeEvent e) => e.type != RealtimeEvent.hello;
+
+  @override
+  void onLive() {
+    if (!_loading && !_pagedBack) _load(reset: true, quiet: true);
+  }
+
+  bool _pagedBack = false;
+
+  /// [quiet]: keep the current rows on screen until the fresh first page arrives.
+  Future<void> _load({bool reset = false, bool quiet = false}) async {
+    if (reset) _pagedBack = false;
     setState(() {
       _loading = true;
       _error = null;
-      if (reset) {
+      if (reset && !quiet) {
         _events.clear();
         _next = null;
       }
@@ -64,6 +84,8 @@ class _AuditLogPageState extends State<AuditLogPage> {
       final page = await widget.load(before: reset ? null : _next, outcome: _outcome, action: _action);
       if (!mounted) return;
       setState(() {
+        if (reset && quiet) _events.clear();
+        if (!reset) _pagedBack = true;
         _events.addAll(page.events);
         _next = page.nextBefore;
       });

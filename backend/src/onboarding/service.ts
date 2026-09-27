@@ -57,6 +57,9 @@ export interface PolicyLinkRequestDto {
   decisionReason: string | null
   decidedAt: string | null
   createdAt: string
+  /** Latest POPIA consent form status (null = not sent yet) and when the customer first opened it. */
+  consentStatus: 'pending' | 'signed' | 'declined' | 'withdrawn' | 'superseded' | null
+  consentViewedAt: string | null
   /** Only in the insurer's view: who asked (display name and username; no identity numbers exist). */
   customer?: { displayName: string; username: string; easyclaimId: string | null }
 }
@@ -248,6 +251,8 @@ interface LinkRow {
   display_name?: string
   username?: string
   easyclaim_id?: string | null
+  consent_status?: string | null
+  consent_viewed_at?: string | null
 }
 
 const toLink = (r: LinkRow, withCustomer: boolean): PolicyLinkRequestDto => ({
@@ -261,11 +266,15 @@ const toLink = (r: LinkRow, withCustomer: boolean): PolicyLinkRequestDto => ({
   decisionReason: r.decision_reason,
   decidedAt: r.decided_at,
   createdAt: r.created_at,
+  consentStatus: (r.consent_status ?? null) as PolicyLinkRequestDto['consentStatus'],
+  consentViewedAt: r.consent_viewed_at ?? null,
   ...(withCustomer ? { customer: { displayName: r.display_name ?? '', username: r.username ?? '', easyclaimId: r.easyclaim_id ?? null } } : {}),
 })
 
 const LINK_SELECT = `SELECT r.id, r.tenant_id, t.name AS insurer_name, r.policy_number, r.status, r.policy_id, r.info_message, r.decision_reason,
-  r.decided_at, r.created_at, u.display_name, u.username, u.easyclaim_id
+  r.decided_at, r.created_at, u.display_name, u.username, u.easyclaim_id,
+  (SELECT k.status FROM consents k WHERE k.subject_type = 'policy_link' AND k.subject_id = r.id ORDER BY k.requested_at DESC, k.rowid DESC LIMIT 1) AS consent_status,
+  (SELECT k.viewed_at FROM consents k WHERE k.subject_type = 'policy_link' AND k.subject_id = r.id ORDER BY k.requested_at DESC, k.rowid DESC LIMIT 1) AS consent_viewed_at
   FROM policy_link_requests r LEFT JOIN tenants t ON t.id = r.tenant_id LEFT JOIN users u ON u.id = r.user_id`
 
 /** Insurers a customer can link a policy with: every tenant (id and name only). */
