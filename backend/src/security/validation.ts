@@ -174,3 +174,12 @@ export const requirementsSchema = z
   .strict()
 export const easyclaimIdQuerySchema = z.object({ easyclaimId: z.string().trim().toUpperCase().regex(/^EC-[0-9A-Z]{4}-[0-9A-Z]{4}$/) }).strict()
 export const tenantIdParam = z.object({ tenantId: z.string().regex(/^ins_[a-z0-9_]{2,40}$/) })
+
+// ---- Claim hand-offs (migration 0013) ----
+const messageBody = z.string().trim().min(2).max(2000)
+/** Staff: what information is needed (optional for older clients; the app always sends it). */
+export const requestInfoSchema = z.object({ message: messageBody.optional() }).strict()
+/** Customer: answer to an information request. */
+export const respondSchema = z.object({ message: messageBody }).strict()
+export const withdrawSchema = z.object({ reason: messageBody.optional() }).strict()
+export const claimMessageSchema = z.object({ body: messageBody }).strict()

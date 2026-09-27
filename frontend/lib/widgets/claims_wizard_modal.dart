@@ -23,6 +23,9 @@ class ClaimsWizardModal extends StatefulWidget {
   final ClaimsRepository? claimsRepository;
   final CoversRepository? coversRepository;
 
+  /// Continue this existing Draft instead of starting a new claim.
+  final ClaimDetail? resume;
+
   const ClaimsWizardModal({
     super.key,
     this.policy,
@@ -30,9 +33,10 @@ class ClaimsWizardModal extends StatefulWidget {
     this.onCompleted,
     this.claimsRepository,
     this.coversRepository,
+    this.resume,
   });
 
-  static Future<void> show(BuildContext context, {Policy? policy, String? initialCategory, VoidCallback? onCompleted}) {
+  static Future<void> show(BuildContext context, {Policy? policy, String? initialCategory, VoidCallback? onCompleted, ClaimDetail? resume}) {
     return Navigator.push(
       context,
       MaterialPageRoute(
@@ -42,9 +46,9 @@ class ClaimsWizardModal extends StatefulWidget {
             backgroundColor: Colors.white,
             elevation: 0,
             iconTheme: const IconThemeData(color: Colors.black),
-            title: const Text('New claim', style: TextStyle(color: _ink, fontWeight: FontWeight.w800)),
+            title: Text(resume == null ? 'New claim' : 'Continue claim', style: const TextStyle(color: _ink, fontWeight: FontWeight.w800)),
           ),
-          body: ClaimsWizardModal(policy: policy, initialCategory: initialCategory, onCompleted: onCompleted),
+          body: ClaimsWizardModal(policy: policy, initialCategory: initialCategory, onCompleted: onCompleted, resume: resume),
         ),
       ),
     );
@@ -88,6 +92,13 @@ class _ClaimsWizardModalState extends State<ClaimsWizardModal> {
   @override
   void initState() {
     super.initState();
+    final r = widget.resume;
+    if (r != null) {
+      _w.resume(r);
+      _incidentDate = _w.incidentDate;
+      if (_w.claimedAmountCents != null) _amount.text = (_w.claimedAmountCents! / 100).toStringAsFixed(2);
+      if (_w.bankName != null) _bank.text = _w.bankName!;
+    }
     _w.addListener(_onChange);
     _w.loadPolicies();
   }

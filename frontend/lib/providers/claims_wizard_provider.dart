@@ -116,6 +116,20 @@ class ClaimsWizardProvider with ChangeNotifier {
     }
   }
 
+  /// Continue a Draft created earlier: the policy is fixed, known details are prefilled, and the
+  /// wizard opens at "What happened" (the draft already exists, so nothing new is created).
+  void resume(ClaimDetail claim) {
+    _claimId = claim.id;
+    _selectedPolicy = Policy(id: claim.policyId, planName: claim.planName ?? claim.policyId, status: 'Active', tenantId: claim.tenantId, insurerName: claim.insurerName);
+    _causeOfLoss = claim.causeOfLoss;
+    _incidentDate = claim.incidentDate == null ? null : DateTime.tryParse(claim.incidentDate!);
+    _claimedAmountCents = claim.claimedAmountCents;
+    _bankName = claim.payoutBankName;
+    _accountLast4 = claim.payoutAccountLast4;
+    _step = ClaimWizardStep.whatHappened;
+    notifyListeners();
+  }
+
   Future<void> loadPolicies() async {
     await _run(() async {
       _policies = await _covers.myPolicies();

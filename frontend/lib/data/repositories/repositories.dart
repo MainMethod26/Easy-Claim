@@ -186,6 +186,30 @@ class ClaimsRepository {
   Future<PayoutInfo> payout(String claimId) async => PayoutInfo.fromJson(await _api.get('/claims/$claimId/payout'));
 
   Future<void> appeal(String claimId, String reason) async => _api.post('/claims/$claimId/appeal', body: {'reason': reason});
+
+  /// Answer an information request: the claim goes back to the insurer (Screening) with [message].
+  Future<void> respond(String claimId, String message) async => _api.post('/claims/$claimId/respond', body: {'message': message});
+
+  Future<void> withdraw(String claimId, {String? reason}) async =>
+      _api.post('/claims/$claimId/withdraw', body: reason == null || reason.trim().isEmpty ? null : {'reason': reason.trim()});
+
+  Future<List<ClaimMessage>> messages(String claimId) async {
+    final body = await _api.get('/claims/$claimId/messages');
+    return ((body['messages'] as List?) ?? const []).whereType<Map<String, dynamic>>().map(ClaimMessage.fromJson).toList();
+  }
+
+  Future<List<ClaimMessage>> postMessage(String claimId, String text) async {
+    final body = await _api.post('/claims/$claimId/messages', body: {'body': text});
+    return ((body['messages'] as List?) ?? const []).whereType<Map<String, dynamic>>().map(ClaimMessage.fromJson).toList();
+  }
+
+  /// Evidence file bytes (owner or the claim's insurer staff; every download is audited).
+  Future<({List<int> bytes, String contentType})> evidenceFile(String claimId, String evidenceId) =>
+      _api.getBytes('/claims/$claimId/evidence/$evidenceId');
+
+  /// Re-hashes the stored file on the server: 'VALID' or 'TAMPERED'.
+  Future<String> verifyEvidence(String claimId, String evidenceId) async =>
+      ((await _api.get('/claims/$claimId/evidence/$evidenceId/verify'))['status'] as String?) ?? 'UNKNOWN';
 }
 
 /// Insurer-admin claim operations. The backend enforces role, tenant and stage; the UI only
@@ -202,6 +226,9 @@ class InsurerRepository {
   }
 
   /// POST /claims/:id/{verify|screen|review|request-info} with no body.
+  /// Screening/Review → Info Needed, telling the customer what is needed.
+  Future<void> requestInfo(String claimId, String message) async => _api.post('/claims/$claimId/request-info', body: {'message': message});
+
   Future<TransitionResult> advance(String claimId, String action) async {
     if (!transitions.contains(action)) throw ArgumentError.value(action, 'action');
     return TransitionResult.fromJson(await _api.post('/claims/$claimId/$action'));

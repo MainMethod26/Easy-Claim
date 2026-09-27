@@ -13,11 +13,12 @@
     "quantum:experiment": "node -e \"const fs=require('fs'),path=require('path');const q=path.resolve('..','quantum');const py=[path.join(q,'.venv/Scripts/python.exe'),path.join(q,'.venv/bin/python')].find(p=>fs.existsSync(p))||'python';require('child_process').execFileSync(py,[path.join(q,'experiment.py'),...process.argv.slice(1)],{stdio:'inherit',cwd:path.resolve('..')})\"",
     "signals:import:local": "wrangler d1 execute easy-claim-db --local --file=../quantum/results/screening_signals.sql",
     "demo:quantum:local": "wrangler d1 execute easy-claim-db --local --file=../quantum/results/demo_claims.sql",
+    "demo:payouts:local": "wrangler d1 execute easy-claim-db --local --file=seed_demo_payouts.sql",
     "setup:local": "node scripts/setup-dev-vars.mjs",
     "secret": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
     "token": "node scripts/mint-token.mjs",
     "quantum:test": "node -e \"const fs=require('fs'),path=require('path');const q=path.resolve('..','quantum');const py=[path.join(q,'.venv/Scripts/python.exe'),path.join(q,'.venv/bin/python')].find(p=>fs.existsSync(p));require('child_process').execFileSync(py||'python',['-m','pytest','tests','-q'],{stdio:'inherit',cwd:q})\"",
-    "demo:setup:local": "npm run db:migrate:local && npm run db:seed:local && npm run db:seed:users:local && npm run signals:import:local && npm run demo:quantum:local",
+    "demo:setup:local": "npm run db:migrate:local && npm run db:seed:local && npm run db:seed:users:local && npm run signals:import:local && npm run demo:quantum:local && npm run demo:payouts:local",
     "db:seed:users:local": "node scripts/seed-demo-users.mjs"
   },
   "keywords": [],

@@ -1,11 +1,12 @@
 import { Hono, type Context } from 'hono'
 import type { AppEnv } from '../types'
 import { requireRole } from '../security/rbac'
+import { messageStatement } from '../claims/messages'
 import { writeAuditEvent } from '../security/audit'
 import { loadAuthorizedClaim, transitionClaim } from '../security/claimAccess'
 import { checkTransition, type ClaimStage } from '../security/claimStateMachine'
 import { DECISION_RULES_VERSION, evidenceDigest, gatedInsert, latestDecision, payoutFor } from '../security/ledger'
-import { claimIdParam, decideSchema, emptyBodySchema, validate } from '../security/validation'
+import { claimIdParam, decideSchema, emptyBodySchema, requestInfoSchema, validate } from '../security/validation'
 import { readRiskSignals, signalSummary } from '../screening/quantumSignal'
 import { getSigner, signDecision, verifyDecision } from '../security/integrity'
 
@@ -70,11 +71,29 @@ router.post('/:claimId/review', insurerOnly, validate('param', claimIdParam), as
   return respond(c, claim.id, claim.stage, 'Review')
 })
 
-// Screening | Review → Info Needed. The customer answers via PATCH /:claimId/screening.
+// Screening | Review → Info Needed, with what is needed. The customer answers via POST /:claimId/respond
+// (or by updating the details in the wizard). The message is stored with the transition, in one batch.
 router.post('/:claimId/request-info', insurerOnly, validate('param', claimIdParam), async (c) => {
   const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'insurer')
   if (!claim) return c.json(notFound, 404)
-  const t = await transitionClaim(c, claim, 'Info Needed')
+  // Body is optional (older clients send none); when present it must match the schema exactly.
+  const raw = (await c.req.text()).trim()
+  let message: string | undefined
+  if (raw) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      return c.json({ error: 'validation_failed' }, 400)
+    }
+    const v = requestInfoSchema.safeParse(parsed)
+    if (!v.success) return c.json({ error: 'validation_failed' }, 400)
+    message = v.data.message
+  }
+  const t = await transitionClaim(c, claim, 'Info Needed', {
+    details: { withMessage: !!message },
+    extra: message ? [messageStatement(c, claim, 'info_request', message, true)] : [],
+  })
   if (!t.ok) return c.json({ error: t.error }, t.status)
   return respond(c, claim.id, claim.stage, 'Info Needed')
 })

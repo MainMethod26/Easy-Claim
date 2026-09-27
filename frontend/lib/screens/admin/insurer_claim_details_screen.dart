@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/auth/session.dart';
 import '../../core/widgets/state_views.dart';
+import '../../core/widgets/admin/ec_confirm_dialog.dart';
 import '../../core/widgets/trust_cards.dart';
+import '../../widgets/claim_messages_panel.dart';
 import '../../data/models/api_models.dart';
 import '../../data/models/claim_stage.dart';
 import '../../data/repositories/repositories.dart';
@@ -133,6 +135,36 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
     Future<void> advance(String action, String done) => _run(() async {
           await _insurer.advance(widget.claimId, action);
         }, done);
+    Future<void> requestInfo() async {
+      final message = await showEcConfirmWithReason(
+        context,
+        title: 'Request information',
+        message: 'Tell the customer exactly what you need. They see this message and can reply or upload files.',
+        confirmLabel: 'Send to customer',
+        minReasonLength: 10,
+      );
+      if (message == null) return;
+      await _run(() => _insurer.requestInfo(widget.claimId, message), 'Customer asked for more information');
+    }
+    Future<void> pay() async {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Pay this claim?'),
+          content: Text('Pays ${formatRand(file.decision.approvedAmountCents)} (simulated) to '
+              '${file.claim.payoutBankName ?? 'the recorded account'} ••••${file.claim.payoutAccountLast4 ?? ''}. '
+              'The decision signature is verified first. This cannot be undone.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(key: const Key('confirm-pay'), onPressed: () => Navigator.pop(context, true), child: const Text('Pay')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+      await _run(() async {
+        await _insurer.pay(widget.claimId, idempotencyKey: 'pay-${widget.claimId}');
+      }, 'Payout completed (simulated)');
+    }
 
     switch (stage) {
       case BackendStage.submitted:
@@ -142,8 +174,7 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
       case BackendStage.screening:
         return [
           button('Move to review', Icons.rate_review_outlined, () => advance('review', 'Claim moved to review')),
-          button('Request information', Icons.help_outline, () => advance('request-info', 'Customer asked for more information'),
-              color: const Color(0xFFD97706)),
+          button('Request information', Icons.help_outline, requestInfo, color: const Color(0xFFD97706)),
         ];
       case BackendStage.review:
         return [
@@ -151,26 +182,27 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
             button('Record decision', Icons.gavel, () => _openDecisionForm(file.claim), color: const Color(0xFF0F766E))
           else
             note('Manager decision required.'),
-          button('Request information', Icons.help_outline, () => advance('request-info', 'Customer asked for more information'),
-              color: const Color(0xFFD97706)),
+          button('Request information', Icons.help_outline, requestInfo, color: const Color(0xFFD97706)),
         ];
       case BackendStage.decision:
         if (file.claim.status == 'Approved' && !file.payout.isPaid) {
           if (!isManager) return [note('Manager payout required.')];
           return [
-            button('Pay claim (simulated)', Icons.payments_outlined,
-                () => _run(() async {
-                      await _insurer.pay(widget.claimId, idempotencyKey: 'pay-${widget.claimId}');
-                    }, 'Payout completed (simulated)'),
-                color: const Color(0xFFEA580C)),
+            button('Pay claim (simulated)', Icons.payments_outlined, pay, color: const Color(0xFFEA580C)),
           ];
         }
         return [note(file.claim.status == 'Rejected' ? 'Rejected. The customer may appeal.' : 'Decision recorded.')];
       case BackendStage.appeal:
-        if (!isManager) return [note('Manager must re-open the appeal.')];
-        return [button('Re-review appeal', Icons.replay, () => advance('review', 'Appeal moved to review'))];
+        return [
+          if (file.claim.appealReason != null) note('Customer\'s appeal: "${file.claim.appealReason}"'),
+          if (!isManager) note('Manager must re-open the appeal.') else button('Re-review appeal', Icons.replay, () => advance('review', 'Appeal moved to review')),
+        ];
       case BackendStage.infoNeeded:
-        return [note('Waiting for the customer to update the claim.')];
+        return [
+          note(file.claim.infoRequest == null
+              ? 'Waiting for the customer to update the claim.'
+              : 'Waiting for the customer. You asked: "${file.claim.infoRequest}"'),
+        ];
       case BackendStage.paid:
         return [note('Claim paid. No further action.')];
       default:
@@ -218,12 +250,18 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
               _section('Evidence (${file.evidence.length})', [
                 if (file.evidence.isEmpty) const Text('No evidence uploaded.', style: TextStyle(color: Color(0xFF64748B))),
                 for (final e in file.evidence)
-                  ListTile(
+                  Material(
+                    type: MaterialType.transparency,
+                    child: ListTile(
+                    key: Key('evidence-${e.id}'),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
+                    onTap: () => openEvidence(context, _claims, widget.claimId, e),
+                    trailing: const Text('Open', style: TextStyle(color: Color(0xFFFF5500), fontWeight: FontWeight.w600)),
                     leading: Icon(e.mimeType == 'application/pdf' ? Icons.picture_as_pdf : Icons.image_outlined),
                     title: Text(e.displayName),
                     subtitle: Text('SHA-256 ${e.sha256.length > 16 ? e.sha256.substring(0, 16) : e.sha256}… · ${(e.sizeBytes / 1024).toStringAsFixed(0)} KB'),
+                  ),
                   ),
               ]),
               if (!widget.readOnly) ScreeningCard(signals: file.signals),
@@ -246,6 +284,8 @@ class _InsurerClaimDetailsScreenState extends State<InsurerClaimDetailsScreen> {
                 ] else
                   const Text('Not paid.', style: TextStyle(color: Color(0xFF64748B))),
               ]),
+              if (c.stage != BackendStage.draft)
+                ClaimMessagesPanel(claimId: widget.claimId, canPost: !widget.readOnly, repository: _claims, title: 'Messages with the customer'),
               const SizedBox(height: 8),
               if (widget.readOnly)
                 Text(widget.readOnlyNote,

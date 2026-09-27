@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import '../core/api/api_client.dart';
+import '../widgets/claim_messages_panel.dart';
+import '../widgets/claims_wizard_modal.dart';
 import '../core/widgets/state_views.dart';
 import '../core/widgets/trust_cards.dart';
 import '../data/models/api_models.dart';
@@ -68,6 +72,94 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
         _selectedId = id;
         _viewFuture = _loadView(id);
       });
+
+  /// Answer an information request: optional files first, then a reply that sends the claim back.
+  Future<void> _uploadFor(String claimId) async {
+    final picked = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'], withData: true);
+    final f = picked?.files.single;
+    if (f == null || f.bytes == null) return;
+    if (ApiClient.allowedContentType(f.name) == null || f.bytes!.length > 10 * 1024 * 1024) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Use a PDF, JPEG or PNG up to 10 MB.')));
+      return;
+    }
+    try {
+      await _repo.uploadEvidence(claimId, bytes: f.bytes!, filename: f.name);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${f.name} uploaded.')));
+      _reload();
+    } catch (e) {
+      if (mounted) showErrorSnack(context, e);
+    }
+  }
+
+  Future<void> _reply(String claimId) async {
+    final controller = TextEditingController();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Reply to your insurer'),
+          content: TextField(
+            key: const Key('reply-input'),
+            controller: controller,
+            autofocus: true,
+            minLines: 3,
+            maxLines: 6,
+            maxLength: 2000,
+            decoration: const InputDecoration(hintText: 'Explain what you updated or uploaded.'),
+            onChanged: (_) => setState(() {}),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(
+              key: const Key('reply-send'),
+              onPressed: controller.text.trim().length >= 2 ? () => Navigator.pop(ctx, controller.text.trim()) : null,
+              child: const Text('Send back to insurer'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (text == null) return;
+    try {
+      await _repo.respond(claimId, text);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sent. Your insurer will continue the review.')));
+      _reload();
+    } catch (e) {
+      if (mounted) showErrorSnack(context, e);
+    }
+  }
+
+  Future<void> _withdraw(String claimId) async {
+    final controller = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Withdraw this claim?'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Your insurer stops working on it. A withdrawn claim cannot be reopened.'),
+          const SizedBox(height: 12),
+          TextField(controller: controller, maxLength: 500, decoration: const InputDecoration(labelText: 'Reason (optional)')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep claim')),
+          FilledButton(
+            key: const Key('confirm-withdraw'),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB91C1C)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Withdraw'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _repo.withdraw(claimId, reason: controller.text);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Claim withdrawn.')));
+      _reload();
+    } catch (e) {
+      if (mounted) showErrorSnack(context, e);
+    }
+  }
 
   Future<void> _appeal(String claimId) async {
     final controller = TextEditingController();
@@ -188,6 +280,34 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
         const SizedBox(height: 10),
         Text(nextStepFor(c.stage, status: c.status), style: const TextStyle(fontWeight: FontWeight.w600)),
       ])),
+      if (c.stage == 'Info Needed')
+        _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('YOUR INSURER NEEDS SOMETHING', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8, fontSize: 12, color: Color(0xFFB45309))),
+          const SizedBox(height: 8),
+          Text(c.infoRequest ?? 'Your insurer asked for more information. Upload anything that helps, then reply.',
+              key: const Key('info-request-text')),
+          const SizedBox(height: 12),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            OutlinedButton.icon(key: const Key('upload-for-insurer'), onPressed: () => _uploadFor(c.id), icon: const Icon(Icons.upload_file), label: const Text('Upload a file')),
+            FilledButton.icon(key: const Key('reply-to-insurer'), onPressed: () => _reply(c.id), icon: const Icon(Icons.reply), label: const Text('Reply and send back')),
+          ]),
+        ])),
+      if (c.stage == 'Draft')
+        _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('NOT SUBMITTED YET', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8, fontSize: 12)),
+          const SizedBox(height: 8),
+          const Text('Finish the remaining steps and submit it to your insurer.'),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            key: const Key('continue-draft'),
+            onPressed: () async {
+              await ClaimsWizardModal.show(context, resume: c, onCompleted: _reload);
+              _reload();
+            },
+            icon: const Icon(Icons.edit_note),
+            label: const Text('Continue this claim'),
+          ),
+        ])),
       _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('STAGES', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8, fontSize: 12)),
         const SizedBox(height: 8),
@@ -224,6 +344,17 @@ class _ClaimActivityScreenState extends State<ClaimActivityScreen> {
         else
           const Text('No payout account on this claim.', style: TextStyle(color: Color(0xFF64748B))),
       ])),
+      if (c.stage != 'Draft') ClaimMessagesPanel(claimId: c.id, repository: _repo, title: 'Messages with your insurer'),
+      if (const ['Draft', 'Submitted', 'Verified', 'Screening', 'Review', 'Info Needed'].contains(c.stage))
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            key: const Key('withdraw-claim'),
+            onPressed: () => _withdraw(c.id),
+            icon: const Icon(Icons.close, color: Color(0xFFB91C1C)),
+            label: const Text('Withdraw this claim', style: TextStyle(color: Color(0xFFB91C1C))),
+          ),
+        ),
     ]);
   }
 

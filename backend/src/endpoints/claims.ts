@@ -1,19 +1,23 @@
 import { Hono } from 'hono'
 import { TENANT_ROLES, type AppEnv } from '../types'
 import { requireRole } from '../security/rbac'
-import { writeAuditEvent } from '../security/audit'
+import { latestInfoRequest, listMessages, messageStatement, MESSAGES_PER_HOUR, recentMessageCount } from '../claims/messages'
+import { auditStatement, writeAuditEvent } from '../security/audit'
 import { loadAuthorizedClaim, transitionClaim } from '../security/claimAccess'
 import { MAIN_PATH, isClaimStage } from '../security/claimStateMachine'
 import { destinationHash, latestDecision, payoutFor } from '../security/ledger'
 import {
   appealSchema,
   claimIdParam,
+  claimMessageSchema,
   initiateClaimSchema,
   listQuerySchema,
   payoutDetailsSchema,
+  respondSchema,
   screeningSchema,
   validate,
   verifyEligibilitySchema,
+  withdrawSchema,
 } from '../security/validation'
 
 // Customer-side claim routes. Insurer-side transitions live in claimsInsurer.ts.
@@ -219,6 +223,12 @@ router.get('/:claimId', validate('param', claimIdParam), async (c) => {
   )
     .bind(claim.policy_id)
     .first<{ plan_name: string | null; insurer_name: string | null }>()
+  const [infoRequest, appeal] = await Promise.all([
+    claim.stage === 'Info Needed' ? latestInfoRequest(c.env.DB, claim.id) : Promise.resolve(null),
+    c.env.DB.prepare("SELECT body, created_at FROM claim_messages WHERE claim_id = ? AND kind = 'appeal' ORDER BY created_at DESC LIMIT 1")
+      .bind(claim.id)
+      .first<{ body: string; created_at: string }>(),
+  ])
   return c.json({
     claim: {
       id: claim.id,
@@ -237,6 +247,10 @@ router.get('/:claimId', validate('param', claimIdParam), async (c) => {
         : null,
       createdAt: claim.created_at,
       updatedAt: claim.updated_at,
+      // What the insurer asked for (only while the claim waits on the customer).
+      infoRequest,
+      // The customer's latest appeal reason, if any.
+      appealReason: appeal ? { body: appeal.body, createdAt: appeal.created_at } : null,
     },
   })
 })
@@ -384,7 +398,8 @@ router.post(
       return c.json({ error: 'not_appealable' }, 409)
     }
 
-    const t = await transitionClaim(c, claim, 'Appeal')
+    // The reason travels with the appeal (was validated but discarded before).
+    const t = await transitionClaim(c, claim, 'Appeal', { extra: [messageStatement(c, claim, 'appeal', c.req.valid('json').reason, true)] })
     if (!t.ok) return c.json({ error: t.error }, t.status)
     return c.json({ status: 'appealed' })
   }
@@ -397,11 +412,74 @@ router.post(
   async (c) => {
     const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'owner-write')
     if (!claim) return c.json(notFound, 404)
+    // Optional reason; older clients send no body.
+    const raw = (await c.req.text()).trim()
+    let reason: string | undefined
+    if (raw) {
+      const v = (() => {
+        try {
+          return withdrawSchema.safeParse(JSON.parse(raw))
+        } catch {
+          return null
+        }
+      })()
+      if (!v || !v.success) return c.json({ error: 'validation_failed' }, 400)
+      reason = v.data.reason
+    }
 
-    const t = await transitionClaim(c, claim, 'Withdrawn')
+    const t = await transitionClaim(c, claim, 'Withdrawn', { extra: reason ? [messageStatement(c, claim, 'withdraw', reason, true)] : [] })
     if (!t.ok) return c.json({ error: t.error }, t.status)
     return c.json({ status: 'withdrawn' })
   }
 )
+
+/**
+ * The customer answers an information request: message stored with the transition back to
+ * Screening (one batch). Updated details or evidence can be sent before this call.
+ */
+router.post(
+  '/:claimId/respond',
+  requireRole('CUSTOMER'),
+  validate('param', claimIdParam),
+  validate('json', respondSchema),
+  async (c) => {
+    const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'owner-write')
+    if (!claim) return c.json(notFound, 404)
+    if (claim.stage !== 'Info Needed') return c.json({ error: 'not_waiting_for_you', stage: claim.stage }, 409)
+    const t = await transitionClaim(c, claim, 'Screening', {
+      details: { reply: true },
+      extra: [messageStatement(c, claim, 'customer_reply', c.req.valid('json').message, true)],
+    })
+    if (!t.ok) return c.json({ error: t.error }, t.status)
+    return c.json({ status: 'sent', stage: 'Screening' })
+  }
+)
+
+/** The claim's conversation: owner, the tenant's claim staff and (read-only) its insurer admin. */
+router.get('/:claimId/messages', validate('param', claimIdParam), async (c) => {
+  const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, 'read')
+  if (!claim) return c.json(notFound, 404)
+  return c.json({ messages: await listMessages(c, claim.id) })
+})
+
+/** A general message on a claim: the owner, or an ASSESSOR/MANAGER of the claim's insurer. */
+router.post('/:claimId/messages', validate('param', claimIdParam), validate('json', claimMessageSchema), async (c) => {
+  const actor = c.get('actor')
+  const isCustomer = actor.role === 'CUSTOMER'
+  if (!isCustomer && actor.role !== 'ASSESSOR' && actor.role !== 'MANAGER') {
+    await writeAuditEvent(c, { action: 'authz.role_denied', resourceType: 'route', resourceId: 'POST /claims/:claimId/messages', outcome: 'denied' })
+    return c.json({ error: 'forbidden' }, 403)
+  }
+  const claim = await loadAuthorizedClaim(c, c.req.valid('param').claimId, isCustomer ? 'owner-write' : 'insurer')
+  if (!claim) return c.json(notFound, 404)
+  if (claim.stage === 'Draft') return c.json({ error: 'claim_not_submitted' }, 409)
+  if ((await recentMessageCount(c.env.DB, claim.id, actor.id)) >= MESSAGES_PER_HOUR) return c.json({ error: 'rate_limited' }, 429)
+  await c.env.DB.batch([
+    messageStatement(c, claim, 'message', c.req.valid('json').body, false),
+    c.env.DB.prepare('UPDATE claims SET updated_at = ? WHERE id = ?').bind(new Date().toISOString(), claim.id),
+    auditStatement(c, { action: 'claim.message_posted', resourceType: 'claim', resourceId: claim.id, outcome: 'success' }),
+  ])
+  return c.json({ messages: await listMessages(c, claim.id) }, 201)
+})
 
 export default router

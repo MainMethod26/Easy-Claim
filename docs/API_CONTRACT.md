@@ -162,7 +162,10 @@ payout, evidence, decision/verify) and gets 403 on every claim action and on `/r
 | GET `/claims/:id/evidence` | owner or tenant staff | – | `{evidence:[{id,display_name,mime_type,size_bytes,sha256,created_at}]}` | 404 | – | – | claim detail |
 | GET `/claims/:id/evidence/:eid/verify` | owner or tenant staff | – | `{status:"VALID"\|"TAMPERED", evidenceId, expectedHash, actualHash}` | 404 | – | `evidence.integrity_verified` | insurer detail |
 | POST `/claims/:id/submit` | owner | – | `{status:"submitted", message, claimId}` | 404, 409, 422 `screening_incomplete` | Draft → Submitted | `claim.stage_changed` | `ClaimsRepository.submit` |
-| GET `/claims/:id` | owner, tenant staff (assessor, manager, insurer admin) (not Draft for staff); SUPERADMIN 404 | – | `{claim:{id,policyId,planName,tenantId,insurerName,stage,status,category,causeOfLoss,incidentDate,claimedAmountCents,payoutDestination:null\|{bankName,accountLast4},createdAt,updatedAt}}` | 404 | – | denied only | `ClaimsRepository.detail` |
+| GET `/claims/:id` | owner, tenant staff (assessor, manager, insurer admin) (not Draft for staff); SUPERADMIN 404 | – | `{claim:{id,policyId,planName,tenantId,insurerName,stage,status,category,causeOfLoss,incidentDate,claimedAmountCents,payoutDestination:null\|{bankName,accountLast4},createdAt,updatedAt,infoRequest:null\|{body,createdAt},appealReason:null\|{body,createdAt}}}` | 404 | – | denied only | `ClaimsRepository.detail` |
+| POST `/claims/:id/respond` | CUSTOMER, own claim in Info Needed | `{message 2..2000}` | – | `{status:'sent', stage:'Screening'}`; reply stored with the transition | 400, 404, 409 `not_waiting_for_you` | `claim.stage_changed` | `ClaimsRepository.respond` |
+| GET `/claims/:id/messages` | owner, the tenant's staff, its insurer admin (read) | – | – | `{messages:[{id,kind:info_request\|customer_reply\|appeal\|withdraw\|message,authorRole,mine,body,createdAt}]}` | 404 | – | `ClaimsRepository.messages` |
+| POST `/claims/:id/messages` | owner, ASSESSOR/MANAGER of the tenant (not Draft) | `{body 2..2000}` | – | 201 `{messages}`; 20 per author per claim per hour | 400, 403, 404, 409, 429 | `claim.message_posted` (never the text) | `ClaimsRepository.postMessage` |
 | GET `/claims/:id/timeline` | owner or tenant staff | – | `{claimId, currentStage, timeline:[{stage, date\|null, completed}]}` (6 main stages) | 404 | – | – | claim tracking |
 | GET `/claims/:id/decision` | owner or tenant staff | – | `{decision:"Approved"\|"Rejected"\|"pending", record:null\|{id,decidedAt,decidedByRole,reason,approvedAmountCents,rulesVersion,evidenceDigest}}` | 404 | – | – | decision card |
 | GET `/claims/:id/decision/verify` | owner or tenant staff | – | `{claimId, decisionId\|null, integrity:{status, alg, keyId, bundleDigest, recomputedDigest}}`; status `VALID`/`TAMPERED`/`UNSIGNED`/`UNKNOWN_KEY`/`UNAVAILABLE`/`NO_DECISION` | 404 | – | `decision.integrity_verified` | integrity card |
@@ -219,3 +222,13 @@ The signal is advisory. It never changes stage, status, eligibility or payout. O
 
 Nightly (`wrangler.toml` `[triggers]`): claims left in `Info Needed` for 30 days move to `Expired` (`status` `Closed`)
 through the state machine's SYSTEM edge, with a `claim.stage_changed` audit row (`actor_role` `SYSTEM`) per claim.
+
+
+## Claim hand-offs (migration 0013)
+
+- `POST /claims/:id/request-info` takes an optional `{message}` (the app always sends one). It is stored in
+  `claim_messages` in the same batch as the transition, and shown to the customer as `claim.infoRequest`.
+- `POST /claims/:id/appeal` now stores `reason`; staff see it as `claim.appealReason`.
+- `POST /claims/:id/withdraw` takes an optional `{reason}`.
+- Uploading evidence updates `claims.updated_at`, so an active customer is not expired by the Info Needed job.
+- `claim_messages` rows are append-only (triggers).

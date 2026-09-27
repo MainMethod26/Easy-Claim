@@ -77,7 +77,8 @@ const _claims = EcNavItem(label: 'Claims', icon: Icons.folder_open_outlined, sel
 const _audit = EcNavItem(label: 'Audit log', icon: Icons.receipt_long_outlined, selectedIcon: Icons.receipt_long);
 
 /// Stages an assessor prepares, and the stages that wait on a manager (Phase 3 separation of duties).
-const assessorStages = {'Submitted', 'Verified', 'Screening', 'Info Needed'};
+// Info Needed is waiting on the customer, not the assessor (it is still under All claims).
+const assessorStages = {'Submitted', 'Verified', 'Screening'};
 const managerStages = {'Review', 'Decision', 'Appeal'};
 
 /// ASSESSOR and MANAGER: claim work for their own insurer. "My queue" shows the stages the
@@ -100,8 +101,9 @@ class ClaimStaffConsole extends StatelessWidget {
           const EcNavItem(label: 'My queue', icon: Icons.inbox_outlined, selectedIcon: Icons.inbox),
           (_) => ClaimsWorklistPage(
                 title: isManager ? 'Waiting for a manager' : 'Waiting for an assessor',
-                subtitle: isManager ? 'Claims in Review, Decision or Appeal. Only managers decide, pay and re-open appeals.' : 'Claims to verify, screen and review, and those waiting on the customer.',
-                load: () async => (await repo.queue()).where((c) => mine.contains(c.stage)).toList(),
+                subtitle: isManager ? 'Claims in Review, Decision or Appeal. Only managers decide, pay and re-open appeals.' : 'Claims to verify, screen and move to review.',
+                // A rejected decision waits on the customer (appeal), not on the manager.
+                load: () async => (await repo.queue()).where((c) => mine.contains(c.stage) && !(c.stage == 'Decision' && c.status == 'Rejected')).toList(),
               ),
         ),
         (

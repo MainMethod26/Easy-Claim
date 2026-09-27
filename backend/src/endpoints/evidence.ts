@@ -134,12 +134,15 @@ router.post('/:claimId/evidence', requireRole('CUSTOMER'), validate('param', cla
 
   // Ownership, tenant and claim association are all server-derived from the authorized claim
   // and verified actor above; nothing here comes from the request body.
-  await c.env.DB.prepare(
-    `INSERT INTO evidence (id, claim_id, tenant_id, uploaded_by, storage_key, display_name, mime_type, size_bytes, sha256, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  )
-    .bind(evidenceId, claim.id, claim.tenant_id, actor.id, storageKey, displayName, declaredType, bytes.byteLength, hash, now)
-    .run()
+  // The upload also counts as activity on the claim, so a customer who is answering an
+  // information request is not expired by the Info Needed job (which reads updated_at).
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT INTO evidence (id, claim_id, tenant_id, uploaded_by, storage_key, display_name, mime_type, size_bytes, sha256, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(evidenceId, claim.id, claim.tenant_id, actor.id, storageKey, displayName, declaredType, bytes.byteLength, hash, now),
+    c.env.DB.prepare('UPDATE claims SET updated_at = ? WHERE id = ?').bind(now, claim.id),
+  ])
 
   await writeAuditEvent(c, {
     action: 'evidence.uploaded',

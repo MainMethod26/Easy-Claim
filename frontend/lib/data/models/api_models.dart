@@ -106,6 +106,12 @@ class ClaimDetail {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  /// What the insurer asked for, while the claim waits on the customer (Info Needed).
+  final String? infoRequest;
+
+  /// The customer's latest appeal reason.
+  final String? appealReason;
+
   const ClaimDetail({
     required this.id,
     required this.policyId,
@@ -122,6 +128,8 @@ class ClaimDetail {
     this.payoutAccountLast4,
     this.createdAt,
     this.updatedAt,
+    this.infoRequest,
+    this.appealReason,
   });
 
   factory ClaimDetail.fromJson(Map<String, dynamic> j) {
@@ -142,6 +150,8 @@ class ClaimDetail {
       payoutAccountLast4: dest is Map ? _str(dest['accountLast4']) : null,
       createdAt: _date(j['createdAt']),
       updatedAt: _date(j['updatedAt']),
+      infoRequest: j['infoRequest'] is Map ? _str((j['infoRequest'] as Map)['body']) : null,
+      appealReason: j['appealReason'] is Map ? _str((j['appealReason'] as Map)['body']) : null,
     );
   }
 
@@ -511,3 +521,24 @@ class TenantStats {
   factory TenantStats.fromJson(Map<String, dynamic> j) =>
       TenantStats(tenantId: _str(j['tenantId']) ?? '', name: _str(j['name']), claims: ClaimsByStage.fromJson(j['claims']));
 }
+
+/// One message on a claim (GET /claims/:id/messages). `kind` is info_request, customer_reply,
+/// appeal, withdraw or message; `mine` is true for the signed-in user's own messages.
+class ClaimMessage {
+  final String id;
+  final String kind;
+  final String authorRole;
+  final bool mine;
+  final String body;
+  final DateTime? createdAt;
+  const ClaimMessage({required this.id, required this.kind, required this.authorRole, required this.mine, required this.body, this.createdAt});
+  factory ClaimMessage.fromJson(Map<String, dynamic> j) => ClaimMessage(
+        id: _str(j['id']) ?? '',
+        kind: _str(j['kind']) ?? 'message',
+        authorRole: _str(j['authorRole']) ?? '',
+        mine: j['mine'] == true,
+        body: _str(j['body']) ?? '',
+        createdAt: _date(j['createdAt']),
+      );
+}
+
